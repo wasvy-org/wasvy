@@ -1,0 +1,13 @@
+package component:simple;
+
+/// An example world for the component to target.
+world example {
+    use wasvy:ecs/app.{commands, query};
+
+    /// An example system
+    export my-system: func();
+
+    /// This is important.
+    /// This makes it so the WASM module must implement the guest required functions by the Bevy host.
+    include wasvy:ecs/guest;
+}

@@ -3,79 +3,102 @@ package wasvy:ecs;
 /// This is the world that the bevy host implements to give ECS functionality to the WASM component.
 /// Like `register-system`.
 world host {
-	import functions;
+	import app;
 }
 
 /// This is the world that the WASM guest implements.
-/// These are basically the mandatory functons that a WASM component
+///
+/// These are basically the mandatory functions that a WASM component
 /// must have for it to be called from the Bevy host.
 world guest {
+	import app;
+
 	/// This function is called once on startup for each WASM component (Not Bevy component).
 	export setup: func();
 }
 
-interface functions {
-	use types.{entity, query, component-id, component, query-result, query-result-entry};
-	register-system: func(name: string, queries: list<query>);
-	register-component: func(path: string) -> component-id;
-	get-component-id: func(path: string) -> option<component-id>;
-	spawn: func(components: list<component>) -> entity;
+interface app {
+	/// A mod, similar to bevy::App
+	resource app {
+		/// Construct an new App: an interface through which mods may interact with the bevy world.
+		///
+		/// Each mod may only do this once inside its setup function call. Attempting to do this
+		/// twice or outside setup will trap.
+		constructor();
 
-	/// For some reason if the type isn't being used by a function, cargo component doesn't generate a binding for it.
-	/// so this function is only to accumulate types so they are generated.
-	this-function-does-nothing: func(entry: query-result-entry, query-result: query-result);
-}
+		/// Adds systems to the mod
+		add-systems: func(
+			schedule: schedule,
+			systems: list<system>,
+		);
+	}
 
-interface types {
-	type component-id = u64;
-	type entity = u64;
+	/// An interface with which to define a new system for the host
+	///
+	/// Usage:
+	/// 1. Construct a new system, giving it a unique name
+	/// 2. Add system-params by calling 0 or more add-* methods
+	/// 3. Order the system relative to others
+	/// 4. Add the system to a schedule
+	resource system {
+		/// Constructs a new system. Use the same name as exported in
+		/// the guest world, otherwise the host won't be able to find it.
+		constructor(name: string);
 
-	/// This is the aggregation of all the results that come back from bevy Query.
-	///
-	/// For example if we take the following bevy system:
-	///
-	/// fn system(first_query: Query<(&Name, &Transform)>) {}
-	///
-	/// query-result is equal to `first_query`
-	type query-result = list<query-result-entry>;
+		/// Adds a commands system-param
+		add-commands: func();
 
-	/// This is the translation object between bevy Rust `Component` and a bevy `Component` that is registerd in WASM.
-	///
-	/// `value` is the JSON serialized version of the actual component that is being passed between WASM and Bevy.
+		/// Adds a query system-param
+		add-query: func(query: list<query-for>);
+
+		/// Schedules this system be run before another system
+		before: func(other: borrow<system>);
+
+		/// Schedules this system be run after another system
+		after: func(other: borrow<system>);
+	}
+
+	/// A commands system param
+	resource commands {
+		spawn: func(components: list<component>);
+		// etc
+	}
+
+	/// A query system param
+	resource query {
+		/// Evaluates and returns the next query results
+		iter: func() -> option<list<component>>;
+	}
+
+	resource component {
+		/// Gets the value of a component
+		get: func() -> serialized-component;
+
+		/// Sets the value of a component
+		///
+		/// Traps if this component was not declared as mutable
+		set: func(value: serialized-component);
+	}
+
+	/// A fully-qualified type name
+	type type-name = string;
+
+	/// JSON serialized version of the actual component that is being passed between WASM and Bevy.
 	/// So for every instance of `component` make sure you deserialize it yourself to the struct that it actually is.
-	record component {
-		path: string,
-		value: string
+	///
+	/// Note: for components returned by query::optional this is an option<t>
+	type serialized-component = string;
+
+	enum schedule {
+		/// Runs during the bevy Update schedule
+		update
 	}
 
-	/// This is the translation object between bevy `Query` and WASM query that can be used for registering systems.
-	///
-	/// For example if we had the following bevy `Query`: `Query<&Name, Without<Transform>`
-	/// It would look like this as a WASM `query` object:
-	/// `query {
-	///		components: [functions:get-component-id("Name")],
-	///		without: [functions:get-component-id("Transform")],
-	/// }
-	///
-	/// # Important
-	///
-	/// The index for each component-id you put in `components` matters because that will be the order
-	/// of retrival from the param argument in your system.
-	record query {
-		components: list<string>,
-		%with: list<string>,
-		without: list<string>
-	}
-
-	/// This is one row for a query parameter
-	///
-	/// For example if we take the following bevy system:
-	///
-	/// fn system(first_query: Query<(&Name, &Transform)>) {}
-	///
-	/// query-result-entry is equal to one entry in `first_query`
-	record query-result-entry {
-		components: list<component>,
-		entity: entity
+	variant query-for {
+		ref(type-name),
+		mut(type-name),
+		optional(type-name),
+		%with(type-name),
+		without(type-name),
 	}
 }

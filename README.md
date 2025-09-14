@@ -58,7 +58,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         // Adding the [`WasvyHostPlugin`] is all you need ;)
-        .add_plugins(ModloaderPlugin)
+        .add_plugins(ModloaderPlugin::default())
         .add_systems(Startup, startup)
         .run();
 }

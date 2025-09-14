@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy::{DefaultPlugins, app::App};
-use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 
 // Get started by importing the prelude
 use wasvy::prelude::*;
@@ -10,10 +9,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins((
             // Next, add the [`ModloaderPlugin`] ;)
-            ModloaderPlugin,
-            // Plus some helpers for the example
-            EguiPlugin,
-            WorldInspectorPlugin::new(),
+            ModloaderPlugin::default(),
         ))
         .add_systems(Startup, startup)
         .run();

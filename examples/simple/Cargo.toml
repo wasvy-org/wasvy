@@ -12,10 +12,11 @@ repository.workspace = true
 readme.workspace = true
 
 [dependencies]
-bevy.workspace = true
+bevy_reflect.workspace = true
+bevy_transform.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-wit-bindgen-rt.workspace = true
+wit-bindgen.workspace = true
 
 [lib]
 crate-type = ["cdylib"]
@@ -23,7 +24,9 @@ crate-type = ["cdylib"]
 [package.metadata.component]
 package = "component:simple"
 
-[package.metadata.component.dependencies]
+[package.metadata.component.target]
+path = "wit"
+world = "example"
 
 [package.metadata.component.target.dependencies]
 "wasvy:ecs" = { path = "wit/deps/wasvy-ecs" }

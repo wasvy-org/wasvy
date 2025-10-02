@@ -1,12 +1,6 @@
 use std::mem::replace;
 
-use crate::{
-    asset::ModAsset,
-    engine::Engine,
-    runner::{ConfigRunSystem, Runner},
-};
-
-use super::*;
+use anyhow::{Result, bail};
 use bevy::{
     asset::AssetId,
     ecs::{
@@ -14,13 +8,22 @@ use bevy::{
         error::Result as BevyResult,
         reflect::AppTypeRegistry,
         system::{
-            BoxedSystem, Commands, IntoSystem, Local, LocalBuilder, ParamBuilder,
+            BoxedSystem, Commands as BevyCommands, IntoSystem, Local, LocalBuilder, ParamBuilder,
             SystemParamBuilder,
         },
         world::{FromWorld, World},
     },
     log::trace,
     prelude::{Assets, Res},
+};
+use wasmtime::component::{Resource, Val};
+
+use crate::{
+    asset::ModAsset,
+    bindings::wasvy::ecs::app::{HostSystem, QueryFor},
+    engine::Engine,
+    host::{Commands, WasmHost},
+    runner::{ConfigRunSystem, Runner, State},
 };
 
 pub struct System {
@@ -85,7 +88,7 @@ fn system_runner(
     assets: Res<Assets<ModAsset>>,
     engine: Res<Engine>,
     type_registry: Res<AppTypeRegistry>,
-    mut commands: Commands,
+    mut commands: BevyCommands,
     // TODO: mut resources: FilteredResourcesMut,
     // TODO: mut query: Query<FilteredEntityMut>,
 ) -> BevyResult {

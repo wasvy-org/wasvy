@@ -1,8 +1,11 @@
+use anyhow::{Result, bail};
 use bevy::log::trace;
+use wasmtime::component::Resource;
 
-use crate::component::insert_component;
-
-use super::*;
+use crate::{
+    bindings::wasvy::ecs::app::HostCommands, component::insert_component, host::WasmHost,
+    runner::State,
+};
 
 pub struct Commands;
 

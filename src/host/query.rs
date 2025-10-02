@@ -1,4 +1,10 @@
-use super::*;
+use anyhow::{Result, bail};
+use wasmtime::component::Resource;
+
+use crate::{
+    bindings::wasvy::ecs::app::HostQuery,
+    host::{Component, WasmHost},
+};
 
 pub struct Query;
 

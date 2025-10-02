@@ -2,7 +2,7 @@ use std::sync::Mutex;
 
 use crate::{
     asset::{ModAsset, ModAssetLoader},
-    component_registry::WasmComponentRegistry,
+    component::WasmComponentRegistry,
     engine::{Engine, Linker, create_linker},
     systems::run_setup,
 };
@@ -41,7 +41,13 @@ impl ModloaderPlugin {
     where
         F: FnMut(&mut Linker),
     {
-        let inner = self.0.get_mut().unwrap().as_mut().unwrap();
+        let inner = self
+            .0
+            .get_mut()
+            .expect("ModloaderPlugin is not locked")
+            .as_mut()
+            .expect("ModloaderPlugin is not built");
+
         f(&mut inner.linker);
         self
     }
@@ -49,15 +55,18 @@ impl ModloaderPlugin {
 
 impl Plugin for ModloaderPlugin {
     fn build(&self, app: &mut App) {
-        let Inner { engine, linker } = self.0.lock().unwrap().take().unwrap();
+        let Inner { engine, linker } = self
+            .0
+            .lock()
+            .expect("ModloaderPlugin is not locked")
+            .take()
+            .expect("ModloaderPlugin is not built");
 
         app.init_asset::<ModAsset>()
-            .register_asset_loader(ModAssetLoader { linker });
-
-        app.insert_resource(engine)
-            .init_resource::<WasmComponentRegistry>();
-
-        app.add_systems(PreUpdate, run_setup);
+            .register_asset_loader(ModAssetLoader { linker })
+            .insert_resource(engine)
+            .init_resource::<WasmComponentRegistry>()
+            .add_systems(PreUpdate, run_setup);
 
         let asset_plugins = app.get_added_plugins::<AssetPlugin>();
         let asset_plugin = asset_plugins
@@ -70,7 +79,7 @@ impl Plugin for ModloaderPlugin {
             let resolved_watch_setting = app
                 .world()
                 .get_resource::<AssetServer>()
-                .unwrap()
+                .expect("ModloaderPlugin requires AssetPlugin to be loaded.")
                 .watching_for_changes();
 
             if !user_overrode_watch_setting && !resolved_watch_setting {

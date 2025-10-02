@@ -1,5 +1,5 @@
 pub mod asset;
-pub mod component_registry;
+pub mod component;
 pub mod engine;
 pub mod host;
 pub mod mods;

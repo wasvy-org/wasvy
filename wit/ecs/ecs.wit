@@ -60,7 +60,7 @@ interface app {
 
 	/// A commands system param
 	resource commands {
-		spawn: func(components: list<component>);
+		spawn: func(components: list<tuple<type-path, serialized-component>>);
 		// etc
 	}
 
@@ -81,7 +81,7 @@ interface app {
 	}
 
 	/// A fully-qualified type name
-	type type-name = string;
+	type type-path = string;
 
 	/// JSON serialized version of the actual component that is being passed between WASM and Bevy.
 	/// So for every instance of `component` make sure you deserialize it yourself to the struct that it actually is.
@@ -95,10 +95,10 @@ interface app {
 	}
 
 	variant query-for {
-		ref(type-name),
-		mut(type-name),
-		optional(type-name),
-		%with(type-name),
-		without(type-name),
+		ref(type-path),
+		mut(type-path),
+		optional(type-path),
+		%with(type-path),
+		without(type-path),
 	}
 }

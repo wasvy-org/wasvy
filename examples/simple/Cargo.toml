@@ -12,8 +12,8 @@ repository.workspace = true
 readme.workspace = true
 
 [dependencies]
-bevy_reflect.workspace = true
 bevy_transform.workspace = true
+bevy_math.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 wit-bindgen.workspace = true

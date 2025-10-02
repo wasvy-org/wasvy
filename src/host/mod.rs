@@ -1,5 +1,8 @@
 pub(crate) use anyhow::bail;
-pub(crate) use wasmtime::{Result, component::Resource};
+pub(crate) use wasmtime::{
+    Result,
+    component::{Resource, Val},
+};
 
 pub(crate) use crate::{
     bindings::wasvy::ecs::app::*,
@@ -43,12 +46,19 @@ impl WasmHost {
         self.data = data;
     }
 
+    pub(crate) fn table(&mut self) -> &mut ResourceTable {
+        &mut self.table
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.set_data(Data::uninitialized());
+        self.table = ResourceTable::new();
+    }
+
     /// Access to the data contained in the [`WasmHost`]
     pub(crate) fn access(&mut self) -> State<'_> {
         let table = &mut self.table;
-        self.data
-            .access(table)
-            .expect("Attempting to access uninitialized WasmHost")
+        self.data.access(table).expect("WasmHost to be initialized")
     }
 }
 

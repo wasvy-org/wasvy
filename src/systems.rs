@@ -1,60 +1,76 @@
-use bevy::{ecs::system::SystemChangeTick, prelude::*};
-
-use crate::{
-    asset::ModAsset,
-    engine::Engine,
-    mods::Mod,
-    runner::{ConfigSetup, Runner},
+use bevy::{
+    ecs::system::{SystemParam, SystemState},
+    prelude::*,
 };
 
-pub(crate) fn run_setup(
-    tick: SystemChangeTick,
-    mut events: MessageReader<AssetEvent<ModAsset>>,
-    mut assets: ResMut<Assets<ModAsset>>,
-    mut schedules: ResMut<Schedules>,
-    engine: Res<Engine>,
-    mut commands: Commands,
-    mods: Query<(Entity, Option<&Name>, &Mod)>,
-) {
+use crate::{asset::ModAsset, mods::Mod};
+
+/// Group all the system params we neeed to allow shared access from one &mut world
+#[derive(SystemParam)]
+pub struct Setup<'w, 's> {
+    events: MessageReader<'w, 's, AssetEvent<ModAsset>>,
+    assets: ResMut<'w, Assets<ModAsset>>,
+    mods: Query<'w, 's, (Entity, Option<&'static Name>, &'static Mod)>,
+}
+
+pub(crate) fn run_setup(mut world: &mut World, param: &mut SystemState<Setup>) {
+    let Setup {
+        mut events,
+        mut assets,
+        mods,
+    } = param.get_mut(world);
+
+    // We need exclusive world access in order to setup mods, so store them here
+    let mut setup = Vec::new();
+
     for event in events.read() {
-        match event {
-            AssetEvent::LoadedWithDependencies { id } => {
-                let asset = assets.get_mut(*id).unwrap();
+        // Load both new assets and hot-reloaded ones
+        let AssetEvent::LoadedWithDependencies { id } = event else {
+            continue;
+        };
 
-                // Find the mod entity matching this asset
-                let Some((entity, name, _)) = mods.iter().find(|&(_, _, m)| m.asset.id() == *id)
-                else {
-                    warn!(
-                        "Loaded wasm mod, but missing it's entity. Did you accidentally load a wasm asset?"
-                    );
-                    continue;
-                };
+        let Some(asset) = assets.get_mut_untracked(*id).map(ModAsset::take) else {
+            continue;
+        };
 
-                let name = name
-                    .and_then(|name| Some(name.as_str()))
-                    .unwrap_or("unknown");
+        // Find the mod entity matching this asset
+        let Some((entity, name, _)) = mods.iter().find(|&(_, _, m)| m.asset.id() == *id) else {
+            warn!(
+                "Loaded wasm mod asset, but missing its entity. Did you accidentally load a wasm asset?"
+            );
+            continue;
+        };
 
-                let asset_version = tick.this_run();
-                asset.version = asset_version;
+        let name = name
+            .map(|name| name.as_str())
+            .unwrap_or("unknown")
+            .to_string();
 
-                let mut runner = Runner::new(&engine);
-                match asset.setup(
-                    &mut runner,
-                    ConfigSetup {
-                        schedules: &mut schedules,
-                        asset_id: &id,
-                        asset_version,
-                        mod_name: &name,
-                    },
-                ) {
-                    Ok(()) => info!("Successfully loaded mod \"{}\"", name),
-                    Err(err) => {
-                        commands.entity(entity).despawn();
-                        error!("Error loading mod \"{}\":\n{:?}", name, err)
-                    }
-                }
+        setup.push((asset, *id, entity, name));
+    }
+
+    for (asset, asset_id, entity, name) in setup {
+        // Setup mods with exclusive world access
+        let result = asset.initiate(&mut world, &asset_id, &name);
+
+        let Setup { mut assets, .. } = param.get_mut(world);
+        match result {
+            Ok(initiated_asset) => {
+                info!("Successfully loaded mod \"{}\"", name);
+
+                // Replace placeholder
+                assets
+                    .get_mut(asset_id)
+                    .expect("asset placeholder not to have moved")
+                    .put(initiated_asset);
             }
-            _ => {}
+            Err(err) => {
+                error!("Error loading mod \"{}\":\n{:?}", name, err);
+
+                // Remove placeholder asset and the entity holding a handle to it
+                assets.remove(asset_id);
+                world.despawn(entity);
+            }
         }
     }
 }

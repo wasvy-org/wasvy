@@ -97,7 +97,6 @@ interface app {
 	variant query-for {
 		ref(type-path),
 		mut(type-path),
-		optional(type-path),
 		%with(type-path),
 		without(type-path),
 	}

@@ -1,6 +1,6 @@
 use std::alloc::Layout;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use bevy::{
     ecs::{
         component::{ComponentDescriptor, ComponentId},
@@ -45,38 +45,7 @@ struct InsertWasmComponent {
 
 impl Command for InsertWasmComponent {
     fn apply(self, world: &mut World) {
-        // Get an existing id if it exists
-        let component_registry = world.get_resource_or_init::<WasmComponentRegistry>();
-        let component_id = if let Some(id) = component_registry.get(&self.type_path) {
-            id.clone()
-        }
-        // Register it if necessary
-        else {
-            // Safety:
-            // - the drop fn is usable on this component type
-            // - the component is safe to access from any thread
-            let descriptor = unsafe {
-                ComponentDescriptor::new_with_layout(
-                    self.type_path.clone(),
-                    WasmComponent::STORAGE_TYPE,
-                    Layout::new::<WasmComponent>(),
-                    Some(|ptr| {
-                        ptr.drop_as::<WasmComponent>();
-                    }),
-                    true,
-                    WasmComponent::clone_behavior(),
-                )
-            };
-
-            let id = world.register_component_with_descriptor(descriptor);
-
-            let mut component_registry = world
-                .get_resource_mut::<WasmComponentRegistry>()
-                .expect("this command initializes it");
-            component_registry.insert(self.type_path, id);
-
-            id
-        };
+        let component_id = get_wasm_component_id(&self.type_path, world);
 
         let mut commands = world.commands();
         let mut entity_commands = commands.entity(self.entity);
@@ -115,4 +84,68 @@ pub(crate) fn insert_component(
     }
 
     Ok(())
+}
+
+pub(crate) fn get_component_id(type_path: &str, mut world: &mut World) -> Result<ComponentId> {
+    let type_registry = world
+        .get_resource::<AppTypeRegistry>()
+        .expect("there to be an AppTypeRegistry")
+        .read();
+
+    // First try finding types known by bevy (inserted as concrete types)
+    if let Some(type_registration) = type_registry.get_with_type_path(&type_path) {
+        let type_id = type_registration.type_id();
+        let component_id = world
+            .components()
+            .get_id(type_id)
+            .ok_or(anyhow!("{type_path} is not a component"))?;
+
+        Ok(component_id)
+    }
+    // Otherwise handle guest types (inserted as json strings)
+    else {
+        drop(type_registry);
+
+        let component_id = get_wasm_component_id(type_path, &mut world);
+
+        Ok(component_id)
+    }
+}
+
+fn get_wasm_component_id(type_path: &str, world: &mut World) -> ComponentId {
+    let component_registry = world.get_resource_or_init::<WasmComponentRegistry>();
+
+    // Get an existing id if it exists
+    if let Some(id) = component_registry.get(type_path) {
+        *id
+    }
+    // Register it if necessary
+    else {
+        let type_path = type_path.to_string();
+
+        // Safety:
+        // - the drop fn is usable on this component type
+        // - the component is safe to access from any thread
+        let descriptor = unsafe {
+            ComponentDescriptor::new_with_layout(
+                type_path.clone(),
+                WasmComponent::STORAGE_TYPE,
+                Layout::new::<WasmComponent>(),
+                Some(|ptr| {
+                    ptr.drop_as::<WasmComponent>();
+                }),
+                true,
+                WasmComponent::clone_behavior(),
+            )
+        };
+
+        let id = world.register_component_with_descriptor(descriptor);
+
+        let mut component_registry = world
+            .get_resource_mut::<WasmComponentRegistry>()
+            .expect("this method initialized it");
+        component_registry.insert(type_path, id);
+
+        id
+    }
 }

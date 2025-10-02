@@ -1,5 +1,3 @@
-use std::mem::replace;
-
 use anyhow::{Result, bail};
 use bevy::{
     asset::AssetId,
@@ -9,9 +7,9 @@ use bevy::{
         reflect::AppTypeRegistry,
         system::{
             BoxedSystem, Commands as BevyCommands, IntoSystem, Local, LocalBuilder, ParamBuilder,
-            SystemParamBuilder,
+            ParamSet, ParamSetBuilder, Query as BevyQuery, SystemParamBuilder,
         },
-        world::{FromWorld, World},
+        world::{FilteredEntityMut, FromWorld, World},
     },
     log::trace,
     prelude::{Assets, Res},
@@ -22,7 +20,7 @@ use crate::{
     asset::ModAsset,
     bindings::wasvy::ecs::app::{HostSystem, QueryFor},
     engine::Engine,
-    host::{Commands, WasmHost},
+    host::{Commands, Query, WasmHost, create_query_builder},
     runner::{ConfigRunSystem, Runner, State},
 };
 
@@ -30,10 +28,6 @@ pub struct System {
     name: String,
     params: Vec<Param>,
     built: bool,
-}
-
-enum Param {
-    Commands,
 }
 
 impl System {
@@ -49,20 +43,29 @@ impl System {
         }
         self.built = true;
 
+        // Used internally by the system
+        let input = Input {
+            mod_name: mod_name.to_string(),
+            system_name: self.name.clone(),
+            asset_id: asset_id.clone(),
+            asset_version: asset_version.clone(),
+            param_types: self.params.iter().map(Param::into_type).collect(),
+        };
+
+        // Generate the queries necessary to run this system
+        let mut queries = Vec::with_capacity(self.params.len());
+        for items in self.params.iter().filter_map(Param::filter_query) {
+            queries.push(create_query_builder(items, world)?);
+        }
+
         let system = (
-            LocalBuilder(Input {
-                mod_name: mod_name.to_string(),
-                system_name: self.name.clone(),
-                asset_id: asset_id.clone(),
-                asset_version: asset_version.clone(),
-                params: replace(&mut self.params, Vec::new()),
-            }),
+            LocalBuilder(input),
             ParamBuilder,
             ParamBuilder,
             ParamBuilder,
             ParamBuilder,
             // TODO: FilteredResourcesMutParamBuilder::new(|builder| {}),
-            // TODO: QueryParamBuilder::new_box(|builder| {}),
+            ParamSetBuilder(queries),
         )
             .build_state(&mut world)
             .build_system(system_runner)
@@ -72,6 +75,17 @@ impl System {
 
         Ok(boxed_system)
     }
+
+    fn add_param(host: &mut WasmHost, system: Resource<System>, param: Param) -> Result<()> {
+        let State::Setup { table, .. } = host.access() else {
+            bail!("Systems can only be modified in a setup function")
+        };
+
+        let system = table.get_mut(&system)?;
+        system.params.push(param);
+
+        Ok(())
+    }
 }
 
 #[derive(FromWorld)]
@@ -80,7 +94,7 @@ struct Input {
     system_name: String,
     asset_id: AssetId<ModAsset>,
     asset_version: Tick,
-    params: Vec<Param>,
+    param_types: Vec<ParamType>,
 }
 
 fn system_runner(
@@ -90,7 +104,7 @@ fn system_runner(
     type_registry: Res<AppTypeRegistry>,
     mut commands: BevyCommands,
     // TODO: mut resources: FilteredResourcesMut,
-    // TODO: mut query: Query<FilteredEntityMut>,
+    mut queries: ParamSet<Vec<BevyQuery<FilteredEntityMut>>>,
 ) -> BevyResult {
     // Skip no longer loaded mods
     let Some(asset) = assets.get(input.asset_id) else {
@@ -104,13 +118,7 @@ fn system_runner(
 
     let mut runner = Runner::new(&engine);
 
-    // The mod's system param are wit resources we need to initialize first
-    let mut params = Vec::with_capacity(input.params.len());
-    for param in input.params.iter() {
-        params.push(Val::Resource(match param {
-            Param::Commands => runner.new_resource(Commands)?,
-        }));
-    }
+    let params = initialize_params(&input.param_types, &mut runner)?;
 
     trace!(
         "Running system \"{}\" from \"{}\"",
@@ -122,11 +130,56 @@ fn system_runner(
         ConfigRunSystem {
             commands: &mut commands,
             type_registry: &type_registry,
+            queries: &mut queries,
         },
         &params,
     )?;
 
     Ok(())
+}
+
+/// A system param (what a mod system requests as parameters)
+enum Param {
+    Commands,
+    Query(Vec<QueryFor>),
+}
+
+impl Param {
+    fn into_type(&self) -> ParamType {
+        match self {
+            Param::Commands => ParamType::Commands,
+            Param::Query(_) => ParamType::Query,
+        }
+    }
+
+    fn filter_query(&self) -> Option<&Vec<QueryFor>> {
+        match self {
+            Param::Query(items) => Some(items),
+            _ => None,
+        }
+    }
+}
+
+enum ParamType {
+    Commands,
+    Query,
+}
+
+fn initialize_params(source: &[ParamType], runner: &mut Runner) -> Result<Vec<Val>> {
+    let mut params = Vec::with_capacity(source.len());
+    let mut query_index = 0;
+    for param in source.iter() {
+        let resource = match param {
+            ParamType::Commands => runner.new_resource(Commands),
+            ParamType::Query => {
+                let index = query_index;
+                query_index += 1;
+                runner.new_resource(Query::new(index))
+            }
+        }?;
+        params.push(Val::Resource(resource));
+    }
+    Ok(params)
 }
 
 impl HostSystem for WasmHost {
@@ -143,18 +196,11 @@ impl HostSystem for WasmHost {
     }
 
     fn add_commands(&mut self, system: Resource<System>) -> Result<()> {
-        let State::Setup { table, .. } = self.access() else {
-            bail!("Systems can only be modified in a setup function")
-        };
-
-        let system = table.get_mut(&system)?;
-        system.params.push(Param::Commands);
-
-        Ok(())
+        System::add_param(self, system, Param::Commands)
     }
 
-    fn add_query(&mut self, _self: Resource<System>, _query: Vec<QueryFor>) -> Result<()> {
-        bail!("Unimplemented")
+    fn add_query(&mut self, system: Resource<System>, query: Vec<QueryFor>) -> Result<()> {
+        System::add_param(self, system, Param::Query(query))
     }
 
     fn before(&mut self, _self: Resource<System>, _other: Resource<System>) -> Result<()> {

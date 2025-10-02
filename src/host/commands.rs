@@ -18,6 +18,7 @@ impl HostCommands for WasmHost {
         let State::RunSystem {
             mut commands,
             type_registry,
+            ..
         } = self.access()
         else {
             bail!("commands resource is only accessible when running systems")

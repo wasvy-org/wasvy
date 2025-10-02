@@ -10,7 +10,7 @@ mod bindings {
 use bevy_math::Vec3;
 use bevy_transform::components::Transform;
 use bindings::{
-    wasvy::ecs::app::{App, Schedule, System},
+    wasvy::ecs::app::{App, Query, QueryFor, Schedule, System},
     *,
 };
 use serde::{Deserialize, Serialize};
@@ -22,14 +22,21 @@ impl Guest for GuestComponent {
         // Define a new system that queries for entities with a Transform and a Marker component
         let my_system = System::new("my-system");
         my_system.add_commands();
+        my_system.add_query(&[QueryFor::Ref("simple::MyStruct".to_string())]);
 
         // Register the system to run in the Update schedule
         let app = App::new();
         app.add_systems(Schedule::Update, vec![my_system]);
     }
 
-    fn my_system(commands: Commands) -> () {
+    fn my_system(commands: Commands, query: Query) -> () {
         println!("Running my-system");
+
+        let mut count = 0;
+        while let Some(_components) = query.iter() {
+            count += 1;
+        }
+        println!("query entity count {count}");
 
         #[derive(Serialize, Deserialize)]
         struct MyStruct {

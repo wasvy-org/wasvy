@@ -17,35 +17,96 @@ use crate::{
 pub struct Query {
     index: usize,
     position: usize,
+    components: Vec<QueryForComponent>,
 }
 
 impl Query {
-    pub(crate) fn new(index: usize) -> Self {
-        Self { index, position: 0 }
+    /// Generate a new query.
+    ///
+    /// Pass the index of the query that should be used from the param set, and components
+    pub(crate) fn new(index: usize, components: Vec<QueryForComponent>) -> Self {
+        Self {
+            index,
+            position: 0,
+            components,
+        }
     }
 }
 
 impl HostQuery for WasmHost {
-    fn iter(&mut self, query: Resource<Query>) -> Result<Option<Vec<Resource<Component>>>> {
-        let State::RunSystem { table, queries, .. } = self.access() else {
-            bail!("Systems can only be instantiated in a setup function")
+    fn iter(&mut self, query_res: Resource<Query>) -> Result<Option<Vec<Resource<Component>>>> {
+        let State::RunSystem {
+            table,
+            queries,
+            type_registry,
+            component_registry,
+            ..
+        } = self.access()
+        else {
+            bail!("Query can only be accessed in systems")
         };
 
-        let query = table.get_mut(&query)?;
+        let query = table.get_mut(&query_res)?;
 
-        let next = queries
-            .get_mut(query.index)
-            .iter()
-            .nth(query.position)
-            .map(|_item| Vec::new());
-
+        let position = query.position;
         query.position += 1;
 
-        Ok(next)
+        let bevy_query = queries.get_mut(query.index);
+        let Some(entity) = bevy_query.iter().nth(position) else {
+            return Ok(None);
+        };
+
+        // query must be dropped in order for us to be able to push new resources onto the table
+        let query_index = query.index;
+        let components = query.components.clone();
+
+        let mut resources = Vec::with_capacity(components.len());
+        for component in components.iter() {
+            let resource = Component::new(
+                query_index,
+                &entity,
+                component,
+                type_registry,
+                component_registry,
+            )?;
+            let resource = table.push_child(resource, &query_res)?;
+            resources.push(resource);
+        }
+
+        Ok(Some(resources))
     }
 
-    fn drop(&mut self, _rep: Resource<Query>) -> Result<()> {
+    fn drop(&mut self, query: Resource<Query>) -> Result<()> {
+        // Will produce an error if any Components returned from iter() are still in use
+        self.table().delete(query)?;
+
         Ok(())
+    }
+}
+
+/// Needed to at runtime to construct the Components returned from iter() on a query
+///
+/// Missing query filters (with and without) since these are not relevant
+#[derive(Clone)]
+pub(crate) enum QueryForComponent {
+    Ref { id: ComponentId, type_path: String },
+    Mut { id: ComponentId, type_path: String },
+}
+
+impl QueryForComponent {
+    pub(crate) fn new(original: &QueryFor, world: &mut World) -> Result<Option<Self>> {
+        Ok(match original {
+            QueryFor::Ref(type_path) => Some(Self::Ref {
+                id: get_component_id(type_path, world)?,
+                type_path: type_path.clone(),
+            }),
+            QueryFor::Mut(type_path) => Some(Self::Mut {
+                id: get_component_id(type_path, world)?,
+                type_path: type_path.clone(),
+            }),
+            QueryFor::With(_) => None,
+            QueryFor::Without(_) => None,
+        })
     }
 }
 

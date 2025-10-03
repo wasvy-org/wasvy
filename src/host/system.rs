@@ -19,8 +19,9 @@ use wasmtime::component::{Resource, Val};
 use crate::{
     asset::ModAsset,
     bindings::wasvy::ecs::app::{HostSystem, QueryFor},
+    component::WasmComponentRegistry,
     engine::Engine,
-    host::{Commands, Query, WasmHost, create_query_builder},
+    host::{Commands, Query, QueryForComponent, WasmHost, create_query_builder},
     runner::{ConfigRunSystem, Runner, State},
 };
 
@@ -43,13 +44,18 @@ impl System {
         }
         self.built = true;
 
+        let mut built_params = Vec::new();
+        for param in self.params.iter() {
+            built_params.push(param.build(world)?);
+        }
+
         // Used internally by the system
         let input = Input {
             mod_name: mod_name.to_string(),
             system_name: self.name.clone(),
             asset_id: asset_id.clone(),
             asset_version: asset_version.clone(),
-            param_types: self.params.iter().map(Param::into_type).collect(),
+            built_params,
         };
 
         // Generate the queries necessary to run this system
@@ -60,6 +66,7 @@ impl System {
 
         let system = (
             LocalBuilder(input),
+            ParamBuilder,
             ParamBuilder,
             ParamBuilder,
             ParamBuilder,
@@ -94,7 +101,7 @@ struct Input {
     system_name: String,
     asset_id: AssetId<ModAsset>,
     asset_version: Tick,
-    param_types: Vec<ParamType>,
+    built_params: Vec<BuiltParam>,
 }
 
 fn system_runner(
@@ -102,6 +109,7 @@ fn system_runner(
     assets: Res<Assets<ModAsset>>,
     engine: Res<Engine>,
     type_registry: Res<AppTypeRegistry>,
+    component_registry: Res<WasmComponentRegistry>,
     mut commands: BevyCommands,
     // TODO: mut resources: FilteredResourcesMut,
     mut queries: ParamSet<Vec<BevyQuery<FilteredEntityMut>>>,
@@ -118,7 +126,7 @@ fn system_runner(
 
     let mut runner = Runner::new(&engine);
 
-    let params = initialize_params(&input.param_types, &mut runner)?;
+    let params = initialize_params(&input.built_params, &mut runner)?;
 
     trace!(
         "Running system \"{}\" from \"{}\"",
@@ -130,6 +138,7 @@ fn system_runner(
         ConfigRunSystem {
             commands: &mut commands,
             type_registry: &type_registry,
+            component_registry: &component_registry,
             queries: &mut queries,
         },
         &params,
@@ -145,11 +154,19 @@ enum Param {
 }
 
 impl Param {
-    fn into_type(&self) -> ParamType {
-        match self {
-            Param::Commands => ParamType::Commands,
-            Param::Query(_) => ParamType::Query,
-        }
+    fn build(&self, world: &mut World) -> Result<BuiltParam> {
+        Ok(match self {
+            Param::Commands => BuiltParam::Commands,
+            Param::Query(original_items) => {
+                let mut items = Vec::new();
+                for original in original_items {
+                    if let Some(item) = QueryForComponent::new(original, world)? {
+                        items.push(item);
+                    }
+                }
+                BuiltParam::Query(items)
+            }
+        })
     }
 
     fn filter_query(&self) -> Option<&Vec<QueryFor>> {
@@ -160,21 +177,22 @@ impl Param {
     }
 }
 
-enum ParamType {
+/// A system param containing all the info needed by the system at runtime
+enum BuiltParam {
     Commands,
-    Query,
+    Query(Vec<QueryForComponent>),
 }
 
-fn initialize_params(source: &[ParamType], runner: &mut Runner) -> Result<Vec<Val>> {
+fn initialize_params(source: &[BuiltParam], runner: &mut Runner) -> Result<Vec<Val>> {
     let mut params = Vec::with_capacity(source.len());
     let mut query_index = 0;
     for param in source.iter() {
         let resource = match param {
-            ParamType::Commands => runner.new_resource(Commands),
-            ParamType::Query => {
+            BuiltParam::Commands => runner.new_resource(Commands),
+            BuiltParam::Query(components) => {
                 let index = query_index;
                 query_index += 1;
-                runner.new_resource(Query::new(index))
+                runner.new_resource(Query::new(index, components.clone()))
             }
         }?;
         params.push(Val::Resource(resource));

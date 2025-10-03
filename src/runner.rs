@@ -13,7 +13,10 @@ use bevy::{
 use wasmtime::component::ResourceAny;
 use wasmtime_wasi::ResourceTable;
 
-use crate::{asset::ModAsset, engine::Engine, host::WasmHost, send_sync_ptr::SendSyncPtr};
+use crate::{
+    asset::ModAsset, component::WasmComponentRegistry, engine::Engine, host::WasmHost,
+    send_sync_ptr::SendSyncPtr,
+};
 
 pub(crate) type Store = wasmtime::Store<WasmHost>;
 
@@ -66,10 +69,12 @@ impl Runner {
             Config::RunSystem(ConfigRunSystem {
                 commands,
                 type_registry,
+                component_registry,
                 queries,
             }) => Inner::RunSystem {
                 commands: SendSyncPtr::new(NonNull::from_mut(commands).cast()),
                 type_registry: SendSyncPtr::new(NonNull::from_ref(type_registry)),
+                component_registry: SendSyncPtr::new(NonNull::from_ref(component_registry)),
                 queries: SendSyncPtr::new(NonNull::from_ref(queries).cast()),
             },
         }));
@@ -99,6 +104,7 @@ enum Inner {
     RunSystem {
         commands: SendSyncPtr<Commands<'static, 'static>>,
         type_registry: SendSyncPtr<AppTypeRegistry>,
+        component_registry: SendSyncPtr<WasmComponentRegistry>,
         queries: SendSyncPtr<Queries<'static, 'static>>,
     },
 }
@@ -135,6 +141,7 @@ impl Data {
             Inner::RunSystem {
                 commands,
                 type_registry,
+                component_registry,
                 queries,
             } =>
             // Safety: Runner::use_store ensures that this always contains a valid reference
@@ -143,6 +150,7 @@ impl Data {
                 Some(State::RunSystem {
                     commands: commands.cast().as_mut(),
                     type_registry: type_registry.as_ref(),
+                    component_registry: component_registry.as_ref(),
                     queries: queries.cast().as_mut(),
                     table,
                 })
@@ -165,6 +173,7 @@ pub(crate) enum State<'a> {
         table: &'a mut ResourceTable,
         commands: &'a mut Commands<'a, 'a>,
         type_registry: &'a AppTypeRegistry,
+        component_registry: &'a WasmComponentRegistry,
         queries: &'a mut Queries<'a, 'a>,
     },
 }
@@ -184,6 +193,7 @@ pub(crate) struct ConfigSetup<'a> {
 pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
     pub(crate) commands: &'a mut Commands<'b, 'c>,
     pub(crate) type_registry: &'a AppTypeRegistry,
+    pub(crate) component_registry: &'a WasmComponentRegistry,
     pub(crate) queries:
         &'a mut ParamSet<'d, 'e, Vec<Query<'f, 'g, FilteredEntityMut<'static, 'static>>>>,
 }

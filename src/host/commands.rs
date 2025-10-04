@@ -41,7 +41,9 @@ impl HostCommands for WasmHost {
         Ok(())
     }
 
-    fn drop(&mut self, _rep: Resource<Commands>) -> Result<()> {
+    fn drop(&mut self, commands: Resource<Commands>) -> Result<()> {
+        let _ = self.table().delete(commands)?;
+
         Ok(())
     }
 }

@@ -217,7 +217,9 @@ impl HostSystem for WasmHost {
         System::add_param(self, system, Param::Query(query))
     }
 
-    fn drop(&mut self, _rep: Resource<System>) -> Result<()> {
+    fn drop(&mut self, system: Resource<System>) -> Result<()> {
+        let _ = self.table().delete(system)?;
+
         Ok(())
     }
 }

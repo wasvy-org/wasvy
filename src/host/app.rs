@@ -64,7 +64,9 @@ impl HostApp for WasmHost {
         Ok(())
     }
 
-    fn drop(&mut self, _rep: Resource<App>) -> Result<()> {
+    fn drop(&mut self, app: Resource<App>) -> Result<()> {
+        let _ = self.table().delete(app)?;
+
         Ok(())
     }
 }

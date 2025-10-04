@@ -217,14 +217,6 @@ impl HostSystem for WasmHost {
         System::add_param(self, system, Param::Query(query))
     }
 
-    fn before(&mut self, _self: Resource<System>, _other: Resource<System>) -> Result<()> {
-        bail!("Unimplemented")
-    }
-
-    fn after(&mut self, _self: Resource<System>, _other: Resource<System>) -> Result<()> {
-        bail!("Unimplemented")
-    }
-
     fn drop(&mut self, _rep: Resource<System>) -> Result<()> {
         Ok(())
     }

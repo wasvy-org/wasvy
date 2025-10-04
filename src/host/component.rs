@@ -1,12 +1,10 @@
 use anyhow::{Result, bail};
-use bevy::ecs::{
-    component::ComponentId, entity::Entity, reflect::AppTypeRegistry, world::FilteredEntityRef,
-};
+use bevy::ecs::{entity::Entity, reflect::AppTypeRegistry, world::FilteredEntityRef};
 use wasmtime::component::Resource;
 
 use crate::{
     bindings::wasvy::ecs::app::{HostComponent, SerializedComponent},
-    component::{WasmComponentRegistry, get_component, set_component},
+    component::{ComponentRef, get_component, set_component},
     host::{QueryForComponent, WasmHost},
     runner::State,
 };
@@ -15,8 +13,7 @@ pub struct Component {
     query_index: usize,
     entity: Entity,
     value: String,
-    id: ComponentId,
-    type_path: String,
+    component_ref: ComponentRef,
     mutable: bool,
     changed: bool,
 }
@@ -27,23 +24,19 @@ impl Component {
         entity: &FilteredEntityRef,
         component: &QueryForComponent,
         type_registry: &AppTypeRegistry,
-        component_registry: &WasmComponentRegistry,
     ) -> Result<Self> {
-        let (id, type_path, mutable) = match component {
-            QueryForComponent::Ref { id, type_path } => (*id, type_path, false),
-            QueryForComponent::Mut { id, type_path } => (*id, type_path, true),
+        let (component_ref, mutable) = match component {
+            QueryForComponent::Ref(component_ref) => (component_ref, false),
+            QueryForComponent::Mut(component_ref) => (component_ref, true),
         };
 
-        let value =
-            // SAFETY: the component id is registered with type_path
-            unsafe { get_component(entity, id, type_path, type_registry, component_registry)? };
+        let value = get_component(entity, component_ref.clone(), type_registry)?;
 
         Ok(Self {
             query_index,
             entity: entity.id(),
             value,
-            id,
-            type_path: type_path.clone(),
+            component_ref: component_ref.clone(),
             mutable,
             changed: false,
         })
@@ -74,7 +67,6 @@ impl HostComponent for WasmHost {
             table,
             queries,
             type_registry,
-            component_registry,
             ..
         } = self.access()
         else {
@@ -85,8 +77,7 @@ impl HostComponent for WasmHost {
             query_index,
             entity,
             value,
-            id,
-            type_path,
+            component_ref,
             changed,
             ..
         } = table.delete(component)?;
@@ -98,17 +89,7 @@ impl HostComponent for WasmHost {
         let mut query = queries.get_mut(query_index);
         let mut entity = query.get_mut(entity).expect("Component entity to be valid");
 
-        // SAFETY: the component id is registered with type_path
-        unsafe {
-            set_component(
-                &mut entity,
-                id,
-                &type_path,
-                value,
-                type_registry,
-                component_registry,
-            )?;
-        }
+        set_component(&mut entity, component_ref, value, type_registry)?;
 
         Ok(())
     }

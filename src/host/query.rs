@@ -9,7 +9,7 @@ use wasmtime::component::Resource;
 
 use crate::{
     bindings::wasvy::ecs::app::{HostQuery, QueryFor},
-    component::get_component_id,
+    component::ComponentRef,
     host::{Component, WasmHost},
     runner::State,
 };
@@ -39,7 +39,6 @@ impl HostQuery for WasmHost {
             table,
             queries,
             type_registry,
-            component_registry,
             ..
         } = self.access()
         else {
@@ -62,13 +61,7 @@ impl HostQuery for WasmHost {
 
         let mut resources = Vec::with_capacity(components.len());
         for component in components.iter() {
-            let resource = Component::new(
-                query_index,
-                &entity,
-                component,
-                type_registry,
-                component_registry,
-            )?;
+            let resource = Component::new(query_index, &entity, component, type_registry)?;
             let resource = table.push_child(resource, &query_res)?;
             resources.push(resource);
         }
@@ -84,26 +77,20 @@ impl HostQuery for WasmHost {
     }
 }
 
-/// Needed to at runtime to construct the Components returned from iter() on a query
+/// Needed to at runtime to construct the components wit resources returned from iter() on a query resource
 ///
-/// Missing query filters (with and without) since these are not relevant
+/// Note: Ignores query filters (with and without) since these are not relevant
 #[derive(Clone)]
 pub(crate) enum QueryForComponent {
-    Ref { id: ComponentId, type_path: String },
-    Mut { id: ComponentId, type_path: String },
+    Ref(ComponentRef),
+    Mut(ComponentRef),
 }
 
 impl QueryForComponent {
     pub(crate) fn new(original: &QueryFor, world: &mut World) -> Result<Option<Self>> {
         Ok(match original {
-            QueryFor::Ref(type_path) => Some(Self::Ref {
-                id: get_component_id(type_path, world)?,
-                type_path: type_path.clone(),
-            }),
-            QueryFor::Mut(type_path) => Some(Self::Mut {
-                id: get_component_id(type_path, world)?,
-                type_path: type_path.clone(),
-            }),
+            QueryFor::Ref(type_path) => Some(Self::Ref(ComponentRef::new(type_path, world)?)),
+            QueryFor::Mut(type_path) => Some(Self::Mut(ComponentRef::new(type_path, world)?)),
             QueryFor::With(_) => None,
             QueryFor::Without(_) => None,
         })
@@ -151,10 +138,18 @@ enum QueryForId {
 impl QueryForId {
     fn new(original: &QueryFor, world: &mut World) -> Result<Self> {
         Ok(match original {
-            QueryFor::Ref(type_path) => Self::Ref(get_component_id(type_path, world)?),
-            QueryFor::Mut(type_path) => Self::Mut(get_component_id(type_path, world)?),
-            QueryFor::With(type_path) => Self::With(get_component_id(type_path, world)?),
-            QueryFor::Without(type_path) => Self::Without(get_component_id(type_path, world)?),
+            QueryFor::Ref(type_path) => {
+                Self::Ref(ComponentRef::new(type_path, world)?.component_id())
+            }
+            QueryFor::Mut(type_path) => {
+                Self::Mut(ComponentRef::new(type_path, world)?.component_id())
+            }
+            QueryFor::With(type_path) => {
+                Self::With(ComponentRef::new(type_path, world)?.component_id())
+            }
+            QueryFor::Without(type_path) => {
+                Self::Without(ComponentRef::new(type_path, world)?.component_id())
+            }
         })
     }
 }

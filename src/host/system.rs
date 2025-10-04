@@ -19,7 +19,6 @@ use wasmtime::component::{Resource, Val};
 use crate::{
     asset::ModAsset,
     bindings::wasvy::ecs::app::{HostSystem, QueryFor},
-    component::WasmComponentRegistry,
     engine::Engine,
     host::{Commands, Query, QueryForComponent, WasmHost, create_query_builder},
     runner::{ConfigRunSystem, Runner, State},
@@ -70,7 +69,6 @@ impl System {
             ParamBuilder,
             ParamBuilder,
             ParamBuilder,
-            ParamBuilder,
             // TODO: FilteredResourcesMutParamBuilder::new(|builder| {}),
             ParamSetBuilder(queries),
         )
@@ -109,7 +107,6 @@ fn system_runner(
     assets: Res<Assets<ModAsset>>,
     engine: Res<Engine>,
     type_registry: Res<AppTypeRegistry>,
-    component_registry: Res<WasmComponentRegistry>,
     mut commands: BevyCommands,
     // TODO: mut resources: FilteredResourcesMut,
     mut queries: ParamSet<Vec<BevyQuery<FilteredEntityMut>>>,
@@ -138,7 +135,6 @@ fn system_runner(
         ConfigRunSystem {
             commands: &mut commands,
             type_registry: &type_registry,
-            component_registry: &component_registry,
             queries: &mut queries,
         },
         &params,

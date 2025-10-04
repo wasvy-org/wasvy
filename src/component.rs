@@ -1,4 +1,4 @@
-use std::alloc::Layout;
+use std::{alloc::Layout, any::TypeId};
 
 use anyhow::{Result, anyhow};
 use bevy::{
@@ -90,32 +90,60 @@ pub(crate) fn insert_component(
     Ok(())
 }
 
-pub(crate) fn get_component_id(type_path: &str, mut world: &mut World) -> Result<ComponentId> {
-    let type_registry = world
-        .get_resource::<AppTypeRegistry>()
-        .expect("there to be an AppTypeRegistry")
-        .read();
+/// A collection containing a [ComponentId], and a [TypeId]
+///
+/// The type id is [None] for guest components, and [Some] for concrete host types
+///
+/// Guarantees:
+/// - If type id is [None], then component_id must be of type [WasmComponent]
+/// - If type id is [Some], then it is registered in the [AppTypeRegistry]
+/// - If type id is [Some], then component_id must be of the same type
+#[derive(Clone)]
+pub(crate) struct ComponentRef {
+    component_id: ComponentId,
+    type_id: Option<TypeId>,
+}
 
-    // First try finding types known by bevy (inserted as concrete types)
-    if let Some(type_registration) = type_registry.get_with_type_path(&type_path) {
-        let type_id = type_registration.type_id();
-        let component_id = world
-            .components()
-            .get_id(type_id)
-            .ok_or(anyhow!("{type_path} is not a component"))?;
+impl ComponentRef {
+    /// See [ComponentRef]
+    pub(crate) fn new(type_path: &str, mut world: &mut World) -> Result<Self> {
+        let type_registry = world
+            .get_resource::<AppTypeRegistry>()
+            .expect("there to be an AppTypeRegistry")
+            .read();
 
-        Ok(component_id)
+        // First try finding types known by bevy (inserted as concrete types)
+        if let Some(type_registration) = type_registry.get_with_type_path(&type_path) {
+            let type_id = type_registration.type_id();
+            let component_id = world
+                .components()
+                .get_id(type_id)
+                .ok_or(anyhow!("{type_path} is not a component"))?;
+
+            Ok(Self {
+                component_id,
+                type_id: Some(type_id),
+            })
+        }
+        // Otherwise handle guest types (inserted as json strings)
+        else {
+            drop(type_registry);
+
+            let component_id = get_wasm_component_id(type_path, &mut world);
+
+            Ok(Self {
+                component_id,
+                type_id: None,
+            })
+        }
     }
-    // Otherwise handle guest types (inserted as json strings)
-    else {
-        drop(type_registry);
 
-        let component_id = get_wasm_component_id(type_path, &mut world);
-
-        Ok(component_id)
+    pub(crate) fn component_id(&self) -> ComponentId {
+        self.component_id
     }
 }
 
+/// Gets the component id given a type path, or registers a new component id for a [WasmComponent]
 fn get_wasm_component_id(type_path: &str, world: &mut World) -> ComponentId {
     let component_registry = world.get_resource_or_init::<WasmComponentRegistry>();
 
@@ -155,23 +183,21 @@ fn get_wasm_component_id(type_path: &str, world: &mut World) -> ComponentId {
 }
 
 /// Retrieves the value of a component on an entity given a json string
-///
-/// SAFETY: the component id must be registered with the provided type path
-pub(crate) unsafe fn get_component(
+pub(crate) fn get_component(
     entity: &FilteredEntityRef,
-    id: ComponentId,
-    type_path: &str,
+    component_ref: ComponentRef,
     type_registry: &AppTypeRegistry,
-    component_registry: &WasmComponentRegistry,
 ) -> Result<String> {
     let val = entity
-        .get_by_id(id)
+        .get_by_id(component_ref.component_id)
         .expect("to be able to find this component id on the entity");
 
-    let type_registry = type_registry.read();
-
     // Types that are known by bevy (inserted as concrete types)
-    if let Some(type_registration) = type_registry.get_with_type_path(type_path) {
+    if let Some(type_id) = component_ref.type_id {
+        let type_registry = type_registry.read();
+        let type_registration = type_registry
+            .get(type_id)
+            .expect("ComponentRef type_id be registered");
         let reflect_from_ptr = type_registration
             .data::<ReflectFromPtr>()
             .expect("ReflectFromPtr to be registered");
@@ -184,38 +210,31 @@ pub(crate) unsafe fn get_component(
         Ok(value)
     }
     // Handle guest types (inserted as json strings)
-    else if let Some(expected_id) = component_registry.get(type_path) {
-        assert!(expected_id == &id);
-
-        // SAFETY: val is a WasmComponent
+    else {
+        // SAFETY: val must be a WasmComponent (see [ComponentRef])
         let value = unsafe { val.deref::<WasmComponent>() };
         Ok(value.serialized_value.clone())
-    } else {
-        Err(anyhow!(
-            "Could not set component value for type_path \"{type_path}\""
-        ))
     }
 }
 
 /// Sets the value of a component on an entity given a json string
-///
-/// SAFETY: the component id must be registered with the provided type path
-pub(crate) unsafe fn set_component(
+pub(crate) fn set_component(
     entity: &mut FilteredEntityMut,
-    id: ComponentId,
-    type_path: &str,
+    component_ref: ComponentRef,
     serialized_value: String,
     type_registry: &AppTypeRegistry,
-    component_registry: &WasmComponentRegistry,
 ) -> Result<()> {
     let mut val = entity
-        .get_mut_by_id(id)
+        .get_mut_by_id(component_ref.component_id)
         .expect("to be able to find this component id on the entity");
 
-    let type_registry = type_registry.read();
-
     // Types that are known by bevy (inserted as concrete types)
-    if let Some(type_registration) = type_registry.get_with_type_path(type_path) {
+    if let Some(type_id) = component_ref.type_id {
+        let type_registry = type_registry.read();
+        let type_registration = type_registry
+            .get(type_id)
+            .expect("ComponentRef type_id be registered");
+
         let reflect_from_ptr = type_registration
             .data::<ReflectFromPtr>()
             .expect("ReflectFromPtr to be registered");
@@ -231,17 +250,11 @@ pub(crate) unsafe fn set_component(
         Ok(())
     }
     // Handle guest types (inserted as json strings)
-    else if let Some(expected_id) = component_registry.get(type_path) {
-        assert!(expected_id == &id);
-
-        // SAFETY: ptr is a WasmComponent
+    else {
+        // SAFETY: val must be a WasmComponent (see [ComponentRef])
         let component = unsafe { val.as_mut().deref_mut::<WasmComponent>() };
         component.serialized_value = serialized_value;
 
         Ok(())
-    } else {
-        Err(anyhow!(
-            "Could not set component value for type_path \"{type_path}\"",
-        ))
     }
 }

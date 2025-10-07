@@ -30,12 +30,12 @@ readme = "README.md"
 
 [workspace.dependencies]
 anyhow = "1.0.99"
-bevy = { version = "0.17.0-rc.2", features = ["serialize"] }
-bevy_reflect = "0.17.0-rc.2"
-bevy_transform = { version = "0.17.0-rc.2", features = [
+bevy = { version = "0.17.2", features = ["serialize"] }
+bevy_reflect = "0.17.2"
+bevy_transform = { version = "0.17.2", features = [
     "serialize",
 ], default-features = false }
-bevy_math = { version = "0.17.0-rc.2", features = [
+bevy_math = { version = "0.17.2", features = [
     "std",
     "serialize",
 ], default-features = false }

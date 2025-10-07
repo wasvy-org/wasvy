@@ -38,8 +38,7 @@ interface app {
 	/// Usage:
 	/// 1. Construct a new system, giving it a unique name
 	/// 2. Add system-params by calling 0 or more add-* methods
-	/// 3. Order the system relative to others
-	/// 4. Add the system to a schedule
+	/// 3. Add the system to a schedule
 	resource system {
 		/// Constructs a new system. Use the same name as exported in
 		/// the guest world, otherwise the host won't be able to find it.
@@ -50,12 +49,6 @@ interface app {
 
 		/// Adds a query system-param
 		add-query: func(query: list<query-for>);
-
-		/// Schedules this system be run before another system
-		before: func(other: borrow<system>);
-
-		/// Schedules this system be run after another system
-		after: func(other: borrow<system>);
 	}
 
 	/// A commands system param
@@ -97,7 +90,6 @@ interface app {
 	variant query-for {
 		ref(type-path),
 		mut(type-path),
-		optional(type-path),
 		%with(type-path),
 		without(type-path),
 	}

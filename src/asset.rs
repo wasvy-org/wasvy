@@ -85,7 +85,7 @@ impl ModAsset {
 
         let mut runner = Runner::new(&engine);
 
-        let config: Config<'_, '_, '_> = Config::Setup(ConfigSetup {
+        let config = Config::Setup(ConfigSetup {
             world,
             asset_id,
             asset_version,
@@ -99,11 +99,11 @@ impl ModAsset {
         }))
     }
 
-    pub(crate) fn run_system<'a, 'w, 's>(
+    pub(crate) fn run_system<'a, 'b, 'c, 'd, 'e, 'f, 'g>(
         &self,
         runner: &mut Runner,
         name: &str,
-        config: ConfigRunSystem<'a, 'w, 's>,
+        config: ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g>,
         params: &[Val],
     ) -> Result<()> {
         let Inner::Initiated { instance_pre, .. } = &self.0 else {

@@ -3,7 +3,12 @@ use std::ptr::NonNull;
 use anyhow::Result;
 use bevy::{
     asset::AssetId,
-    ecs::{component::Tick, reflect::AppTypeRegistry, system::Commands, world::World},
+    ecs::{
+        component::Tick,
+        reflect::AppTypeRegistry,
+        system::{Commands, ParamSet, Query},
+        world::{FilteredEntityMut, World},
+    },
 };
 use wasmtime::component::ResourceAny;
 use wasmtime_wasi::ResourceTable;
@@ -37,7 +42,11 @@ impl Runner {
         Ok(resource.try_into_resource_any(&mut self.store)?)
     }
 
-    pub(crate) fn use_store<'a, 'w, 's, F, R>(&mut self, config: Config<'a, 'w, 's>, mut f: F) -> R
+    pub(crate) fn use_store<'a, 'b, 'c, 'd, 'e, 'f, 'g, F, R>(
+        &mut self,
+        config: Config<'a, 'b, 'c, 'd, 'e, 'f, 'g>,
+        mut f: F,
+    ) -> R
     where
         F: FnMut(&mut Store) -> R,
     {
@@ -57,9 +66,11 @@ impl Runner {
             Config::RunSystem(ConfigRunSystem {
                 commands,
                 type_registry,
+                queries,
             }) => Inner::RunSystem {
                 commands: SendSyncPtr::new(NonNull::from_mut(commands).cast()),
                 type_registry: SendSyncPtr::new(NonNull::from_ref(type_registry)),
+                queries: SendSyncPtr::new(NonNull::from_ref(queries).cast()),
             },
         }));
 
@@ -88,8 +99,12 @@ enum Inner {
     RunSystem {
         commands: SendSyncPtr<Commands<'static, 'static>>,
         type_registry: SendSyncPtr<AppTypeRegistry>,
+        queries: SendSyncPtr<Queries<'static, 'static>>,
     },
 }
+
+type Queries<'w, 's> =
+    ParamSet<'w, 's, Vec<Query<'static, 'static, FilteredEntityMut<'static, 'static>>>>;
 
 impl Data {
     pub(crate) fn uninitialized() -> Self {
@@ -120,6 +135,7 @@ impl Data {
             Inner::RunSystem {
                 commands,
                 type_registry,
+                queries,
             } =>
             // Safety: Runner::use_store ensures that this always contains a valid reference
             // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
@@ -127,6 +143,8 @@ impl Data {
                 Some(State::RunSystem {
                     commands: commands.cast().as_mut(),
                     type_registry: type_registry.as_ref(),
+                    queries: queries.cast().as_mut(),
+                    table,
                 })
             },
             Inner::Uninitialized => None,
@@ -144,14 +162,16 @@ pub(crate) enum State<'a> {
         asset_version: &'a Tick,
     },
     RunSystem {
+        table: &'a mut ResourceTable,
         commands: &'a mut Commands<'a, 'a>,
         type_registry: &'a AppTypeRegistry,
+        queries: &'a mut Queries<'a, 'a>,
     },
 }
 
-pub(crate) enum Config<'a, 'w, 's> {
+pub(crate) enum Config<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
     Setup(ConfigSetup<'a>),
-    RunSystem(ConfigRunSystem<'a, 'w, 's>),
+    RunSystem(ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g>),
 }
 
 pub(crate) struct ConfigSetup<'a> {
@@ -161,7 +181,9 @@ pub(crate) struct ConfigSetup<'a> {
     pub(crate) mod_name: &'a str,
 }
 
-pub(crate) struct ConfigRunSystem<'a, 'w, 's> {
-    pub(crate) commands: &'a mut Commands<'w, 's>,
+pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
+    pub(crate) commands: &'a mut Commands<'b, 'c>,
     pub(crate) type_registry: &'a AppTypeRegistry,
+    pub(crate) queries:
+        &'a mut ParamSet<'d, 'e, Vec<Query<'f, 'g, FilteredEntityMut<'static, 'static>>>>,
 }

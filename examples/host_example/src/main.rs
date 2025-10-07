@@ -1,3 +1,4 @@
+use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy::prelude::*;
 use bevy::{DefaultPlugins, app::App};
 use bevy_egui::EguiPlugin;
@@ -13,6 +14,7 @@ fn main() {
             // Next, add the [`ModloaderPlugin`] ;)
             ModloaderPlugin::default(),
             // Plus some helpers for the example
+            FpsOverlayPlugin::default(),
             EguiPlugin::default(),
             WorldInspectorPlugin::new(),
         ))
@@ -27,7 +29,36 @@ fn load_mods(mut mods: Mods) {
     mods.load("mods/python.wasm");
 }
 
-fn setup(mut commands: Commands) {
-    // Having a camera in the scene is necessary for egui
-    commands.spawn(Camera3d::default());
+/// A marker component so mods can find the cube
+#[derive(Component, Reflect)]
+struct MyMarker;
+
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    // cube
+    commands.spawn((
+        Name::new("My cube"),
+        MyMarker,
+        Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+        MeshMaterial3d(materials.add(Color::srgb_u8(124, 144, 255))),
+        Transform::default(),
+    ));
+
+    // light
+    commands.spawn((
+        PointLight {
+            shadows_enabled: true,
+            ..default()
+        },
+        Transform::from_xyz(4.0, 8.0, 4.0),
+    ));
+
+    // camera
+    commands.spawn((
+        Camera3d::default(),
+        Transform::from_xyz(-2.5, 3.5, 6.0).looking_at(Vec3::ZERO, Vec3::Y),
+    ));
 }

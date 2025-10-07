@@ -1,5 +1,12 @@
-use super::*;
+use anyhow::{Result, bail};
 use bevy::{ecs::schedule::Schedules, prelude::Update};
+use wasmtime::component::Resource;
+
+use crate::{
+    bindings::wasvy::ecs::app::{HostApp, Schedule},
+    host::{System, WasmHost},
+    runner::State,
+};
 
 pub struct App;
 
@@ -57,7 +64,9 @@ impl HostApp for WasmHost {
         Ok(())
     }
 
-    fn drop(&mut self, _rep: Resource<App>) -> Result<()> {
+    fn drop(&mut self, app: Resource<App>) -> Result<()> {
+        let _ = self.table().delete(app)?;
+
         Ok(())
     }
 }

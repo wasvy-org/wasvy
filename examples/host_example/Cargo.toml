@@ -13,6 +13,7 @@ readme.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-bevy = { version = "0.17.0-rc.1", features = ["wayland", "dynamic_linking"] }
-bevy-inspector-egui = "0.33.1"
+bevy = { version = "0.17.2", features = ["wayland", "dynamic_linking"] }
+bevy_egui = "0.37.0"
+bevy-inspector-egui = "0.34.0"
 wasvy = { path = "../../" }

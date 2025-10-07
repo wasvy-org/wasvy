@@ -1,8 +1,11 @@
+use anyhow::{Result, bail};
 use bevy::log::trace;
+use wasmtime::component::Resource;
 
-use crate::component::insert_component;
-
-use super::*;
+use crate::{
+    bindings::wasvy::ecs::app::HostCommands, component::insert_component, host::WasmHost,
+    runner::State,
+};
 
 pub struct Commands;
 
@@ -15,6 +18,7 @@ impl HostCommands for WasmHost {
         let State::RunSystem {
             mut commands,
             type_registry,
+            ..
         } = self.access()
         else {
             bail!("commands resource is only accessible when running systems")
@@ -37,7 +41,9 @@ impl HostCommands for WasmHost {
         Ok(())
     }
 
-    fn drop(&mut self, _rep: Resource<Commands>) -> Result<()> {
+    fn drop(&mut self, commands: Resource<Commands>) -> Result<()> {
+        let _ = self.table().delete(commands)?;
+
         Ok(())
     }
 }

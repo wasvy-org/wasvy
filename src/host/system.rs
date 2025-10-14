@@ -1,10 +1,12 @@
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 use bevy::{
     asset::AssetId,
     ecs::{
         component::Tick,
         error::Result as BevyResult,
         reflect::AppTypeRegistry,
+        resource::Resource as BevyResource,
+        schedule::{IntoScheduleConfigs, ScheduleConfigs, SystemSet},
         system::{
             BoxedSystem, Commands as BevyCommands, IntoSystem, Local, LocalBuilder, ParamBuilder,
             ParamSet, ParamSetBuilder, Query as BevyQuery, SystemParamBuilder,
@@ -27,21 +29,30 @@ use crate::{
 pub struct System {
     name: String,
     params: Vec<Param>,
-    built: bool,
+    scheduled: bool,
+    identifier: SystemIdentifier,
+    after: Vec<SystemIdentifier>,
 }
 
 impl System {
-    pub(crate) fn build(
+    fn new(name: String, identifier: SystemIdentifier) -> Self {
+        Self {
+            name,
+            params: Vec::new(),
+            scheduled: false,
+            identifier,
+            after: Vec::new(),
+        }
+    }
+
+    pub(crate) fn schedule(
         &mut self,
         mut world: &mut World,
         mod_name: &str,
         asset_id: &AssetId<ModAsset>,
         asset_version: &Tick,
-    ) -> Result<BoxedSystem> {
-        if self.built {
-            bail!("System was already added to the app");
-        }
-        self.built = true;
+    ) -> Result<ScheduleConfigs<BoxedSystem>> {
+        self.scheduled = true;
 
         let mut built_params = Vec::new();
         for param in self.params.iter() {
@@ -63,6 +74,7 @@ impl System {
             queries.push(create_query_builder(items, world)?);
         }
 
+        // Dynamic
         let system = (
             LocalBuilder(input),
             ParamBuilder,
@@ -78,7 +90,27 @@ impl System {
 
         let boxed_system = Box::new(IntoSystem::into_system(system));
 
-        Ok(boxed_system)
+        let mut schedule_config = boxed_system
+            // See docs for [SystemIdentifier]
+            .in_set(self.identifier);
+
+        // Implement system ordering
+        for after in self.after.iter() {
+            schedule_config = schedule_config.after(*after);
+        }
+
+        Ok(schedule_config)
+    }
+
+    fn editable(&self) -> Result<()> {
+        if self.scheduled {
+            Err(anyhow!(
+                "System \"{}\" was already scheduled and thus can no longer be changed",
+                self.name
+            ))
+        } else {
+            Ok(())
+        }
     }
 
     fn add_param(host: &mut WasmHost, system: Resource<System>, param: Param) -> Result<()> {
@@ -87,6 +119,8 @@ impl System {
         };
 
         let system = table.get_mut(&system)?;
+        system.editable()?;
+
         system.params.push(param);
 
         Ok(())
@@ -196,17 +230,54 @@ fn initialize_params(source: &[BuiltParam], runner: &mut Runner) -> Result<Vec<V
     Ok(params)
 }
 
+/// Bevy doesn't return an identifier for systems added directly to the scheduler. There is
+/// [NodeId](bevy::ecs::schedule::NodeId) but that has no clear way of being used for system ordering.
+///
+/// So instead we take inspiration from bevy's [AnonymousSet](bevy::ecs::schedule::AnonymousSet)
+/// and we identify each system with an extra [SystemSet] all to itself.
+// Note: Using an AnonymousSet could work but unfortunately the method used to create one is private.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct SystemIdentifier(usize);
+
+impl SystemIdentifier {
+    /// Initialize a unique identifier in the world
+    fn new(world: &mut World) -> Self {
+        world.init_resource::<SystemIdentifierCount>();
+        let mut count = world
+            .get_resource_mut::<SystemIdentifierCount>()
+            .expect("SystemIdentifierCount to be initialized");
+        let identifier = SystemIdentifier(count.0);
+        count.0 += 1;
+        identifier
+    }
+}
+
+impl SystemSet for SystemIdentifier {
+    // As of bevy 0.17.2 this function's only purpose is for debugging
+    fn is_anonymous(&self) -> bool {
+        // This is technically incorrect, but it makes bevy use the system name as node name instead of SystemIdentifier(usize)
+        true
+    }
+
+    fn dyn_clone(&self) -> Box<dyn SystemSet> {
+        Box::new(*self)
+    }
+}
+
+/// An tracker to ensure unique [SystemIdentifier]s in the world
+#[derive(Default, BevyResource)]
+struct SystemIdentifierCount(usize);
+
 impl HostSystem for WasmHost {
     fn new(&mut self, name: String) -> Result<Resource<System>> {
-        let State::Setup { table, .. } = self.access() else {
+        let State::Setup { table, world, .. } = self.access() else {
             bail!("Systems can only be instantiated in a setup function")
         };
 
-        Ok(table.push(System {
-            built: false,
-            name,
-            params: Vec::new(),
-        })?)
+        // A unique identifier for this system in the world
+        let identifier = SystemIdentifier::new(world);
+
+        Ok(table.push(System::new(name, identifier))?)
     }
 
     fn add_commands(&mut self, system: Resource<System>) -> Result<()> {
@@ -215,6 +286,26 @@ impl HostSystem for WasmHost {
 
     fn add_query(&mut self, system: Resource<System>, query: Vec<QueryFor>) -> Result<()> {
         System::add_param(self, system, Param::Query(query))
+    }
+
+    fn after(&mut self, system: Resource<System>, other: Resource<System>) -> Result<()> {
+        let State::Setup { table, .. } = self.access() else {
+            bail!("Systems can only be modified in a setup function")
+        };
+
+        let other = table.get(&other)?.identifier;
+
+        let system = table.get_mut(&system)?;
+        system.editable()?;
+
+        system.after.push(other);
+
+        Ok(())
+    }
+
+    fn before(&mut self, system: Resource<System>, other: Resource<System>) -> Result<()> {
+        // In bevy, `a.before(b)` is logically equivalent to `b.after(a)`
+        HostSystem::after(self, other, system)
     }
 
     fn drop(&mut self, system: Resource<System>) -> Result<()> {

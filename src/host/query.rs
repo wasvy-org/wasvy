@@ -34,18 +34,12 @@ impl Query {
 }
 
 impl HostQuery for WasmHost {
-    fn iter(&mut self, query_res: Resource<Query>) -> Result<Option<Vec<Resource<Component>>>> {
-        let State::RunSystem {
-            table,
-            queries,
-            type_registry,
-            ..
-        } = self.access()
-        else {
+    fn iter(&mut self, query: Resource<Query>) -> Result<Option<Vec<Resource<Component>>>> {
+        let State::RunSystem { table, queries, .. } = self.access() else {
             bail!("Query can only be accessed in systems")
         };
 
-        let query = table.get_mut(&query_res)?;
+        let query = table.get_mut(&query)?;
 
         let position = query.position;
         query.position += 1;
@@ -61,17 +55,17 @@ impl HostQuery for WasmHost {
 
         let mut resources = Vec::with_capacity(components.len());
         for component in components.iter() {
-            let resource = Component::new(query_index, &entity, component, type_registry)?;
-            let resource = table.push_child(resource, &query_res)?;
+            let resource = Component::new(query_index, &entity, component)?;
+            let resource = table.push(resource)?;
             resources.push(resource);
         }
 
         Ok(Some(resources))
     }
 
+    // Note: this is never guaranteed to be called by the wasi binary
     fn drop(&mut self, query: Resource<Query>) -> Result<()> {
-        // Will produce an error if any Components returned from iter() are still in use
-        self.table().delete(query)?;
+        let _ = self.table().delete(query)?;
 
         Ok(())
     }

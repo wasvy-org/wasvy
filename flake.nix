@@ -3,18 +3,11 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
 
-    crane = {
-      url = "github:ipetkov/crane";
-      inputs = {
-        flake-utils.follows = "flake-utils";
-        nixpkgs.follows = "nixpkgs";
-      };
-    };
+    crane.url = "github:ipetkov/crane";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs = {
         nixpkgs.follows = "nixpkgs";
-        flake-utils.follows = "flake-utils";
       };
     };
   };
@@ -64,11 +57,16 @@
           craneLib = (crane.mkLib pkgs).overrideToolchain (
             p: p.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml
           );
-          buildInputs = with pkgs; [
+          packages = with pkgs; [
             # Dev tools
             just
             wkg
 
+            poetry
+            python3
+            uv
+          ];
+          buildInputs = with pkgs; [
             # Build tools
             pkg-config
           ] ++ lib.optionals stdenv.isLinux [
@@ -88,11 +86,18 @@
         in
         {
           devShells.default = craneLib.devShell {
-            inherit buildInputs;
+            inherit packages buildInputs;
 
             LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath buildInputs;
-            
-            shellHook = wkgConfigHook;
+
+            shellHook = ''
+              ${wkgConfigHook}
+
+              # Impure python setup for now
+              unset PYTHONPATH
+              uv sync --directory examples/python_example
+              . examples/python_example/.venv/bin/activate
+            '';
           };
         }
       );

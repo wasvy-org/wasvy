@@ -57,7 +57,7 @@ impl Guest for GuestComponent {
         }
 
         // Avoid spawning more than 10
-        if count > 10 {
+        if count >= 10 {
             return;
         }
 

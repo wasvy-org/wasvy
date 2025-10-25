@@ -49,7 +49,7 @@ impl HostApp for WasmHost {
 
         for system in systems.iter() {
             let system = table.get_mut(system)?;
-            let boxed_system = system.build(world, mod_name, asset_id, asset_version)?;
+            let schedule_config = system.schedule(world, mod_name, asset_id, asset_version)?;
 
             let schedule = match schedule {
                 Schedule::Update => Update,
@@ -58,7 +58,7 @@ impl HostApp for WasmHost {
             let mut schedules = world
                 .get_resource_mut::<Schedules>()
                 .expect("running in an App");
-            schedules.add_systems(schedule, boxed_system);
+            schedules.add_systems(schedule, schedule_config);
         }
 
         Ok(())

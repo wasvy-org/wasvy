@@ -54,3 +54,8 @@ serde_json.workspace = true
 thiserror.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
+
+# Enable high optimizations for dependencies
+# Drastically improves the speed loading examples (python especially)
+[profile.dev.package."*"]
+opt-level = 2

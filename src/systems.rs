@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{asset::ModAsset, mods::Mod};
+use crate::{asset::ModAsset, mods::Mod, schedule::ModStartup};
 
 /// Group all the system params we neeed to allow shared access from one &mut world
 #[derive(SystemParam)]
@@ -23,8 +23,8 @@ pub(crate) fn run_setup(mut world: &mut World, param: &mut SystemState<Setup>) {
     // We need exclusive world access in order to setup mods, so store them here
     let mut setup = Vec::new();
 
+    // Load both new assets and hot-reloaded ones
     for event in events.read() {
-        // Load both new assets and hot-reloaded ones
         let AssetEvent::LoadedWithDependencies { id } = event else {
             continue;
         };
@@ -49,8 +49,11 @@ pub(crate) fn run_setup(mut world: &mut World, param: &mut SystemState<Setup>) {
         setup.push((asset, *id, entity, name));
     }
 
+    // Minor opt to only run startup schedule when necessary
+    let must_run_startup_schedule = !setup.is_empty();
+
+    // Initiate mods with exclusive world access (runs the mod setup)
     for (asset, asset_id, entity, name) in setup {
-        // Setup mods with exclusive world access
         let result = asset.initiate(&mut world, &asset_id, &name);
 
         let Setup { mut assets, .. } = param.get_mut(world);
@@ -72,5 +75,9 @@ pub(crate) fn run_setup(mut world: &mut World, param: &mut SystemState<Setup>) {
                 world.despawn(entity);
             }
         }
+    }
+
+    if must_run_startup_schedule {
+        ModStartup::run(world);
     }
 }

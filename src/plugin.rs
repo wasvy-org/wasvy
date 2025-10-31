@@ -1,61 +1,163 @@
 use std::sync::Mutex;
 
+use bevy::{
+    ecs::{intern::Interned, schedule::ScheduleLabel},
+    prelude::*,
+};
+
 use crate::{
     asset::{ModAsset, ModAssetLoader},
     component::WasmComponentRegistry,
     engine::{Engine, Linker, create_linker},
+    schedule::{ModStartup, Schedule, Schedules},
     systems::run_setup,
 };
-use bevy::prelude::*;
 
 /// This plugin adds Wasvy modding support to [`App`]
 ///
-/// ```rust
-///  App::new()
+/// ```no_run
+/// use bevy::prelude::*;
+/// use wasvy::prelude::*;
+///
+/// App::new()
 ///    .add_plugins(DefaultPlugins)
 ///    .add_plugins(ModloaderPlugin::default())
+/// #  .run();
 ///    // etc
 /// ```
 ///
 /// Looking for next steps? See: [`Mods`](crate::mods::Mods)
+///
+/// ## Examples
+///
+/// ### Run custom schedules
+///
+/// In this example, Wasvy is used to load mods that affect a physics simulation.
+///
+/// In the host:
+/// ```no_run
+/// use bevy::{
+///     ecs::schedule::{Schedule as BevySchedule, ScheduleLabel},
+///     prelude::*,
+/// };
+/// use wasvy::{schedule::Schedule, prelude::*};
+///
+/// #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
+/// struct SimulationStart;
+///
+/// # let mut app = App::new();
+/// // The schedule must be added to the world's Schedules Resource
+/// app.add_schedule(BevySchedule::new(SimulationStart));
+///
+/// app.add_plugins(
+///   // We don't want mods to run systems in any other schedules
+///   ModloaderPlugin::unscheduled()
+///     .enable_schedule(Schedule::FixedUpdate)
+///     .enable_schedule(Schedule::new_custom("simulation-start", SimulationStart))
+/// );
+/// ```
+///
+/// In the mod:
+/// ```ignore
+/// fn setup(){
+///    ..
+///
+///    app.add_systems(&Schedule::FixedUpdate, vec![..]);
+///    app.add_systems(&Schedule::Custom("simulation-start".to_string()), vec![..]);
+///
+///    // This one will be ignored and throw a warning
+///    app.add_systems(&Schedule::PreUpdate, vec![..]);
+/// }
 /// ```
 pub struct ModloaderPlugin(Mutex<Option<Inner>>);
 
 struct Inner {
     engine: Engine,
     linker: Linker,
+    schedules: Schedules,
+    setup_schedule: Interned<dyn ScheduleLabel>,
 }
 
 impl Default for ModloaderPlugin {
     fn default() -> Self {
-        let engine = Engine::new();
-        let linker = create_linker(&engine);
-        let inner = Inner { engine, linker };
-        ModloaderPlugin(Mutex::new(Some(inner)))
+        Self::new(Schedules::default())
     }
 }
 
 impl ModloaderPlugin {
+    /// Creates plugin with no schedules.
+    ///
+    /// This means that by default loaded mods will not run unless you enable schedules manually using [ModloaderPlugin::enable_schedule]
+    ///
+    /// If you want wasvy to run on all schedules use `ModloaderPlugin::default()`
+    pub fn unscheduled() -> Self {
+        Self::new(Schedules::empty())
+    }
+
+    /// Enables a new schedule with the modloader.
+    ///
+    /// When mods add a system to this schedule, then wasvy will automatically add them to the schedule.
+    ///
+    /// If a mod tries to call add_system with an schedule that isn't enabled this will just produce a warning.
+    ///
+    /// In debug mode, this will panic if the schedule is already added.
+    pub fn enable_schedule(mut self, schedule: Schedule) -> Self {
+        let inner = self.inner();
+        inner.schedules.push(schedule);
+        self
+    }
+
+    /// Configures during which schedule the modloader sets up new systems.
+    ///
+    /// Defaults to Bevy's [First] schedule.
+    ///
+    /// Schedules can't be modified while in use, therefore a schedule can't both be used to setup mods and run mod systems simultaneously.
+    pub fn set_setup_schedule(mut self, schedule: impl ScheduleLabel) -> Self {
+        let inner = self.inner();
+        inner.setup_schedule = schedule.intern();
+        self
+    }
+
     /// Use this function to add custom functionality that will be passed to the WASM module.
     pub fn add_functionality<F>(mut self, mut f: F) -> Self
     where
         F: FnMut(&mut Linker),
     {
-        let inner = self
-            .0
+        let inner = self.inner();
+        f(&mut inner.linker);
+        self
+    }
+
+    fn new(schedules: Schedules) -> Self {
+        let engine = Engine::new();
+        let linker = create_linker(&engine);
+        let setup_schedule = First.intern();
+        let inner = Inner {
+            engine,
+            linker,
+            schedules,
+            setup_schedule,
+        };
+        ModloaderPlugin(Mutex::new(Some(inner)))
+    }
+
+    fn inner(&mut self) -> &mut Inner {
+        self.0
             .get_mut()
             .expect("ModloaderPlugin is not locked")
             .as_mut()
-            .expect("ModloaderPlugin is not built");
-
-        f(&mut inner.linker);
-        self
+            .expect("ModloaderPlugin is not built")
     }
 }
 
 impl Plugin for ModloaderPlugin {
     fn build(&self, app: &mut App) {
-        let Inner { engine, linker } = self
+        let Inner {
+            engine,
+            linker,
+            schedules,
+            setup_schedule,
+        } = self
             .0
             .lock()
             .expect("ModloaderPlugin is not locked")
@@ -65,8 +167,10 @@ impl Plugin for ModloaderPlugin {
         app.init_asset::<ModAsset>()
             .register_asset_loader(ModAssetLoader { linker })
             .insert_resource(engine)
+            .insert_resource(schedules)
             .init_resource::<WasmComponentRegistry>()
-            .add_systems(PreUpdate, run_setup);
+            .add_schedule(ModStartup::new_schedule())
+            .add_systems(setup_schedule, run_setup);
 
         let asset_plugins = app.get_added_plugins::<AssetPlugin>();
         let asset_plugin = asset_plugins
@@ -85,9 +189,9 @@ impl Plugin for ModloaderPlugin {
             if !user_overrode_watch_setting && !resolved_watch_setting {
                 warn!(
                     "Enable Bevy's watch feature to enable hot-reloading Wasvy mods.\
-                You can do this by running the command `cargo run --features bevy/file_watcher`.\
-                In order to hide this message, set the `watch_for_changes_override` to\
-                `Some(true)` or `Some(false)` in the AssetPlugin."
+                    You can do this by running the command `cargo run --features bevy/file_watcher`.\
+                    In order to hide this message, set the `watch_for_changes_override` to\
+                    `Some(true)` or `Some(false)` in the AssetPlugin."
                 );
             }
         }

@@ -89,9 +89,32 @@ interface app {
 	/// Note: for components returned by query::optional this is an option<t>
 	type serialized-component = string;
 
-	enum schedule {
-		/// Runs during the bevy Update schedule
-		update
+	variant schedule {
+		/// A custom schedule that runs the first time a mod is loaded.
+		///
+		/// Note this is not the same as Bevy's Startup schedule
+		mod-startup,
+
+		/// Runs during the Bevy PreUpdate schedule
+		pre-update,
+
+		/// Runs during the Bevy Update schedule
+		update,
+
+		/// Runs during the Bevy PostUpdate schedule
+		post-update,
+
+		/// Runs during the Bevy FixedPreUpdate schedule
+		fixed-pre-update,
+
+		/// Runs during the Bevy FixedUpdate schedule
+		fixed-update,
+
+		/// Runs during the Bevy FixedPostUpdate schedule
+		fixed-post-update,
+
+		/// Runs during the Bevy Update schedule
+		custom(string),
 	}
 
 	variant query-for {

@@ -4,11 +4,11 @@ package component:simple;
 world example {
     use wasvy:ecs/app.{commands, query};
 
-    /// An example system
-    export spin-cube: func(query: query);
+    /// An example system that runs on ModSetup
+    export spawn-entities: func(commands: commands);
 
-    /// Another system
-    export my-system: func(commands: commands, query: query);
+    /// Another example system that runs every Update
+    export spin-cube: func(query: query);
 
     /// This is important.
     /// This makes it so the WASM module must implement the guest required functions by the Bevy host.

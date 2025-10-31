@@ -1,0 +1,176 @@
+use bevy::{
+    app::{FixedPostUpdate, FixedPreUpdate, FixedUpdate, PostUpdate, PreUpdate, Update},
+    ecs::{
+        intern::Interned,
+        resource::Resource,
+        schedule::{Schedule as BevySchedule, ScheduleLabel, Schedules as BevySchedules},
+        world::World,
+    },
+};
+
+use crate::bindings::wasvy::ecs::app::Schedule as WitSchedule;
+
+/// This is an enum representing schedules in Bevy where mods can also be run.
+///
+/// See the docs for [bevy schedules](bevy::app::Main).
+///
+/// Currently none of the first run schedules (like Startup) are included since mods can't be guaranteed to load fast enough to run in them.
+/// So instead, many repeating schedules are run instead
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Schedule {
+    /// A custom schedule that runs the first time a mod is loaded.
+    ///
+    /// In reality, this isn't really a Bevy schedule.
+    /// It is a custom schedule that runs before PreUpdate.
+    ModStartup,
+
+    /// See the Bevy schedule [PreUpdate]
+    PreUpdate,
+
+    /// See the Bevy schedule [Update]
+    Update,
+
+    /// See the Bevy schedule [PostUpdate]
+    PostUpdate,
+
+    /// See the Bevy schedule [FixedPreUpdate]
+    FixedPreUpdate,
+
+    /// See the Bevy schedule [FixedUpdate]
+    FixedUpdate,
+
+    /// See the Bevy schedule [FixedPostUpdate]
+    FixedPostUpdate,
+
+    /// A custom schedule. See [Schedule::new_custom] for more details.
+    Custom {
+        name: String,
+        schedule: Interned<dyn ScheduleLabel>,
+    },
+}
+
+impl Schedule {
+    /// A custom schedule for the Modloader
+    ///
+    /// - `name` must match what the mod registers with via the wit api
+    /// - `schedule` is the Bevy schedule this represents. This schedule must be added to the Bevy Schedules.
+    ///
+    /// Note: Trying to add mod systems to the setup schedule (which defaults to [First](bevy::app::First), see
+    /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule))
+    /// Bevy's First schedule will do nothing since this is the mod setup phase
+    pub fn new_custom(name: impl ToString, schedule: impl ScheduleLabel) -> Self {
+        let name = name.to_string();
+        let schedule = schedule.intern();
+        Self::Custom { name, schedule }
+    }
+
+    /// Returns a bevy [ScheduleLabel]. This can be passed into any methods that accept an `impl ScheduleLabel`.
+    pub fn schedule_label(&self) -> Interned<dyn ScheduleLabel> {
+        match self {
+            Self::ModStartup => ModStartup.intern(),
+            Self::PreUpdate => PreUpdate.intern(),
+            Self::Update => Update.intern(),
+            Self::PostUpdate => PostUpdate.intern(),
+            Self::FixedPreUpdate => FixedPreUpdate.intern(),
+            Self::FixedUpdate => FixedUpdate.intern(),
+            Self::FixedPostUpdate => FixedPostUpdate.intern(),
+            Self::Custom { schedule, .. } => schedule.clone(),
+        }
+    }
+}
+
+/// The hidden custom schedule that runs when one or more new mods were loaded
+///
+/// This system isn't added to the scheduler, instead it's run by an exclusive system ([run_setup](crate::systems::run_setup)) after one or more mods finish loading
+#[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
+pub(crate) struct ModStartup;
+
+impl ModStartup {
+    pub(crate) fn new_schedule() -> BevySchedule {
+        BevySchedule::new(Self)
+    }
+
+    pub(crate) fn run(world: &mut World) {
+        let mut schedules = world
+            .get_resource_mut::<BevySchedules>()
+            .expect("running in an App");
+
+        // Swap the schedule with a new one
+        // This ensures that next time a mod adds a system to this schedule and we run it we won't also re-run old systems
+        let mut schedule = schedules
+            .insert(Self::new_schedule())
+            .expect("ModStartup schedule be added the App by ModloaderPlugin");
+
+        // Run the schedule and drop it
+        schedule.run(world);
+    }
+}
+
+/// A collection of the Schedules where Wasvy runs mods
+#[derive(Resource)]
+pub(crate) struct Schedules(Vec<Schedule>);
+
+impl Default for Schedules {
+    fn default() -> Self {
+        Self(vec![
+            Schedule::ModStartup,
+            Schedule::PreUpdate,
+            Schedule::Update,
+            Schedule::PostUpdate,
+            Schedule::FixedPreUpdate,
+            Schedule::FixedUpdate,
+            Schedule::FixedPostUpdate,
+        ])
+    }
+}
+
+impl Schedules {
+    pub(crate) fn empty() -> Self {
+        Self(Vec::new())
+    }
+
+    pub(crate) fn push(&mut self, schedule: Schedule) {
+        if !self.0.contains(&schedule) {
+            self.0.push(schedule);
+        }
+    }
+
+    /// If this schedule was enabled during plugin instantiation, this returns the correct schedule
+    ///
+    /// Returns None if the schedule was never added.
+    pub(crate) fn evaluate(&self, schedule: WitSchedule) -> Option<Schedule> {
+        let schedule_or_custom_name = match schedule {
+            WitSchedule::ModStartup => Either::Left(Schedule::ModStartup),
+            WitSchedule::PreUpdate => Either::Left(Schedule::PreUpdate),
+            WitSchedule::Update => Either::Left(Schedule::Update),
+            WitSchedule::PostUpdate => Either::Left(Schedule::PostUpdate),
+            WitSchedule::FixedPreUpdate => Either::Left(Schedule::FixedPreUpdate),
+            WitSchedule::FixedUpdate => Either::Left(Schedule::FixedUpdate),
+            WitSchedule::FixedPostUpdate => Either::Left(Schedule::FixedPostUpdate),
+            WitSchedule::Custom(custom_name) => Either::Right(custom_name),
+        };
+
+        match schedule_or_custom_name {
+            Either::Left(schedule) => {
+                if self.0.contains(&schedule) {
+                    Some(schedule)
+                } else {
+                    None
+                }
+            }
+            Either::Right(custom_name) => self
+                .0
+                .iter()
+                .find(|schedule| match schedule {
+                    Schedule::Custom { name, .. } => name == &custom_name,
+                    _ => false,
+                })
+                .map(|schedule| schedule.clone()),
+        }
+    }
+}
+
+enum Either<L, R> {
+    Left(L),
+    Right(R),
+}

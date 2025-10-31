@@ -1,11 +1,12 @@
 use anyhow::{Result, bail};
-use bevy::{ecs::schedule::Schedules, prelude::Update};
+use bevy::ecs::schedule::Schedules as BevySchedules;
 use wasmtime::component::Resource;
 
 use crate::{
     bindings::wasvy::ecs::app::{HostApp, Schedule},
     host::{System, WasmHost},
     runner::State,
+    schedule::Schedules,
 };
 
 pub struct App;
@@ -47,16 +48,21 @@ impl HostApp for WasmHost {
             unreachable!()
         };
 
+        // Validate that the schedule requested by the mod is enabled
+        let schedules = world.get_resource_or_init::<Schedules>();
+        let Some(schedule) = schedules.evaluate(schedule) else {
+            // Don't do anything if the schedule is disabled
+            return Ok(());
+        };
+
         for system in systems.iter() {
             let system = table.get_mut(system)?;
             let schedule_config = system.schedule(world, mod_name, asset_id, asset_version)?;
 
-            let schedule = match schedule {
-                Schedule::Update => Update,
-            };
+            let schedule = schedule.schedule_label();
 
             let mut schedules = world
-                .get_resource_mut::<Schedules>()
+                .get_resource_mut::<BevySchedules>()
                 .expect("running in an App");
             schedules.add_systems(schedule, schedule_config);
         }

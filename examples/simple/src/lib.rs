@@ -19,21 +19,41 @@ struct GuestComponent;
 
 impl Guest for GuestComponent {
     fn setup() {
-        // Define a new system that queries for entities with a Transform and a Marker component
+        // Define an example system with commands that runs on startup
+        let spawn_entities = System::new("spawn-entities");
+        spawn_entities.add_commands();
+
+        // Define another new system that queries for entities with a Transform and a Marker component
         let spin_cube = System::new("spin-cube");
         spin_cube.add_query(&[
             QueryFor::Mut("bevy_transform::components::transform::Transform".to_string()),
             QueryFor::With("host_example::MyMarker".to_string()),
         ]);
 
-        // Define another example system with commands
-        let my_system = System::new("my-system");
-        my_system.add_commands();
-        my_system.add_query(&[QueryFor::With("simple::MyStruct".to_string())]);
-
         // Register the systems to run in the Update schedule
         let app = App::new();
-        app.add_systems(Schedule::Update, vec![my_system, spin_cube]);
+        app.add_systems(&Schedule::ModStartup, vec![spawn_entities]);
+        app.add_systems(&Schedule::Update, vec![spin_cube]);
+    }
+
+    fn spawn_entities(commands: Commands) {
+        println!("Spawning an entity with MyStruct component");
+
+        #[derive(Serialize, Deserialize)]
+        struct MyStruct {
+            value: i32,
+        }
+
+        let component_1 = MyStruct { value: 0 };
+        let component_2 = Transform::default().looking_at(Vec3::ONE, Vec3::Y);
+
+        commands.spawn(&[
+            ("simple::MyStruct".to_string(), to_json(&component_1)),
+            (
+                "bevy_transform::components::transform::Transform".to_string(),
+                to_json(&component_2),
+            ),
+        ]);
     }
 
     fn spin_cube(query: Query) {
@@ -47,37 +67,6 @@ impl Guest for GuestComponent {
             // Set the new component value
             components[0].set(&to_json(&transform));
         }
-    }
-
-    fn my_system(commands: Commands, query: Query) {
-        // Count how many entities we've spawned
-        let mut count = 0;
-        while let Some(_) = query.iter() {
-            count += 1;
-        }
-
-        // Avoid spawning more than 10
-        if count > 10 {
-            return;
-        }
-
-        #[derive(Serialize, Deserialize)]
-        struct MyStruct {
-            value: i32,
-        }
-
-        println!("Spawning an entity with MyStruct component in my-system");
-
-        let component_1 = MyStruct { value: 0 };
-        let component_2 = Transform::default().looking_at(Vec3::ONE, Vec3::Y);
-
-        commands.spawn(&[
-            ("simple::MyStruct".to_string(), to_json(&component_1)),
-            (
-                "bevy_transform::components::transform::Transform".to_string(),
-                to_json(&component_2),
-            ),
-        ]);
     }
 }
 

@@ -23,6 +23,46 @@ use crate::{
 /// ```
 ///
 /// Looking for next steps? See: [`Mods`](crate::mods::Mods)
+///
+/// ## Examples
+///
+/// ### Run custom schedules
+///
+/// In this example, Wasvy is used to load mods that affect a physics simulation.
+///
+/// In the host:
+/// ```rust
+/// use bevy::{
+///     ecs::schedule::Schedule as BevySchedule,
+///     prelude::*,
+/// };
+/// use wasvy::{schedule::Schedule, prelude::*};
+///
+/// #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
+/// struct SimulationStart;
+///
+/// // The schedule must be added to the world's Schedules Resource
+/// app.add_schedule(BevySchedule::new(SimulationStart));
+///
+/// app.add_plugins(
+///   // We don't want mods to run systems in any other schedules
+///   ModloaderPlugin::unscheduled()
+///     .enable_schedule(Schedule::FixedUpdate)
+///     .enable_schedule(Schedule::new_custom("simulation-start", SimulationStart))
+/// )
+/// ```
+///
+/// In the mod:
+/// ```rust
+/// fn setup(){
+///    ...
+///
+///    app.add_systems(&Schedule::FixedUpdate, vec![some_system]);
+///    app.add_systems(&Schedule::Custom("simulation-start".to_string()), vec![some_system]);
+///
+///    // This one will be ignored and throw a warning
+///    app.add_systems(&Schedule::PreUpdate, vec![some_system]);
+/// }
 /// ```
 pub struct ModloaderPlugin(Mutex<Option<Inner>>);
 
@@ -42,17 +82,21 @@ impl Default for ModloaderPlugin {
 impl ModloaderPlugin {
     /// Creates plugin with no schedules.
     ///
-    /// This means that by default loaded mods will not run unless you add schedules manually using [ModloaderPlugin::add_schedule]
+    /// This means that by default loaded mods will not run unless you enable schedules manually using [ModloaderPlugin::enable_schedule]
     ///
     /// If you want wasvy to run on all default schedules use `ModloaderPlugin::default()`
     pub fn unscheduled() -> Self {
         Self::new(Schedules::empty())
     }
 
-    /// Adds a new schedule to the modloader.
+    /// Enables a new schedule with the modloader.
     ///
-    /// If mods add a system to this schedule, then wasvy will run them.
-    pub fn add_schedule(mut self, schedule: Schedule) -> Self {
+    /// When mods add a system to this schedule, then wasvy will automatically add them to the schedule.
+    ///
+    /// If a mod tries to call add_system with an schedule that isn't enabled this will just produce a warning.
+    ///
+    /// In debug mode, this will panic if the schedule is already added.
+    pub fn enable_schedule(mut self, schedule: Schedule) -> Self {
         let inner = self.inner();
         inner.schedules.push(schedule);
         self
@@ -60,9 +104,9 @@ impl ModloaderPlugin {
 
     /// Configures during which schedule the modloader sets up new systems.
     ///
-    /// Default's to Bevy's [First] schedule.
+    /// Defaults to Bevy's [First] schedule.
     ///
-    /// Due to technical limitations a schedule can't both be used to setup mods and run mod systems.
+    /// Schedules can't be modified while in use, therefore a schedule can't both be used to setup mods and run mod systems simultaneously.
     pub fn set_setup_schedule(mut self, schedule: impl ScheduleLabel) -> Self {
         let inner = self.inner();
         inner.setup_schedule = schedule.intern();

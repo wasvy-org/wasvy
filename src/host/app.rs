@@ -1,5 +1,5 @@
 use anyhow::{Result, bail};
-use bevy::ecs::schedule::Schedules as BevySchedules;
+use bevy::{ecs::schedule::Schedules as BevySchedules, log::warn};
 use wasmtime::component::Resource;
 
 use crate::{
@@ -36,6 +36,10 @@ impl HostApp for WasmHost {
         schedule: Schedule,
         systems: Vec<Resource<System>>,
     ) -> Result<()> {
+        if systems.is_empty() {
+            return Ok(());
+        }
+
         let State::Setup {
             table,
             world,
@@ -45,13 +49,16 @@ impl HostApp for WasmHost {
             ..
         } = self.access()
         else {
-            unreachable!()
+            bail!("App can only be modified in a setup function")
         };
 
         // Validate that the schedule requested by the mod is enabled
         let schedules = world.get_resource_or_init::<Schedules>();
-        let Some(schedule) = schedules.evaluate(schedule) else {
-            // Don't do anything if the schedule is disabled
+        let Some(schedule) = schedules.evaluate(&schedule) else {
+            warn!(
+                "Mod tried adding systems to schedule {:?}, but that system is not enabled",
+                schedule
+            );
             return Ok(());
         };
 

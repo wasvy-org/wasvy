@@ -130,15 +130,19 @@ impl Schedules {
     }
 
     pub(crate) fn push(&mut self, schedule: Schedule) {
-        if !self.0.contains(&schedule) {
-            self.0.push(schedule);
-        }
+        assert!(
+            !self.0.contains(&schedule),
+            "Duplicate schedule {:?} added to ModloaderPlugin",
+            &schedule
+        );
+
+        self.0.push(schedule);
     }
 
     /// If this schedule was enabled during plugin instantiation, this returns the correct schedule
     ///
     /// Returns None if the schedule was never added.
-    pub(crate) fn evaluate(&self, schedule: WitSchedule) -> Option<Schedule> {
+    pub(crate) fn evaluate(&self, schedule: &WitSchedule) -> Option<Schedule> {
         let schedule_or_custom_name = match schedule {
             WitSchedule::ModStartup => Either::Left(Schedule::ModStartup),
             WitSchedule::PreUpdate => Either::Left(Schedule::PreUpdate),
@@ -162,7 +166,7 @@ impl Schedules {
                 .0
                 .iter()
                 .find(|schedule| match schedule {
-                    Schedule::Custom { name, .. } => name == &custom_name,
+                    Schedule::Custom { name, .. } => name == custom_name,
                     _ => false,
                 })
                 .map(|schedule| schedule.clone()),

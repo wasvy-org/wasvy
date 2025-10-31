@@ -15,10 +15,14 @@ use crate::{
 
 /// This plugin adds Wasvy modding support to [`App`]
 ///
-/// ```rust
-///  App::new()
+/// ```no_run
+/// use bevy::prelude::*;
+/// use wasvy::prelude::*;
+///
+/// App::new()
 ///    .add_plugins(DefaultPlugins)
 ///    .add_plugins(ModloaderPlugin::default())
+/// #  .run();
 ///    // etc
 /// ```
 ///
@@ -31,9 +35,9 @@ use crate::{
 /// In this example, Wasvy is used to load mods that affect a physics simulation.
 ///
 /// In the host:
-/// ```rust
+/// ```no_run
 /// use bevy::{
-///     ecs::schedule::Schedule as BevySchedule,
+///     ecs::schedule::{Schedule as BevySchedule, ScheduleLabel},
 ///     prelude::*,
 /// };
 /// use wasvy::{schedule::Schedule, prelude::*};
@@ -41,6 +45,7 @@ use crate::{
 /// #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
 /// struct SimulationStart;
 ///
+/// # let mut app = App::new();
 /// // The schedule must be added to the world's Schedules Resource
 /// app.add_schedule(BevySchedule::new(SimulationStart));
 ///
@@ -49,19 +54,19 @@ use crate::{
 ///   ModloaderPlugin::unscheduled()
 ///     .enable_schedule(Schedule::FixedUpdate)
 ///     .enable_schedule(Schedule::new_custom("simulation-start", SimulationStart))
-/// )
+/// );
 /// ```
 ///
 /// In the mod:
-/// ```rust
+/// ```ignore
 /// fn setup(){
-///    ...
+///    ..
 ///
-///    app.add_systems(&Schedule::FixedUpdate, vec![some_system]);
-///    app.add_systems(&Schedule::Custom("simulation-start".to_string()), vec![some_system]);
+///    app.add_systems(&Schedule::FixedUpdate, vec![..]);
+///    app.add_systems(&Schedule::Custom("simulation-start".to_string()), vec![..]);
 ///
 ///    // This one will be ignored and throw a warning
-///    app.add_systems(&Schedule::PreUpdate, vec![some_system]);
+///    app.add_systems(&Schedule::PreUpdate, vec![..]);
 /// }
 /// ```
 pub struct ModloaderPlugin(Mutex<Option<Inner>>);
@@ -84,7 +89,7 @@ impl ModloaderPlugin {
     ///
     /// This means that by default loaded mods will not run unless you enable schedules manually using [ModloaderPlugin::enable_schedule]
     ///
-    /// If you want wasvy to run on all default schedules use `ModloaderPlugin::default()`
+    /// If you want wasvy to run on all schedules use `ModloaderPlugin::default()`
     pub fn unscheduled() -> Self {
         Self::new(Schedules::empty())
     }

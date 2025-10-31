@@ -41,6 +41,7 @@ impl HostCommands for WasmHost {
         Ok(())
     }
 
+    // Note: this is never guaranteed to be called by the wasi binary
     fn drop(&mut self, commands: Resource<Commands>) -> Result<()> {
         let _ = self.table().delete(commands)?;
 

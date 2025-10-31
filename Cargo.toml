@@ -54,3 +54,98 @@ serde_json.workspace = true
 thiserror.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
+
+# Enable high optimizations for wasmtime and its transient dependencies
+# Drastically improves the speed loading examples (python especially)
+
+# Core Wasmtime + internals
+[profile.dev.package.wasmtime-environ]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-asm-macros]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-cache]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-component-macro]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-component-util]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-cranelift]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-fiber]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-jit-debug]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-jit-icache-coherence]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-math]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-slab]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-unwinder]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-versioned-export-macros]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-wit-bindgen]
+opt-level = 2
+[profile.dev.package.cranelift-assembler-x64]
+opt-level = 2
+[profile.dev.package.cranelift-bforest]
+opt-level = 2
+[profile.dev.package.cranelift-bitset]
+opt-level = 2
+[profile.dev.package.cranelift-codegen]
+opt-level = 2
+[profile.dev.package.cranelift-codegen-shared]
+opt-level = 2
+[profile.dev.package.cranelift-control]
+opt-level = 2
+[profile.dev.package.cranelift-entity]
+opt-level = 2
+[profile.dev.package.cranelift-frontend]
+opt-level = 2
+[profile.dev.package.cranelift-native]
+opt-level = 2
+[profile.dev.package.regalloc2]
+opt-level = 2
+[profile.dev.package.wasmparser]
+opt-level = 2
+[profile.dev.package.target-lexicon]
+opt-level = 2
+[profile.dev.package.object]
+opt-level = 2
+[profile.dev.package.id-arena]
+opt-level = 2
+[profile.dev.package.bumpalo]
+opt-level = 2
+[profile.dev.package.memchr]
+opt-level = 2
+[profile.dev.package.rayon]
+opt-level = 2
+[profile.dev.package.rayon-core]
+opt-level = 2
+[profile.dev.package.crossbeam-deque]
+opt-level = 2
+[profile.dev.package.crossbeam-epoch]
+opt-level = 2
+[profile.dev.package.crossbeam-utils]
+opt-level = 2
+[profile.dev.package.smallvec]
+opt-level = 2
+[profile.dev.package.hashbrown]
+opt-level = 2
+[profile.dev.package.indexmap]
+opt-level = 2
+[profile.dev.package.rustc-hash]
+opt-level = 2
+[profile.dev.package.rustix]
+opt-level = 2
+[profile.dev.package.linux-raw-sys]
+opt-level = 2
+[profile.dev.package.memfd]
+opt-level = 2
+[profile.dev.package.zstd]
+opt-level = 2
+[profile.dev.package.zstd-safe]
+opt-level = 2
+[profile.dev.package.zstd-sys]
+opt-level = 2

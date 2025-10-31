@@ -1,19 +1,16 @@
 package component:python;
 
-
 /// An example world for the component to target.
-world guest {
-	import wasvy:ecs/functions;
-	/// This is important.
-	/// This makes it so the WASM module must implement the guest required functions by the Bevy host.
-	include wasvy:ecs/guest;
+world example {
+    use wasvy:ecs/app.{commands, query};
 
-	use wasvy:ecs/types.{query-result};
+    /// An example system
+    export spin-cube: func(query: query);
 
-	/// This exported function can't be called automatically from Wasvy
-	/// because it doesn't comply to the desired signature.
-    export hello-world: func() -> string;
+    /// Another system
+    export my-system: func(commands: commands, query: query);
 
-    /// All systems must only have one argument of type `list<query-result>`
-	export print-first-component-system: func(params: list<query-result>);
+    /// This is important.
+    /// This makes it so the WASM module must implement the guest required functions by the Bevy host.
+    include wasvy:ecs/guest;
 }

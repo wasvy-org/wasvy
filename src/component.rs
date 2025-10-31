@@ -220,7 +220,7 @@ pub(crate) fn get_component(
 /// Sets the value of a component on an entity given a json string
 pub(crate) fn set_component(
     entity: &mut FilteredEntityMut,
-    component_ref: ComponentRef,
+    component_ref: &ComponentRef,
     serialized_value: String,
     type_registry: &AppTypeRegistry,
 ) -> Result<()> {

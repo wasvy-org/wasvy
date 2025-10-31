@@ -9,23 +9,22 @@ from abc import abstractmethod
 import weakref
 
 from .types import Result, Ok, Err, Some
-from .imports import types
+from .imports import app
 
 
-class Guest(Protocol):
+class Example(Protocol):
 
     @abstractmethod
-    def hello_world(self) -> str:
+    def spin_cube(self, query: app.Query) -> None:
         """
-        This exported function can't be called automatically from Wasvy
-        because it doesn't comply to the desired signature.
+        An example system
         """
         raise NotImplementedError
 
     @abstractmethod
-    def print_first_component_system(self, params: List[List[types.QueryResultEntry]]) -> None:
+    def my_system(self, commands: app.Commands, query: app.Query) -> None:
         """
-        All systems must only have one argument of type `list<query-result>`
+        Another system
         """
         raise NotImplementedError
 

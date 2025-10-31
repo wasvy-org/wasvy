@@ -77,6 +77,7 @@ impl HostApp for WasmHost {
         Ok(())
     }
 
+    // Note: this is never guaranteed to be called by the wasi binary
     fn drop(&mut self, app: Resource<App>) -> Result<()> {
         let _ = self.table().delete(app)?;
 

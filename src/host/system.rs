@@ -308,6 +308,7 @@ impl HostSystem for WasmHost {
         HostSystem::after(self, other, system)
     }
 
+    // Note: this is never guaranteed to be called by the wasi binary
     fn drop(&mut self, system: Resource<System>) -> Result<()> {
         let _ = self.table().delete(system)?;
 

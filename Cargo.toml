@@ -17,7 +17,7 @@ members = ["examples/host_example", "examples/simple"]
 resolver = "2"
 
 [workspace.package]
-authors = ["EngoDev"]
+authors = ["EngoDev", "MarcGuiselin"]
 categories = ["wasm", "game-development"]
 rust-version = "1.88.0"
 version = "0.0.3"

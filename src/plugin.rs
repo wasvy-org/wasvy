@@ -9,6 +9,7 @@ use crate::{
     asset::{ModAsset, ModAssetLoader},
     component::WasmComponentRegistry,
     engine::{Engine, Linker, create_linker},
+    sandbox::SandboxPlugin,
     schedule::{ModStartup, Schedule, Schedules},
     systems::run_setup,
 };
@@ -171,6 +172,8 @@ impl Plugin for ModloaderPlugin {
             .init_resource::<WasmComponentRegistry>()
             .add_schedule(ModStartup::new_schedule())
             .add_systems(setup_schedule, run_setup);
+
+        app.add_plugins(SandboxPlugin);
 
         let asset_plugins = app.get_added_plugins::<AssetPlugin>();
         let asset_plugin = asset_plugins

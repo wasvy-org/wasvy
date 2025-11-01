@@ -2,7 +2,6 @@ use bevy::{
     app::{FixedPostUpdate, FixedPreUpdate, FixedUpdate, PostUpdate, PreUpdate, Update},
     ecs::{
         intern::Interned,
-        resource::Resource,
         schedule::{Schedule, ScheduleLabel, Schedules},
         world::World,
     },
@@ -107,7 +106,6 @@ impl ModStartup {
 }
 
 /// A collection of the [Schedules] where Wasvy will run mods
-#[derive(Resource)]
 pub struct ModSchedules(pub Vec<ModSchedule>);
 
 impl Default for ModSchedules {

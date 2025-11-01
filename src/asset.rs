@@ -3,7 +3,7 @@ use std::mem::replace;
 use anyhow::{Context, Result, anyhow, bail};
 use bevy::{
     asset::{Asset, AssetId, AssetLoader, LoadContext, io::Reader},
-    ecs::{component::Tick, world::World},
+    ecs::{component::Tick, entity::Entity, world::World},
     reflect::TypePath,
 };
 use wasmtime::component::{Component, InstancePre, Val};
@@ -68,6 +68,7 @@ impl ModAsset {
         world: &mut World,
         asset_id: &AssetId<ModAsset>,
         mod_name: &str,
+        sandbox_entities: &[Entity],
     ) -> Result<Self> {
         let instance_pre = match self.0 {
             Inner::Loaded { instance_pre } => instance_pre,
@@ -90,6 +91,7 @@ impl ModAsset {
             asset_id,
             asset_version,
             mod_name,
+            sandbox_entities,
         });
         call(&mut runner, &instance_pre, config, SETUP, &[], &mut [])?;
 

@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{asset::ModAsset, mods::Mod, schedule::ModStartup};
+use crate::{asset::ModAsset, mods::Mod, sandbox::Sandbox, schedule::ModStartup};
 
 /// Group all the system params we neeed to allow shared access from one &mut world
 #[derive(SystemParam)]
@@ -11,6 +11,7 @@ pub struct Setup<'w, 's> {
     events: MessageReader<'w, 's, AssetEvent<ModAsset>>,
     assets: ResMut<'w, Assets<ModAsset>>,
     mods: Query<'w, 's, (Entity, Option<&'static Name>, &'static Mod)>,
+    sandboxes: Query<'w, 's, Entity, With<Sandbox>>,
 }
 
 pub(crate) fn run_setup(mut world: &mut World, param: &mut SystemState<Setup>) {
@@ -18,6 +19,7 @@ pub(crate) fn run_setup(mut world: &mut World, param: &mut SystemState<Setup>) {
         mut events,
         mut assets,
         mods,
+        sandboxes,
     } = param.get_mut(world);
 
     // We need exclusive world access in order to setup mods, so store them here
@@ -49,35 +51,34 @@ pub(crate) fn run_setup(mut world: &mut World, param: &mut SystemState<Setup>) {
         setup.push((asset, *id, entity, name));
     }
 
-    // Minor opt to only run startup schedule when necessary
-    let must_run_startup_schedule = !setup.is_empty();
+    if !setup.is_empty() {
+        let sandboxed_entities = sandboxes.iter().collect::<Vec<_>>();
 
-    // Initiate mods with exclusive world access (runs the mod setup)
-    for (asset, asset_id, entity, name) in setup {
-        let result = asset.initiate(&mut world, &asset_id, &name);
+        // Initiate mods with exclusive world access (runs the mod setup)
+        for (asset, asset_id, entity, name) in setup {
+            let result = asset.initiate(&mut world, &asset_id, &name, &sandboxed_entities[..]);
 
-        let Setup { mut assets, .. } = param.get_mut(world);
-        match result {
-            Ok(initiated_asset) => {
-                info!("Successfully loaded mod \"{}\"", name);
+            let Setup { mut assets, .. } = param.get_mut(world);
+            match result {
+                Ok(initiated_asset) => {
+                    info!("Successfully loaded mod \"{}\"", name);
 
-                // Replace placeholder
-                assets
-                    .get_mut(asset_id)
-                    .expect("asset placeholder not to have moved")
-                    .put(initiated_asset);
-            }
-            Err(err) => {
-                error!("Error loading mod \"{}\":\n{:?}", name, err);
+                    // Replace placeholder
+                    assets
+                        .get_mut(asset_id)
+                        .expect("asset placeholder not to have moved")
+                        .put(initiated_asset);
+                }
+                Err(err) => {
+                    error!("Error loading mod \"{}\":\n{:?}", name, err);
 
-                // Remove placeholder asset and the entity holding a handle to it
-                assets.remove(asset_id);
-                world.despawn(entity);
+                    // Remove placeholder asset and the entity holding a handle to it
+                    assets.remove(asset_id);
+                    world.despawn(entity);
+                }
             }
         }
-    }
 
-    if must_run_startup_schedule {
         ModStartup::run(world);
     }
 }

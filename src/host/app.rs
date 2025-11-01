@@ -1,11 +1,15 @@
 use anyhow::{Result, bail};
-use bevy::{ecs::schedule::Schedules as BevySchedules, log::warn};
+use bevy::{
+    ecs::schedule::{IntoScheduleConfigs, Schedules as BevySchedules},
+    log::warn,
+};
 use wasmtime::component::Resource;
 
 use crate::{
     bindings::wasvy::ecs::app::{HostApp, Schedule},
     host::{System, WasmHost},
     runner::State,
+    sandbox::Sandbox,
     schedule::Schedules,
 };
 
@@ -46,6 +50,7 @@ impl HostApp for WasmHost {
             mod_name,
             asset_id,
             asset_version,
+            sandbox_entities,
             ..
         } = self.access()
         else {
@@ -62,16 +67,32 @@ impl HostApp for WasmHost {
             return Ok(());
         };
 
-        for system in systems.iter() {
-            let system = table.get_mut(system)?;
-            let schedule_config = system.schedule(world, mod_name, asset_id, asset_version)?;
+        // Each sandbox needs to have dedicated systems that run inside it
+        for sandbox_entity in sandbox_entities {
+            let sandbox = world
+                .get::<Sandbox>(*sandbox_entity)
+                .expect("has a sandbox");
+
+            // Only add systems for the schedules that are enabled for this sandbox
+            if sandbox.schedules().0.contains(&schedule) {
+                continue;
+            }
 
             let schedule = schedule.schedule_label();
+            let access = sandbox.access();
+            let system_set = sandbox.system_set();
 
-            let mut schedules = world
-                .get_resource_mut::<BevySchedules>()
-                .expect("running in an App");
-            schedules.add_systems(schedule, schedule_config);
+            for system in systems.iter() {
+                let schedule_config = table
+                    .get_mut(system)?
+                    .schedule(world, mod_name, asset_id, asset_version, &access)?
+                    .in_set(system_set.clone());
+
+                world
+                    .get_resource_mut::<BevySchedules>()
+                    .expect("running in an App")
+                    .add_systems(schedule.clone(), schedule_config);
+            }
         }
 
         Ok(())

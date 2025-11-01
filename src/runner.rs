@@ -5,6 +5,7 @@ use bevy::{
     asset::AssetId,
     ecs::{
         component::Tick,
+        entity::Entity,
         reflect::AppTypeRegistry,
         system::{Commands, ParamSet, Query},
         world::{FilteredEntityMut, World},
@@ -56,12 +57,14 @@ impl Runner {
                 asset_id,
                 asset_version,
                 mod_name,
+                sandbox_entities,
             }) => Inner::Setup {
                 world: SendSyncPtr::new(world.into()),
                 app_init: false,
                 asset_id: *asset_id,
                 asset_version,
                 mod_name: mod_name.to_string(),
+                sandbox_entities: SendSyncPtr::new(sandbox_entities.into()),
             },
             Config::RunSystem(ConfigRunSystem {
                 commands,
@@ -95,6 +98,7 @@ enum Inner {
         mod_name: String,
         asset_id: AssetId<ModAsset>,
         asset_version: Tick,
+        sandbox_entities: SendSyncPtr<[Entity]>,
     },
     RunSystem {
         commands: SendSyncPtr<Commands<'static, 'static>>,
@@ -122,6 +126,7 @@ impl Data {
                 asset_id,
                 asset_version,
                 mod_name,
+                sandbox_entities,
             } => Some(State::Setup {
                 // Safety: Runner::use_store ensures that this always contains a valid reference
                 // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
@@ -130,6 +135,7 @@ impl Data {
                 asset_id,
                 asset_version,
                 mod_name,
+                sandbox_entities: unsafe { sandbox_entities.as_ref() },
                 table,
             }),
             Inner::RunSystem {
@@ -160,6 +166,7 @@ pub(crate) enum State<'a> {
         mod_name: &'a str,
         asset_id: &'a AssetId<ModAsset>,
         asset_version: &'a Tick,
+        sandbox_entities: &'a [Entity],
     },
     RunSystem {
         table: &'a mut ResourceTable,
@@ -179,6 +186,7 @@ pub(crate) struct ConfigSetup<'a> {
     pub(crate) asset_id: &'a AssetId<ModAsset>,
     pub(crate) asset_version: Tick,
     pub(crate) mod_name: &'a str,
+    pub(crate) sandbox_entities: &'a [Entity],
 }
 
 pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {

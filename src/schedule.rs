@@ -106,9 +106,9 @@ impl ModStartup {
     }
 }
 
-/// A collection of the Schedules where Wasvy runs mods
+/// A collection of the Schedules where Wasvy can run mods
 #[derive(Resource)]
-pub(crate) struct Schedules(Vec<Schedule>);
+pub struct Schedules(pub Vec<Schedule>);
 
 impl Default for Schedules {
     fn default() -> Self {
@@ -125,11 +125,12 @@ impl Default for Schedules {
 }
 
 impl Schedules {
-    pub(crate) fn empty() -> Self {
+    /// Returns an empty Schedules.
+    pub fn empty() -> Self {
         Self(Vec::new())
     }
 
-    pub(crate) fn push(&mut self, schedule: Schedule) {
+    pub fn push(&mut self, schedule: Schedule) {
         assert!(
             !self.0.contains(&schedule),
             "Duplicate schedule {:?} added to ModloaderPlugin",

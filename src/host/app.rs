@@ -10,7 +10,7 @@ use crate::{
     host::{System, WasmHost},
     runner::State,
     sandbox::Sandbox,
-    schedule::Schedules,
+    schedule::ModSchedules,
 };
 
 pub struct App;
@@ -58,7 +58,7 @@ impl HostApp for WasmHost {
         };
 
         // Validate that the schedule requested by the mod is enabled
-        let schedules = world.get_resource_or_init::<Schedules>();
+        let schedules = world.get_resource_or_init::<ModSchedules>();
         let Some(schedule) = schedules.evaluate(&schedule) else {
             warn!(
                 "Mod tried adding systems to schedule {:?}, but that system is not enabled",

@@ -11,7 +11,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::schedule::Schedules;
+use crate::schedule::ModSchedules;
 
 /// Sandboxes are subsets of entities within a bevy [World] in which [Mods](crate::mods::Mod) can run exclusively.
 ///
@@ -45,14 +45,14 @@ pub struct Sandbox {
     sandboxed_component_id: ComponentId,
 
     /// Mods in this sandbox will run only during the provided schedules
-    schedules: Schedules,
+    schedules: ModSchedules,
 }
 
 impl Sandbox {
     /// Creates a new [Sandbox] component
     ///
     /// Mods in this Sandbox will run only during the provided [Schedules]
-    pub fn new(world: &mut World, schedules: Schedules) -> Self {
+    pub fn new(world: &mut World, schedules: ModSchedules) -> Self {
         let count = world.get_resource_or_init::<SandboxCount>().0;
         let name = format!("SandboxMarker{count}");
 
@@ -83,7 +83,7 @@ impl Sandbox {
     }
 
     /// Returns the Schedules for
-    pub fn schedules(&self) -> &Schedules {
+    pub fn schedules(&self) -> &ModSchedules {
         &self.schedules
     }
 
@@ -109,14 +109,14 @@ impl Sandbox {
     }
 
     /// Add the Global Sandbox, see [Self]
-    pub(crate) fn spawn_global(world: &mut World, schedules: Schedules) {
+    pub(crate) fn spawn_global(world: &mut World, schedules: ModSchedules) {
         let component = Sandbox::new_inner(world, schedules, None);
         world.spawn((component, Name::new("Global Sandbox")));
     }
 
     fn new_inner(
         world: &mut World,
-        schedules: Schedules,
+        schedules: ModSchedules,
         descriptor: Option<ComponentDescriptor>,
     ) -> Self {
         let component_id =
@@ -335,11 +335,11 @@ mod tests {
     use bevy::prelude::*;
 
     use super::*;
-    use crate::schedule::Schedules;
+    use crate::schedule::ModSchedules;
 
     fn setup() -> World {
         let mut world = World::new();
-        Sandbox::spawn_global(&mut world, Schedules::empty());
+        Sandbox::spawn_global(&mut world, ModSchedules::empty());
         world
     }
 
@@ -347,7 +347,7 @@ mod tests {
     fn sandboxed_propagate_marker() {
         let mut world = setup();
 
-        let component = Sandbox::new(&mut world, Schedules::empty());
+        let component = Sandbox::new(&mut world, ModSchedules::empty());
         let marker = component.component_id.unwrap().clone();
         let sandbox = world.spawn(component).id();
         let child = world.spawn_empty().insert(ChildOf(sandbox)).id();
@@ -366,7 +366,7 @@ mod tests {
     fn simple_sandboxed_propagate() {
         let mut world = setup();
 
-        let component = Sandbox::new(&mut world, Schedules::empty());
+        let component = Sandbox::new(&mut world, ModSchedules::empty());
         let sandbox = world.spawn(component).id();
         let child = world.spawn_empty().insert(ChildOf(sandbox)).id();
         let nested_child = world.spawn_empty().insert(ChildOf(child)).id();
@@ -382,11 +382,11 @@ mod tests {
     fn reparent_sandboxed() {
         let mut world = setup();
 
-        let component = Sandbox::new(&mut world, Schedules::empty());
+        let component = Sandbox::new(&mut world, ModSchedules::empty());
         let marker1 = component.component_id.unwrap();
         let sandbox1 = world.spawn(component).id();
 
-        let component = Sandbox::new(&mut world, Schedules::empty());
+        let component = Sandbox::new(&mut world, ModSchedules::empty());
         let marker2 = component.component_id.unwrap();
         let sandbox2 = world.spawn(component).id();
 
@@ -416,13 +416,13 @@ mod tests {
     fn replace_sandbox() {
         let mut world = setup();
 
-        let component = Sandbox::new(&mut world, Schedules::empty());
+        let component = Sandbox::new(&mut world, ModSchedules::empty());
         let marker1 = component.component_id.unwrap();
         let sandbox = world.spawn(component).id();
 
         let child = world.spawn_empty().insert(ChildOf(sandbox)).id();
 
-        let component = Sandbox::new(&mut world, Schedules::empty());
+        let component = Sandbox::new(&mut world, ModSchedules::empty());
         let marker2 = component.component_id.unwrap();
         world.entity_mut(sandbox).insert(component);
 
@@ -440,7 +440,7 @@ mod tests {
     fn remove_sandbox() {
         let mut world = setup();
 
-        let component = Sandbox::new(&mut world, Schedules::empty());
+        let component = Sandbox::new(&mut world, ModSchedules::empty());
         let marker = component.component_id.unwrap();
         let sandbox = world.spawn(component).id();
 
@@ -462,11 +462,11 @@ mod tests {
     fn nested_sandbox_propagate() {
         let mut world = setup();
 
-        let component = Sandbox::new(&mut world, Schedules::empty());
+        let component = Sandbox::new(&mut world, ModSchedules::empty());
         let sandbox1 = world.spawn(component).id();
         let child1 = world.spawn(ChildOf(sandbox1)).id();
 
-        let component = Sandbox::new(&mut world, Schedules::empty());
+        let component = Sandbox::new(&mut world, ModSchedules::empty());
         let sandbox2 = world.spawn((component, ChildOf(child1))).id();
         let child2 = world.spawn(ChildOf(sandbox2)).id();
 
@@ -488,7 +488,7 @@ mod tests {
             let mut world = setup();
             let mut other_world = setup();
 
-            let component = Sandbox::new(&mut other_world, Schedules::empty());
+            let component = Sandbox::new(&mut other_world, ModSchedules::empty());
 
             // Should panic
             world.spawn(component);

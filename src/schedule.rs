@@ -3,7 +3,7 @@ use bevy::{
     ecs::{
         intern::Interned,
         resource::Resource,
-        schedule::{Schedule as BevySchedule, ScheduleLabel, Schedules as BevySchedules},
+        schedule::{Schedule, ScheduleLabel, Schedules},
         world::World,
     },
 };
@@ -14,10 +14,10 @@ use crate::bindings::wasvy::ecs::app::Schedule as WitSchedule;
 ///
 /// See the docs for [bevy schedules](bevy::app::Main).
 ///
-/// Currently none of the first run schedules (like Startup) are included since mods can't be guaranteed to load fast enough to run in them.
+/// Mone of the first run schedules (like Startup) are included since mods can't be guaranteed to load fast enough to run in them.
 /// So instead, many repeating schedules are run instead
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Schedule {
+pub enum ModSchedule {
     /// A custom schedule that runs the first time a mod is loaded.
     ///
     /// In reality, this isn't really a Bevy schedule.
@@ -49,7 +49,7 @@ pub enum Schedule {
     },
 }
 
-impl Schedule {
+impl ModSchedule {
     /// A custom schedule for the Modloader
     ///
     /// - `name` must match what the mod registers with via the wit api
@@ -86,13 +86,13 @@ impl Schedule {
 pub(crate) struct ModStartup;
 
 impl ModStartup {
-    pub(crate) fn new_schedule() -> BevySchedule {
-        BevySchedule::new(Self)
+    pub(crate) fn new_schedule() -> Schedule {
+        Schedule::new(Self)
     }
 
     pub(crate) fn run(world: &mut World) {
         let mut schedules = world
-            .get_resource_mut::<BevySchedules>()
+            .get_resource_mut::<Schedules>()
             .expect("running in an App");
 
         // Swap the schedule with a new one
@@ -106,31 +106,31 @@ impl ModStartup {
     }
 }
 
-/// A collection of the Schedules where Wasvy can run mods
+/// A collection of the [Schedules] where Wasvy will run mods
 #[derive(Resource)]
-pub struct Schedules(pub Vec<Schedule>);
+pub struct ModSchedules(pub Vec<ModSchedule>);
 
-impl Default for Schedules {
+impl Default for ModSchedules {
     fn default() -> Self {
         Self(vec![
-            Schedule::ModStartup,
-            Schedule::PreUpdate,
-            Schedule::Update,
-            Schedule::PostUpdate,
-            Schedule::FixedPreUpdate,
-            Schedule::FixedUpdate,
-            Schedule::FixedPostUpdate,
+            ModSchedule::ModStartup,
+            ModSchedule::PreUpdate,
+            ModSchedule::Update,
+            ModSchedule::PostUpdate,
+            ModSchedule::FixedPreUpdate,
+            ModSchedule::FixedUpdate,
+            ModSchedule::FixedPostUpdate,
         ])
     }
 }
 
-impl Schedules {
+impl ModSchedules {
     /// Returns an empty Schedules.
     pub fn empty() -> Self {
         Self(Vec::new())
     }
 
-    pub fn push(&mut self, schedule: Schedule) {
+    pub fn push(&mut self, schedule: ModSchedule) {
         assert!(
             !self.0.contains(&schedule),
             "Duplicate schedule {:?} added to ModloaderPlugin",
@@ -143,15 +143,15 @@ impl Schedules {
     /// If this schedule was enabled during plugin instantiation, this returns the correct schedule
     ///
     /// Returns None if the schedule was never added.
-    pub(crate) fn evaluate(&self, schedule: &WitSchedule) -> Option<Schedule> {
+    pub(crate) fn evaluate(&self, schedule: &WitSchedule) -> Option<ModSchedule> {
         let schedule_or_custom_name = match schedule {
-            WitSchedule::ModStartup => Either::Left(Schedule::ModStartup),
-            WitSchedule::PreUpdate => Either::Left(Schedule::PreUpdate),
-            WitSchedule::Update => Either::Left(Schedule::Update),
-            WitSchedule::PostUpdate => Either::Left(Schedule::PostUpdate),
-            WitSchedule::FixedPreUpdate => Either::Left(Schedule::FixedPreUpdate),
-            WitSchedule::FixedUpdate => Either::Left(Schedule::FixedUpdate),
-            WitSchedule::FixedPostUpdate => Either::Left(Schedule::FixedPostUpdate),
+            WitSchedule::ModStartup => Either::Left(ModSchedule::ModStartup),
+            WitSchedule::PreUpdate => Either::Left(ModSchedule::PreUpdate),
+            WitSchedule::Update => Either::Left(ModSchedule::Update),
+            WitSchedule::PostUpdate => Either::Left(ModSchedule::PostUpdate),
+            WitSchedule::FixedPreUpdate => Either::Left(ModSchedule::FixedPreUpdate),
+            WitSchedule::FixedUpdate => Either::Left(ModSchedule::FixedUpdate),
+            WitSchedule::FixedPostUpdate => Either::Left(ModSchedule::FixedPostUpdate),
             WitSchedule::Custom(custom_name) => Either::Right(custom_name),
         };
 
@@ -167,7 +167,7 @@ impl Schedules {
                 .0
                 .iter()
                 .find(|schedule| match schedule {
-                    Schedule::Custom { name, .. } => name == custom_name,
+                    ModSchedule::Custom { name, .. } => name == custom_name,
                     _ => false,
                 })
                 .map(|schedule| schedule.clone()),

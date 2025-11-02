@@ -36,7 +36,7 @@ pub(crate) fn run_setup(mut world: &mut World, param: &mut SystemState<Setup>) {
         };
 
         // Find the mod entity matching this asset
-        let Some((entity, name, _)) = mods.iter().find(|&(_, _, m)| m.asset.id() == *id) else {
+        let Some((entity, name, _)) = mods.iter().find(|&(_, _, m)| m.asset().id() == *id) else {
             warn!(
                 "Loaded wasm mod asset, but missing its entity. Did you accidentally load a wasm asset?"
             );

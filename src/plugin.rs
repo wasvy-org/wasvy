@@ -13,7 +13,7 @@ use crate::{
     mods::ModSystemSet,
     sandbox::{Sandbox, SandboxSystemSet},
     schedule::{ModSchedule, ModSchedules, ModStartup},
-    systems::run_setup,
+    setup::run_setup,
 };
 
 /// This plugin adds Wasvy modding support to [`App`]

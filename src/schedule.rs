@@ -80,7 +80,7 @@ impl ModSchedule {
 
 /// The hidden custom schedule that runs when one or more new mods were loaded
 ///
-/// This isn't added to the scheduler, instead it's run by the exclusive system ([run_setup](crate::systems::run_setup)) after one or more mods finish loading
+/// This isn't added to the scheduler, instead it's run by the exclusive system ([run_setup](crate::setup::run_setup)) after one or more mods finish loading
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub(crate) struct ModStartup;
 

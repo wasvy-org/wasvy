@@ -10,7 +10,7 @@ pub mod runner;
 pub mod sandbox;
 pub mod schedule;
 pub mod send_sync_ptr;
-pub mod systems;
+pub mod setup;
 
 mod bindings {
     wasmtime::component::bindgen!({

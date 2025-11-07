@@ -25,7 +25,6 @@ use crate::{
     bindings::wasvy::ecs::app::{HostSystem, QueryFor},
     engine::Engine,
     host::{Commands, Query, QueryForComponent, WasmHost, create_query_builder},
-    prelude::Sandbox,
     runner::{ConfigRunSystem, Runner, State},
 };
 
@@ -56,6 +55,7 @@ impl System {
         asset_version: &Tick,
         access: &FilteredAccess,
         sandbox_id: Entity,
+        sandbox_is_global: bool,
     ) -> Result<ScheduleConfigs<BoxedSystem>> {
         self.scheduled = true;
 
@@ -63,11 +63,6 @@ impl System {
         for param in self.params.iter() {
             built_params.push(param.build(world)?);
         }
-
-        let sandbox_is_global = world
-            .get::<Sandbox>(sandbox_id)
-            .expect("sandbox")
-            .is_global();
 
         // Used internally by the system
         let input = Input {

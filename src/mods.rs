@@ -160,17 +160,19 @@ impl Mod {
     pub fn sandboxes(&self) -> impl Iterator<Item = &Entity> {
         self.sandboxes.iter()
     }
-
-    /// Retrieves the system set for a Mod.
-    ///
-    /// All of the mod's systems will be included in this set.
-    ///
-    /// The entity should be an entity with a Mod component.
-    pub fn system_set(mod_id: Entity) -> ModSet {
-        ModSet(mod_id)
-    }
 }
 
 /// A unique set containing all the systems for a specific Mod
 #[derive(SystemSet, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct ModSet(Entity);
+pub struct ModSystemSet(Entity);
+
+impl ModSystemSet {
+    /// Retrieves the system set for a Mod.
+    ///
+    /// All of the mod's systems will be included in this set.
+    ///
+    /// The provided mod_id should be an entity with a Mod component.
+    pub fn new(mod_id: Entity) -> ModSystemSet {
+        ModSystemSet(mod_id)
+    }
+}

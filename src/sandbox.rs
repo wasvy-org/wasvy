@@ -113,11 +113,6 @@ impl Sandbox {
         access
     }
 
-    /// Retrieves the system set for this Sandbox
-    pub fn system_set(&self) -> SandboxSet {
-        SandboxSet(self.component_id.map(|id| id.index()))
-    }
-
     /// Add the Global Sandbox, see [Self]
     pub(crate) fn spawn_global(world: &mut World, schedules: ModSchedules) {
         let component = Sandbox::new_inner(world, schedules, None);
@@ -147,8 +142,9 @@ impl Sandbox {
     fn on_add(mut world: DeferredWorld, ctx: HookContext) {
         world.commands().queue(move |world: &mut World| {
             // Get and also increment the count
-            let count = world.get_resource_or_init::<SandboxCount>().0;
-            world.get_resource_mut::<SandboxCount>().expect("init").0 = count + 1;
+            let sandbox_count = world.get_resource_or_init::<SandboxCount>();
+            let count = sandbox_count.0;
+            sandbox_count.into_inner().0 += 1;
 
             // Once a custom Sandbox is added, activate the propagation
             // This is not needed when just the "Global Sandbox" is present
@@ -180,19 +176,21 @@ impl Sandbox {
 
     /// [On replace](bevy::ecs::lifecycle::ComponentHooks::on_replace) for [Sandbox]
     fn on_replace(mut world: DeferredWorld, ctx: HookContext) {
-        let Self { component_id, .. } = world
+        let sandbox = world
             .entity(ctx.entity)
-            .get()
+            .get::<Self>()
             .expect("Sandbox was replaced");
-        let component_id = component_id.expect("Global Sandbox to never be removed");
 
-        let Some(SandboxedEntities(entities)) = world.entity(ctx.entity).get() else {
-            return;
-        };
+        // Panic if the global sandbox is removed
+        let component_id = sandbox
+            .component_id
+            .expect("Global Sandbox to never be removed");
 
-        // Make sure we remove the old, invalid marker component for all the sandboxed entites
-        for entity in entities.clone() {
-            world.commands().entity(entity).remove_by_id(component_id);
+        if let Some(SandboxedEntities(entities)) = world.entity(ctx.entity).get() {
+            // Make sure we remove the old, invalid marker component for all the sandboxed entites
+            for entity in entities.clone() {
+                world.commands().entity(entity).remove_by_id(component_id);
+            }
         }
     }
 
@@ -334,7 +332,18 @@ struct SandboxedMarker;
 
 /// A unique set containing all the systems for a specific Sandbox
 #[derive(SystemSet, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct SandboxSet(Option<usize>);
+pub struct SandboxSystemSet(Entity);
+
+impl SandboxSystemSet {
+    /// Retrieves the system set for a Sandbox.
+    ///
+    /// All of the sandbox's systems will be included in this set.
+    ///
+    /// The provided sandbox_id should be an entity with a Sandbox component.
+    pub fn new(sandbox_id: Entity) -> Self {
+        Self(sandbox_id)
+    }
+}
 
 /// Tracks the Count of [Sandboxes]
 #[derive(Resource, Default)]

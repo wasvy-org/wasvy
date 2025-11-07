@@ -8,9 +8,9 @@ use wasmtime::component::Resource;
 use crate::{
     bindings::wasvy::ecs::app::{HostApp, Schedule},
     host::{System, WasmHost},
-    mods::Mod,
+    mods::ModSystemSet,
     runner::State,
-    sandbox::Sandbox,
+    sandbox::{Sandbox, SandboxSystemSet},
 };
 
 pub struct App;
@@ -58,8 +58,6 @@ impl HostApp for WasmHost {
             bail!("App can only be modified in a setup function")
         };
 
-        let mod_system_set = Mod::system_set(mod_id);
-
         // Each sandbox needs to have dedicated systems that run inside it
         for sandbox_id in sandbox_entities {
             let sandbox_id = *sandbox_id;
@@ -78,7 +76,7 @@ impl HostApp for WasmHost {
 
             let schedule = schedule.schedule_label();
             let access = sandbox.access();
-            let sandbox_system_set = sandbox.system_set();
+            let sandbox_is_global = sandbox.is_global();
 
             for system in systems.iter() {
                 let schedule_config = table
@@ -90,9 +88,10 @@ impl HostApp for WasmHost {
                         asset_version,
                         &access,
                         sandbox_id,
+                        sandbox_is_global,
                     )?
-                    .in_set(mod_system_set.clone())
-                    .in_set(sandbox_system_set.clone());
+                    .in_set(ModSystemSet::new(mod_id))
+                    .in_set(SandboxSystemSet::new(sandbox_id));
 
                 world
                     .get_resource_mut::<BevySchedules>()

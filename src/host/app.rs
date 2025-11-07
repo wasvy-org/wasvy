@@ -61,8 +61,9 @@ impl HostApp for WasmHost {
         let mod_system_set = Mod::system_set(mod_id);
 
         // Each sandbox needs to have dedicated systems that run inside it
-        for sandbox_entity in sandbox_entities {
-            let Some(sandbox) = world.get::<Sandbox>(*sandbox_entity) else {
+        for sandbox_id in sandbox_entities {
+            let sandbox_id = *sandbox_id;
+            let Some(sandbox) = world.get::<Sandbox>(sandbox_id) else {
                 continue;
             };
 
@@ -82,7 +83,14 @@ impl HostApp for WasmHost {
             for system in systems.iter() {
                 let schedule_config = table
                     .get_mut(system)?
-                    .schedule(world, mod_name, asset_id, asset_version, &access)?
+                    .schedule(
+                        world,
+                        mod_name,
+                        asset_id,
+                        asset_version,
+                        &access,
+                        sandbox_id,
+                    )?
                     .in_set(mod_system_set.clone())
                     .in_set(sandbox_system_set.clone());
 

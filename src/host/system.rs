@@ -3,6 +3,7 @@ use bevy::{
     asset::AssetId,
     ecs::{
         component::Tick,
+        entity::Entity,
         error::Result as BevyResult,
         query::FilteredAccess,
         reflect::AppTypeRegistry,
@@ -24,6 +25,7 @@ use crate::{
     bindings::wasvy::ecs::app::{HostSystem, QueryFor},
     engine::Engine,
     host::{Commands, Query, QueryForComponent, WasmHost, create_query_builder},
+    prelude::Sandbox,
     runner::{ConfigRunSystem, Runner, State},
 };
 
@@ -53,6 +55,7 @@ impl System {
         asset_id: &AssetId<ModAsset>,
         asset_version: &Tick,
         access: &FilteredAccess,
+        sandbox_id: Entity,
     ) -> Result<ScheduleConfigs<BoxedSystem>> {
         self.scheduled = true;
 
@@ -61,6 +64,11 @@ impl System {
             built_params.push(param.build(world)?);
         }
 
+        let sandbox_is_global = world
+            .get::<Sandbox>(sandbox_id)
+            .expect("sandbox")
+            .is_global();
+
         // Used internally by the system
         let input = Input {
             mod_name: mod_name.to_string(),
@@ -68,6 +76,8 @@ impl System {
             asset_id: asset_id.clone(),
             asset_version: asset_version.clone(),
             built_params,
+            sandbox_id,
+            sandbox_is_global,
         };
 
         // Generate the queries necessary to run this system
@@ -129,13 +139,20 @@ impl System {
     }
 }
 
-#[derive(FromWorld)]
 struct Input {
     mod_name: String,
     system_name: String,
     asset_id: AssetId<ModAsset>,
     asset_version: Tick,
     built_params: Vec<BuiltParam>,
+    sandbox_id: Entity,
+    sandbox_is_global: bool,
+}
+
+impl FromWorld for Input {
+    fn from_world(_world: &mut World) -> Self {
+        unreachable!("Input is created with LocalBuilder")
+    }
 }
 
 fn system_runner(
@@ -172,6 +189,8 @@ fn system_runner(
             commands: &mut commands,
             type_registry: &type_registry,
             queries: &mut queries,
+            sandbox_id: input.sandbox_id,
+            sandbox_is_global: input.sandbox_is_global,
         },
         &params,
     )?;

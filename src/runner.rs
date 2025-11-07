@@ -72,10 +72,14 @@ impl Runner {
                 commands,
                 type_registry,
                 queries,
+                sandbox_id,
+                sandbox_is_global,
             }) => Inner::RunSystem {
                 commands: SendSyncPtr::new(NonNull::from_mut(commands).cast()),
                 type_registry: SendSyncPtr::new(NonNull::from_ref(type_registry)),
                 queries: SendSyncPtr::new(NonNull::from_ref(queries).cast()),
+                sandbox_id,
+                sandbox_is_global,
             },
         }));
 
@@ -107,6 +111,8 @@ enum Inner {
         commands: SendSyncPtr<Commands<'static, 'static>>,
         type_registry: SendSyncPtr<AppTypeRegistry>,
         queries: SendSyncPtr<Queries<'static, 'static>>,
+        sandbox_id: Entity,
+        sandbox_is_global: bool,
     },
 }
 
@@ -147,6 +153,8 @@ impl Data {
                 commands,
                 type_registry,
                 queries,
+                sandbox_id,
+                sandbox_is_global,
             } =>
             // Safety: Runner::use_store ensures that this always contains a valid reference
             // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
@@ -155,6 +163,8 @@ impl Data {
                     commands: commands.cast().as_mut(),
                     type_registry: type_registry.as_ref(),
                     queries: queries.cast().as_mut(),
+                    sandbox_id: *sandbox_id,
+                    sandbox_is_global: *sandbox_is_global,
                     table,
                 })
             },
@@ -179,6 +189,8 @@ pub(crate) enum State<'a> {
         commands: &'a mut Commands<'a, 'a>,
         type_registry: &'a AppTypeRegistry,
         queries: &'a mut Queries<'a, 'a>,
+        sandbox_id: Entity,
+        sandbox_is_global: bool,
     },
 }
 
@@ -201,4 +213,6 @@ pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
     pub(crate) type_registry: &'a AppTypeRegistry,
     pub(crate) queries:
         &'a mut ParamSet<'d, 'e, Vec<Query<'f, 'g, FilteredEntityMut<'static, 'static>>>>,
+    pub(crate) sandbox_id: Entity,
+    pub(crate) sandbox_is_global: bool,
 }

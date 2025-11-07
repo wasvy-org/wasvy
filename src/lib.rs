@@ -1,4 +1,5 @@
 pub mod asset;
+pub mod cleanup;
 pub mod component;
 pub mod engine;
 pub mod host;

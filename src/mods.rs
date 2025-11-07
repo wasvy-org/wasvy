@@ -1,8 +1,11 @@
 use bevy::{
-    asset::AssetPath, ecs::system::SystemParam, platform::collections::HashSet, prelude::*,
+    asset::AssetPath,
+    ecs::{lifecycle::HookContext, system::SystemParam, world::DeferredWorld},
+    platform::collections::HashSet,
+    prelude::*,
 };
 
-use crate::{asset::ModAsset, sandbox::Sandbox};
+use crate::{asset::ModAsset, cleanup::RemoveSystemSet, sandbox::Sandbox};
 
 /// This system param provides an interface to load and manage Wasvy mods
 #[derive(SystemParam)]
@@ -114,6 +117,7 @@ impl Mods<'_, '_> {
 /// Note: Bevy drops assets if there are no active handles so
 /// this component holds a reference to it in order to keep it alive.
 #[derive(Component, Reflect)]
+#[component(on_replace = Self::on_replace)]
 pub struct Mod {
     /// A handle to wasm file for this mod
     asset: Handle<ModAsset>,
@@ -159,6 +163,22 @@ impl Mod {
     /// Returns an iterator over the sandboxes contained by this mod
     pub fn sandboxes(&self) -> impl Iterator<Item = &Entity> {
         self.sandboxes.iter()
+    }
+
+    /// [On replace](bevy::ecs::lifecycle::ComponentHooks::on_replace) for [Mod]
+    fn on_replace(mut world: DeferredWorld, ctx: HookContext) {
+        let mod_component = world
+            .entity(ctx.entity)
+            .get::<Self>()
+            .expect("Mod was replaced");
+
+        // After a mod is removed, its systems should no longer run
+        for sandbox_id in mod_component.sandboxes.clone() {
+            if let Some(sandbox) = world.get::<Sandbox>(sandbox_id) {
+                let command = RemoveSystemSet::new(ModSystemSet::new(ctx.entity), sandbox);
+                world.commands().queue(command);
+            }
+        }
     }
 }
 

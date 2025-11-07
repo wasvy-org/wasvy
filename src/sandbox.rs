@@ -11,7 +11,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::schedule::ModSchedules;
+use crate::{cleanup::RemoveSystemSet, schedule::ModSchedules};
 
 /// Sandboxes are subsets of entities within a bevy [World] in which [Mods](crate::mods::Mod) can run exclusively.
 ///
@@ -185,6 +185,10 @@ impl Sandbox {
         let component_id = sandbox
             .component_id
             .expect("Global Sandbox to never be removed");
+
+        // After a sandbox is removed, its systems should no longer run
+        let command = RemoveSystemSet::new(SandboxSystemSet::new(ctx.entity), sandbox);
+        world.commands().queue(command);
 
         if let Some(SandboxedEntities(entities)) = world.entity(ctx.entity).get() {
             // Make sure we remove the old, invalid marker component for all the sandboxed entites

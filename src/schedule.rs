@@ -106,6 +106,7 @@ impl ModStartup {
 }
 
 /// A collection of the [Schedules] where Wasvy will run mods
+#[derive(Debug, Clone)]
 pub struct ModSchedules(pub Vec<ModSchedule>);
 
 impl Default for ModSchedules {

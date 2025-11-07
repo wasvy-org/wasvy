@@ -153,4 +153,22 @@ impl Mod {
     pub fn remove_from_sandbox<'a>(&mut self, sandbox: Entity) -> bool {
         self.sandboxes.remove(&sandbox)
     }
+
+    /// Returns an iterator over the sandboxes contained by this mod
+    pub fn sandboxes(&self) -> impl Iterator<Item = &Entity> {
+        self.sandboxes.iter()
+    }
+
+    /// Retrieves the system set for a Mod.
+    ///
+    /// All of the mod's systems will be included in this set.
+    ///
+    /// The entity should be an entity with a Mod component.
+    pub fn system_set(mod_id: Entity) -> ModSet {
+        ModSet(mod_id)
+    }
 }
+
+/// A unique set containing all the systems for a specific Mod
+#[derive(SystemSet, Clone, Debug, Hash, PartialEq, Eq)]
+pub struct ModSet(Entity);

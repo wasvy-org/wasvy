@@ -153,7 +153,7 @@ fn system_runner(
     };
 
     // Skip mismatching system versions
-    if asset.version() != input.asset_version {
+    if asset.version() != Some(input.asset_version) {
         return Ok(());
     }
 

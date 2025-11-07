@@ -8,6 +8,7 @@ use wasmtime::component::Resource;
 use crate::{
     bindings::wasvy::ecs::app::{HostApp, Schedule},
     host::{System, WasmHost},
+    mods::Mod,
     runner::State,
     sandbox::Sandbox,
 };
@@ -46,6 +47,7 @@ impl HostApp for WasmHost {
         let State::Setup {
             table,
             world,
+            mod_id,
             mod_name,
             asset_id,
             asset_version,
@@ -56,11 +58,13 @@ impl HostApp for WasmHost {
             bail!("App can only be modified in a setup function")
         };
 
+        let mod_system_set = Mod::system_set(mod_id);
+
         // Each sandbox needs to have dedicated systems that run inside it
         for sandbox_entity in sandbox_entities {
-            let sandbox = world
-                .get::<Sandbox>(*sandbox_entity)
-                .expect("has a sandbox");
+            let Some(sandbox) = world.get::<Sandbox>(*sandbox_entity) else {
+                continue;
+            };
 
             // Validate that the schedule requested by the mod is enabled
             let Some(schedule) = sandbox.schedules().evaluate(&schedule) else {
@@ -73,13 +77,14 @@ impl HostApp for WasmHost {
 
             let schedule = schedule.schedule_label();
             let access = sandbox.access();
-            let system_set = sandbox.system_set();
+            let sandbox_system_set = sandbox.system_set();
 
             for system in systems.iter() {
                 let schedule_config = table
                     .get_mut(system)?
                     .schedule(world, mod_name, asset_id, asset_version, &access)?
-                    .in_set(system_set.clone());
+                    .in_set(mod_system_set.clone())
+                    .in_set(sandbox_system_set.clone());
 
                 world
                     .get_resource_mut::<BevySchedules>()

@@ -56,6 +56,7 @@ impl Runner {
                 world,
                 asset_id,
                 asset_version,
+                mod_id,
                 mod_name,
                 sandbox_entities,
             }) => Inner::Setup {
@@ -63,6 +64,7 @@ impl Runner {
                 app_init: false,
                 asset_id: *asset_id,
                 asset_version,
+                mod_id,
                 mod_name: mod_name.to_string(),
                 sandbox_entities: SendSyncPtr::new(sandbox_entities.into()),
             },
@@ -95,6 +97,7 @@ enum Inner {
     Setup {
         world: SendSyncPtr<World>,
         app_init: bool,
+        mod_id: Entity,
         mod_name: String,
         asset_id: AssetId<ModAsset>,
         asset_version: Tick,
@@ -125,6 +128,7 @@ impl Data {
                 app_init,
                 asset_id,
                 asset_version,
+                mod_id,
                 mod_name,
                 sandbox_entities,
             } => Some(State::Setup {
@@ -134,6 +138,7 @@ impl Data {
                 app_init,
                 asset_id,
                 asset_version,
+                mod_id: *mod_id,
                 mod_name,
                 sandbox_entities: unsafe { sandbox_entities.as_ref() },
                 table,
@@ -163,6 +168,7 @@ pub(crate) enum State<'a> {
         world: &'a mut World,
         table: &'a mut ResourceTable,
         app_init: &'a mut bool,
+        mod_id: Entity,
         mod_name: &'a str,
         asset_id: &'a AssetId<ModAsset>,
         asset_version: &'a Tick,
@@ -185,6 +191,7 @@ pub(crate) struct ConfigSetup<'a> {
     pub(crate) world: &'a mut World,
     pub(crate) asset_id: &'a AssetId<ModAsset>,
     pub(crate) asset_version: Tick,
+    pub(crate) mod_id: Entity,
     pub(crate) mod_name: &'a str,
     pub(crate) sandbox_entities: &'a [Entity],
 }

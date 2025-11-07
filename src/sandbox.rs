@@ -15,12 +15,22 @@ use crate::schedule::ModSchedules;
 
 /// Sandboxes are subsets of entities within a bevy [World] in which [Mods](crate::mods::Mod) can run exclusively.
 ///
-/// This means that mod systems configured to run in this Sandbox will have access to:
+/// This means that systems belonging to mods configured to run in this Sandbox will have access to:
 /// - All the entities within this Sandbox
 /// - No entities outside this Sandbox
 /// - No entities that are in another Sandbox, even if the Sandbox is nested in this one
 ///
-/// All sandboxes are parallelized.
+/// A neat feature of sandboxes is that since systems of one sandbox do not conflict with those in another, bevy can run them in parallel.
+///
+/// ## Security and Isolation
+///
+/// **Loading a mod via a sandbox does not provide additional security!** Mods might have access to dangerous wasi apis (such as file io), and that doesn't change within a sandbox.
+/// The goal of sandboxes is simply to restrict mod access to certain entities in the world. There are no strong security guarantees.
+///
+/// Note: Sandboxed mods can technically affect entities outside the sandbox via relations!
+/// No guards are in place to prevent mods from creating components that reference entities outside their sandbox. Thus component hooks can mutate a component on an entity within a sandbox when a mod in a different sandbox mutates a component.
+///
+/// The intention is that an upcoming permissions system will solve this issue, giving fine-tuned access on what components mods can read from or mutate.
 ///
 /// ## Global Sandbox
 ///

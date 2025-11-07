@@ -93,41 +93,32 @@ pub(crate) fn run_setup(
     }
 
     // Initiate mods with exclusive world access (runs the mod setup)
-    let mut run_starup_schedule = false;
+    let mut run_startup_schedule = false;
     for (asset_id, mod_id, name, sandboxed_entities) in setup {
-        match ModAsset::initiate(
+        let Some(result) = ModAsset::initiate(
             &mut world,
             &asset_id,
             mod_id,
             &name,
             &sandboxed_entities[..],
-        ) {
-            None => {
-                info!("Loading mod \"{}\"", name);
-            }
-            Some(Ok(())) => {
-                info!("Successfully initialized mod \"{}\"", name);
+        ) else {
+            continue;
+        };
 
-                run_starup_schedule = true;
+        for sandbox_id in sandboxed_entities {
+            ran_for.insert(RanFor { mod_id, sandbox_id });
+        }
 
-                for sandbox_id in sandboxed_entities {
-                    ran_for.insert(RanFor { mod_id, sandbox_id });
-                }
-            }
-            Some(Err(err)) => {
-                error!("Error initializing mod \"{}\":\n{:?}", name, err);
+        if let Err(err) = result {
+            error!("Error initializing mod \"{name}\":\n{err:?}");
+        } else {
+            info!("Successfully initialized mod \"{name}\"");
 
-                // Remove placeholder asset and the entity holding a handle to it
-                world
-                    .get_resource_mut::<Assets<ModAsset>>()
-                    .expect("ModAssets be registered")
-                    .remove(asset_id);
-                world.despawn(mod_id);
-            }
+            run_startup_schedule = true;
         }
     }
 
-    if run_starup_schedule {
+    if run_startup_schedule {
         ModStartup::run(world);
     }
 }

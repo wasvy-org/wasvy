@@ -41,7 +41,7 @@ impl ModAsset {
 
     /// Initiates mods by running their "setup" function
     ///
-    /// Returns [None] if the mod could not yet be initialized
+    /// Returns [None] if the mod could not be initialized because the asset is missing.
     pub(crate) fn initiate(
         world: &mut World,
         asset_id: &AssetId<ModAsset>,

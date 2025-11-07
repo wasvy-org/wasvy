@@ -38,6 +38,8 @@ impl Mods<'_, '_> {
             .unwrap_or("unknown".to_string());
         let asset = self.asset_server.load::<ModAsset>(path);
 
+        info!("Loading mod \"{name}\"");
+
         self.commands.spawn((Mod::new(asset), Name::new(name))).id()
     }
 

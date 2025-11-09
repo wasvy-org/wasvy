@@ -8,8 +8,49 @@ import weakref
 from ..types import Result, Ok, Err, Some
 
 
-class Schedule(Enum):
-    UPDATE = 0
+
+@dataclass
+class Schedule_ModStartup:
+    pass
+
+
+@dataclass
+class Schedule_PreUpdate:
+    pass
+
+
+@dataclass
+class Schedule_Update:
+    pass
+
+
+@dataclass
+class Schedule_PostUpdate:
+    pass
+
+
+@dataclass
+class Schedule_FixedPreUpdate:
+    pass
+
+
+@dataclass
+class Schedule_FixedUpdate:
+    pass
+
+
+@dataclass
+class Schedule_FixedPostUpdate:
+    pass
+
+
+@dataclass
+class Schedule_Custom:
+    value: str
+
+
+Schedule = Union[Schedule_ModStartup, Schedule_PreUpdate, Schedule_Update, Schedule_PostUpdate, Schedule_FixedPreUpdate, Schedule_FixedUpdate, Schedule_FixedPostUpdate, Schedule_Custom]
+
 
 
 @dataclass

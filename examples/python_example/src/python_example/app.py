@@ -4,7 +4,7 @@ from typing import List
 from dataclasses import dataclass, asdict
 
 import example
-from example.imports.app import App, Commands, Query, QueryFor_Mut, QueryFor_With, Schedule, System
+from example.imports.app import App, Commands, Query, QueryFor_Mut, QueryFor_With, Schedule_Update, System
 
 class Example(example.Example):
     def setup(self):
@@ -21,7 +21,7 @@ class Example(example.Example):
         ])
 
         app = App()
-        app.add_systems(Schedule.UPDATE, [my_system, spin_cube])
+        app.add_systems(Schedule_Update(), [my_system, spin_cube])
 
     # Spin speed
     DELTA = 0.015

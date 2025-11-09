@@ -1,6 +1,6 @@
 use anyhow::{Result, bail};
 use bevy::{
-    ecs::schedule::{IntoScheduleConfigs, Schedules as BevySchedules},
+    ecs::schedule::{IntoScheduleConfigs, Schedules},
     log::warn,
 };
 use wasmtime::component::Resource;
@@ -81,7 +81,7 @@ impl HostApp for WasmHost {
                     .in_set(ModSystemSet::Access(*access));
 
                 world
-                    .get_resource_mut::<BevySchedules>()
+                    .get_resource_mut::<Schedules>()
                     .expect("running in an App")
                     .add_systems(schedule.clone(), schedule_config);
             }

@@ -5,7 +5,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{access::ModAccess, asset::ModAsset, cleanup::RemoveSystemSet, prelude::Sandbox};
+use crate::{access::ModAccess, asset::ModAsset, cleanup::DisableSystemSet, prelude::Sandbox};
 
 /// This system param provides an interface to load and manage Wasvy mods
 #[derive(SystemParam)]
@@ -126,7 +126,7 @@ impl Mods<'_, '_> {
 /// Note: Bevy drops assets if there are no active handles so
 /// this component holds a reference to it in order to keep it alive.
 #[derive(Component, Reflect)]
-#[component(on_replace = Self::on_replace)]
+#[component(on_despawn = Self::on_despawn)]
 pub struct Mod {
     /// A handle to wasm file for this mod
     asset: Handle<ModAsset>,
@@ -181,35 +181,78 @@ impl Mod {
         self.access.iter()
     }
 
-    /// [On replace](bevy::ecs::lifecycle::ComponentHooks::on_replace) for [Mod]
-    fn on_replace(mut world: DeferredWorld, ctx: HookContext) {
+    /// [On despawn](bevy::ecs::lifecycle::ComponentHooks::on_despawn) for [Mod]
+    fn on_despawn(mut world: DeferredWorld, ctx: HookContext) {
         let mod_component = world
             .entity(ctx.entity)
             .get::<Self>()
-            .expect("Mod was replaced");
+            .expect("Mod was removed");
 
         // After a mod is removed, its systems should no longer run
+        // The effects of DisableSystemSet are permanent, so we can only call it when this entity is despawned from the world
         for access in mod_component.access.clone() {
             let schedules = access.schedules(&world);
-            world.commands().queue(RemoveSystemSet {
-                set: ModSystemSet::new(ctx.entity),
+            world.commands().queue(DisableSystemSet {
+                set: ModSystemSet::Mod(ctx.entity),
                 schedules,
             });
         }
     }
 }
 
-/// A unique set containing all the systems for a specific Mod
+/// SystemSets for systems from mod added to the schedule graph by wasvy
 #[derive(SystemSet, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct ModSystemSet(Entity);
+pub enum ModSystemSet {
+    /// A system set for all mod systems
+    ///
+    /// Use this variant if you want to define systems that run before or after all mods.
+    All,
+
+    /// A system set for all the systems of a specific Mod
+    ///
+    /// Use this variant if you always want to schedule systems run before or after a mod's own systems
+    Mod(Entity),
+
+    /// A system set for all the systems (belonging to any mod) that were given specific access
+    ///
+    /// See the [Self::new_world] and [Self::new_sandboxed] docs for use cases.
+    Access(ModAccess),
+}
 
 impl ModSystemSet {
-    /// Retrieves the system set for a Mod.
+    /// Creates the system set for all Mods.
+    ///
+    /// All mod systems will be included in this set.
+    ///
+    /// This is useful if you want to define systems that run before or after all mods.
+    pub const fn new() -> Self {
+        Self::All
+    }
+
+    /// Creates the system set for a Mod.
     ///
     /// All of the mod's systems will be included in this set.
     ///
     /// The provided mod_id should be an entity with a Mod component.
-    pub fn new(mod_id: Entity) -> ModSystemSet {
-        ModSystemSet(mod_id)
+    pub const fn new_mod(mod_id: Entity) -> Self {
+        Self::Mod(mod_id)
+    }
+
+    /// Creates the system set for all mods accessing the world.
+    ///
+    /// All of the systems that are not sandboxed will be included in this set.
+    ///
+    /// This is useful if you want to define systems that run before or after all mods running in the world.
+    pub const fn new_world() -> Self {
+        Self::Access(ModAccess::World)
+    }
+
+    /// Creates the system set for a [Sandbox] (all snaboxed systems).
+    ///
+    /// All of the sandbox's systems (from any mod) will be included in this set.
+    ///
+    /// The provided sandbox_id should be an entity with a Sandbox component.
+    pub const fn new_sandboxed(sandbox_id: Entity) -> Self {
+        Self::Access(ModAccess::Sandbox(sandbox_id))
     }
 }

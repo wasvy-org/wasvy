@@ -11,7 +11,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{access::ModAccess, cleanup::RemoveSystemSet, schedule::ModSchedules};
+use crate::{cleanup::DisableSystemSet, mods::ModSystemSet, schedule::ModSchedules};
 
 /// Sandboxes are subsets of entities within a bevy [World] in which [Mods](crate::mods::Mod) can run exclusively.
 ///
@@ -33,7 +33,7 @@ use crate::{access::ModAccess, cleanup::RemoveSystemSet, schedule::ModSchedules}
 /// The intention is that an upcoming permissions system will solve this issue, giving fine-tuned access on what components mods can read from or mutate.
 #[derive(Component)]
 #[component(clone_behavior = Ignore, immutable)]
-#[component(on_add = Self::on_add, on_insert = Self::on_insert, on_replace = Self::on_replace, on_remove = Self::on_remove)]
+#[component(on_add = Self::on_add, on_insert = Self::on_insert, on_replace = Self::on_replace, on_remove = Self::on_remove, on_despawn = Self::on_despawn)]
 pub struct Sandbox {
     /// Responsible for tagging all [Sandboxed] entities as belonging to this Sandbox
     ///
@@ -142,21 +142,17 @@ impl Sandbox {
 
     /// [On add](bevy::ecs::lifecycle::ComponentHooks::on_add) for [Sandbox]
     fn on_add(mut world: DeferredWorld, ctx: HookContext) {
-        let component_id = world
-            .entity(ctx.entity)
-            .get::<Sandbox>()
-            .expect("Sandbox was inserted")
-            .component_id;
+        let Self { component_id, .. } = world.entity(ctx.entity).get().expect("Sandbox was added");
 
+        let name = world
+            .components()
+            .get_info(*component_id)
+            .expect("valid component id")
+            .name()
+            .as_string();
+
+        // Add a name for debug usage
         world.commands().queue(move |world: &mut World| {
-            let name = world
-                .components()
-                .get_info(component_id)
-                .expect("valid component id")
-                .name()
-                .as_string();
-
-            // Add a name for debug usage
             world.entity_mut(ctx.entity).insert_if_new(Name::new(name));
         });
     }
@@ -178,19 +174,11 @@ impl Sandbox {
 
     /// [On replace](bevy::ecs::lifecycle::ComponentHooks::on_replace) for [Sandbox]
     fn on_replace(mut world: DeferredWorld, ctx: HookContext) {
-        let sandbox = world
+        let component_id = world
             .entity(ctx.entity)
             .get::<Self>()
-            .expect("Sandbox was replaced");
-
-        let schedules = sandbox.schedules().clone();
-        let component_id = sandbox.component_id;
-
-        // After a sandbox is removed, its systems should no longer run
-        world.commands().queue(RemoveSystemSet {
-            set: SandboxSystemSet::new_sandboxed(ctx.entity),
-            schedules,
-        });
+            .expect("Sandbox was replaced")
+            .component_id;
 
         if let Some(SandboxedEntities(entities)) = world.entity(ctx.entity).get() {
             // Make sure we remove the old, invalid marker component for all the sandboxed entites
@@ -207,6 +195,22 @@ impl Sandbox {
             .commands()
             .entity(ctx.entity)
             .remove::<SandboxedEntities>();
+    }
+
+    /// [On despawn](bevy::ecs::lifecycle::ComponentHooks::on_despawn) for [Sandbox]
+    fn on_despawn(mut world: DeferredWorld, ctx: HookContext) {
+        let schedules = world
+            .entity(ctx.entity)
+            .get::<Self>()
+            .expect("Sandbox was replaced")
+            .schedules()
+            .clone();
+
+        // After a sandbox is removed, its systems should no longer run
+        world.commands().queue(DisableSystemSet {
+            set: ModSystemSet::new_sandboxed(ctx.entity),
+            schedules,
+        });
     }
 }
 
@@ -327,28 +331,6 @@ impl Sandboxed {
 
 /// A hidden custom marker component for [Sandboxed] entities
 struct SandboxedMarker;
-
-/// A unique set containing all the systems for a specific Sandbox
-#[derive(SystemSet, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct SandboxSystemSet(pub(crate) ModAccess);
-
-impl SandboxSystemSet {
-    /// Retrieves the system set for all mods accessing the world.
-    ///
-    /// All of the systems that are not sandboxed will be included in this set.
-    pub fn new_world() -> Self {
-        Self(ModAccess::World)
-    }
-
-    /// Retrieves the system set for a Sandbox.
-    ///
-    /// All of the sandbox's systems will be included in this set.
-    ///
-    /// The provided sandbox_id should be an entity with a Sandbox component.
-    pub fn new_sandboxed(sandbox_id: Entity) -> Self {
-        Self(ModAccess::Sandbox(sandbox_id))
-    }
-}
 
 /// Tracks the Count of [Sandboxes]
 #[derive(Resource, Default)]

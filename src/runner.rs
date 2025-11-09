@@ -60,7 +60,7 @@ impl Runner {
                 asset_version,
                 mod_id,
                 mod_name,
-                accesses: access,
+                accesses,
             }) => Inner::Setup {
                 world: SendSyncPtr::new(world.into()),
                 app_init: false,
@@ -68,7 +68,7 @@ impl Runner {
                 asset_version,
                 mod_id,
                 mod_name: mod_name.to_string(),
-                accesses: SendSyncPtr::new(access.into()),
+                accesses: SendSyncPtr::new(accesses.into()),
             },
             Config::RunSystem(ConfigRunSystem {
                 commands,
@@ -135,7 +135,7 @@ impl Data {
                 asset_version,
                 mod_id,
                 mod_name,
-                accesses: access,
+                accesses,
             } => Some(State::Setup {
                 // Safety: Runner::use_store ensures that this always contains a valid reference
                 // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
@@ -145,7 +145,7 @@ impl Data {
                 asset_version,
                 mod_id: *mod_id,
                 mod_name,
-                accesses: unsafe { access.as_ref() },
+                accesses: unsafe { accesses.as_ref() },
                 table,
             }),
             Inner::RunSystem {

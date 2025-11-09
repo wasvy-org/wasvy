@@ -7,11 +7,10 @@ use bevy::{
 
 use crate::{
     asset::{ModAsset, ModAssetLoader},
-    cleanup::{RemoveSystemSet, remove_system_sets},
+    cleanup::{DisableSystemSet, disable_system_sets},
     component::WasmComponentRegistry,
     engine::{Engine, Linker, create_linker},
-    mods::ModSystemSet,
-    sandbox::{SandboxSystemSet, Sandboxed},
+    sandbox::Sandboxed,
     schedule::{ModSchedule, ModSchedules, ModStartup},
     setup::run_setup,
 };
@@ -174,16 +173,8 @@ impl Plugin for ModloaderPlugin {
             .init_resource::<WasmComponentRegistry>()
             .insert_resource(schedules)
             .add_schedule(ModStartup::new_schedule())
-            .add_message::<RemoveSystemSet<ModSystemSet>>()
-            .add_message::<RemoveSystemSet<SandboxSystemSet>>()
-            .add_systems(
-                setup_schedule,
-                (
-                    run_setup,
-                    remove_system_sets::<ModSystemSet>,
-                    remove_system_sets::<SandboxSystemSet>,
-                ),
-            );
+            .add_message::<DisableSystemSet>()
+            .add_systems(setup_schedule, (run_setup, disable_system_sets));
 
         app.world_mut().register_component::<Sandboxed>();
 

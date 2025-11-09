@@ -10,7 +10,6 @@ use crate::{
     host::{System, WasmHost},
     mods::ModSystemSet,
     runner::State,
-    sandbox::SandboxSystemSet,
 };
 
 pub struct App;
@@ -77,8 +76,9 @@ impl HostApp for WasmHost {
                 let schedule_config = table
                     .get_mut(system)?
                     .schedule(world, mod_name, asset_id, asset_version, &access)?
-                    .in_set(ModSystemSet::new(mod_id))
-                    .in_set(SandboxSystemSet(*access));
+                    .in_set(ModSystemSet::All)
+                    .in_set(ModSystemSet::Mod(mod_id))
+                    .in_set(ModSystemSet::Access(*access));
 
                 world
                     .get_resource_mut::<BevySchedules>()

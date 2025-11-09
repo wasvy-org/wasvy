@@ -11,7 +11,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{cleanup::RemoveSystemSet, schedule::ModSchedules};
+use crate::{access::ModAccess, cleanup::RemoveSystemSet, schedule::ModSchedules};
 
 /// Sandboxes are subsets of entities within a bevy [World] in which [Mods](crate::mods::Mod) can run exclusively.
 ///
@@ -31,12 +31,6 @@ use crate::{cleanup::RemoveSystemSet, schedule::ModSchedules};
 /// No guards are in place to prevent mods from creating components that reference entities outside their sandbox. Thus component hooks can mutate a component on an entity within a sandbox when a mod in a different sandbox mutates a component.
 ///
 /// The intention is that an upcoming permissions system will solve this issue, giving fine-tuned access on what components mods can read from or mutate.
-///
-/// ## Global Sandbox
-///
-/// During plugin instantiation, a sandbox is created that represents access to the entire world (except for other sandboxes).
-///
-/// This Sandbox should not be removed.
 #[derive(Component)]
 #[component(clone_behavior = Ignore, immutable)]
 #[component(on_add = Self::on_add, on_insert = Self::on_insert, on_replace = Self::on_replace, on_remove = Self::on_remove)]
@@ -46,13 +40,10 @@ pub struct Sandbox {
     /// Markers have no data, they are just used for query filtering.
     ///
     /// If this is [None], then that indicates this is the [Sandbox] for the world, so for all entities not already in a sandbox.
-    component_id: Option<ComponentId>,
+    component_id: ComponentId,
 
     /// The world this Sandbox belongs to
     world_id: WorldId,
-
-    /// The component id for [Sandboxed] in the world the sandbox was created
-    sandboxed_component_id: ComponentId,
 
     /// Mods in this sandbox will run only during the provided schedules
     schedules: ModSchedules,
@@ -63,8 +54,17 @@ impl Sandbox {
     ///
     /// Mods in this Sandbox will run only during the provided [Schedules]
     pub fn new(world: &mut World, schedules: ModSchedules) -> Self {
-        let count = world.get_resource_or_init::<SandboxCount>().0;
-        let name = format!("SandboxMarker{count}");
+        // Get and also increment the count
+        let sandbox_count = world.get_resource_or_insert_with(|| SandboxCount(1));
+        let count = sandbox_count.0;
+        sandbox_count.into_inner().0 += 1;
+
+        // Activate the propagation when the very first Sandbox is added to the world
+        if count == 1 {
+            world.add_observer(Sandboxed::propagate);
+        }
+
+        let name = format!("Sandbox{count}");
 
         // When an entity is cloned from one Sandbox to another, the Marker should never be copied with it
         // Instead, if this entity is cloned into another sandbox, we'll rely on propagation to add the new component
@@ -83,13 +83,15 @@ impl Sandbox {
                 clone_behavior,
             )
         };
+        let component_id = world.register_component_with_descriptor(descriptor);
 
-        Self::new_inner(world, schedules, Some(descriptor))
-    }
+        let world_id = world.id();
 
-    /// Returns true if this is the "Global Sandbox." See [Sandbox] docs for more details.
-    pub fn is_global(&self) -> bool {
-        self.component_id.is_none()
+        Self {
+            component_id,
+            world_id,
+            schedules,
+        }
     }
 
     /// Returns the Schedules for
@@ -100,62 +102,62 @@ impl Sandbox {
     /// Returns access to only the entities within this sandbox.
     ///
     /// This is used by Wasvy to build mod systems that run exclusively in these sandboxes.
-    pub fn access(&self) -> FilteredAccess {
-        let mut access = FilteredAccess::default();
-        if let Some(component_id) = self.component_id {
-            // Access to Sandboxed, and this Sandbox specifically
-            access.and_with(self.sandboxed_component_id);
-            access.and_with(component_id);
-        } else {
-            // World access, without sandboxed
-            access.and_without(self.sandboxed_component_id);
+    pub fn access(&self, world: &World) -> FilteredAccess {
+        if world.id() != self.world_id {
+            panic!("Cannot access a sandbox with another world");
         }
+
+        let mut access = FilteredAccess::default();
+
+        // Avoid conflicting with world systems
+        access.and_with(self.component_id);
+
+        // Avoid conflicting with other sandboxes
+        access.and_with(
+            world
+                .components()
+                .component_id::<Sandboxed>()
+                .expect("Sandboxed be registered"),
+        );
+
         access
     }
 
-    /// Add the Global Sandbox, see [Self]
-    pub(crate) fn spawn_global(world: &mut World, schedules: ModSchedules) {
-        let component = Sandbox::new_inner(world, schedules, None);
-        world.spawn((component, Name::new("Global Sandbox")));
-    }
+    /// Access to non-sandboxed entities
+    ///
+    /// This is used by Wasvy to build mod systems that run exclusively in the world
+    pub fn access_non_sandboxed(world: &World) -> FilteredAccess {
+        let mut access = FilteredAccess::default();
 
-    fn new_inner(
-        world: &mut World,
-        schedules: ModSchedules,
-        descriptor: Option<ComponentDescriptor>,
-    ) -> Self {
-        let component_id =
-            descriptor.map(|descriptor| world.register_component_with_descriptor(descriptor));
+        // Avoid conflicting with sandboxes
+        access.and_without(
+            world
+                .components()
+                .component_id::<Sandboxed>()
+                .expect("Sandboxed be registered"),
+        );
 
-        let world_id = world.id();
-        let sandboxed_component_id = world.register_component::<Sandboxed>();
-
-        Self {
-            component_id,
-            world_id,
-            sandboxed_component_id,
-            schedules,
-        }
+        access
     }
 
     /// [On add](bevy::ecs::lifecycle::ComponentHooks::on_add) for [Sandbox]
     fn on_add(mut world: DeferredWorld, ctx: HookContext) {
-        world.commands().queue(move |world: &mut World| {
-            // Get and also increment the count
-            let sandbox_count = world.get_resource_or_init::<SandboxCount>();
-            let count = sandbox_count.0;
-            sandbox_count.into_inner().0 += 1;
+        let component_id = world
+            .entity(ctx.entity)
+            .get::<Sandbox>()
+            .expect("Sandbox was inserted")
+            .component_id;
 
-            // Once a custom Sandbox is added, activate the propagation
-            // This is not needed when just the "Global Sandbox" is present
-            if count == 1 {
-                world.add_observer(Sandboxed::propagate);
-            }
+        world.commands().queue(move |world: &mut World| {
+            let name = world
+                .components()
+                .get_info(component_id)
+                .expect("valid component id")
+                .name()
+                .as_string();
 
             // Add a name for debug usage
-            world
-                .entity_mut(ctx.entity)
-                .insert_if_new(Name::new(format!("Sandbox {count}")));
+            world.entity_mut(ctx.entity).insert_if_new(Name::new(name));
         });
     }
 
@@ -181,14 +183,14 @@ impl Sandbox {
             .get::<Self>()
             .expect("Sandbox was replaced");
 
-        // Panic if the global sandbox is removed
-        let component_id = sandbox
-            .component_id
-            .expect("Global Sandbox to never be removed");
+        let schedules = sandbox.schedules().clone();
+        let component_id = sandbox.component_id;
 
         // After a sandbox is removed, its systems should no longer run
-        let command = RemoveSystemSet::new(SandboxSystemSet::new(ctx.entity), sandbox);
-        world.commands().queue(command);
+        world.commands().queue(RemoveSystemSet {
+            set: SandboxSystemSet::new_sandboxed(ctx.entity),
+            schedules,
+        });
 
         if let Some(SandboxedEntities(entities)) = world.entity(ctx.entity).get() {
             // Make sure we remove the old, invalid marker component for all the sandboxed entites
@@ -261,12 +263,8 @@ impl Sandboxed {
     fn on_insert(mut world: DeferredWorld, ctx: HookContext) {
         let Self(sandbox) = world.entity(ctx.entity).get().expect("Component was added");
 
-        if let Some(Sandbox {
-            component_id: Some(component_id),
-            ..
-        }) = world.entity(*sandbox).get()
-        {
-            let component_id = *component_id;
+        if let Some(sandbox) = world.entity(*sandbox).get::<Sandbox>() {
+            let component_id = sandbox.component_id;
 
             // SAFETY
             // - component_id is from the same world
@@ -291,12 +289,8 @@ impl Sandboxed {
 
         // Might be none if the Sandbox was deleted
         // In that case, the marker component was already removed by Sandbox::on_replace
-        if let Some(Sandbox {
-            component_id: Some(component_id),
-            ..
-        }) = world.entity(*sandbox).get()
-        {
-            let component_id = *component_id;
+        if let Some(sandbox) = world.entity(*sandbox).get::<Sandbox>() {
+            let component_id = sandbox.component_id;
 
             // Remove marker component
             world
@@ -336,16 +330,23 @@ struct SandboxedMarker;
 
 /// A unique set containing all the systems for a specific Sandbox
 #[derive(SystemSet, Clone, Debug, Hash, PartialEq, Eq)]
-pub struct SandboxSystemSet(Entity);
+pub struct SandboxSystemSet(pub(crate) ModAccess);
 
 impl SandboxSystemSet {
+    /// Retrieves the system set for all mods accessing the world.
+    ///
+    /// All of the systems that are not sandboxed will be included in this set.
+    pub fn new_world() -> Self {
+        Self(ModAccess::World)
+    }
+
     /// Retrieves the system set for a Sandbox.
     ///
     /// All of the sandbox's systems will be included in this set.
     ///
     /// The provided sandbox_id should be an entity with a Sandbox component.
-    pub fn new(sandbox_id: Entity) -> Self {
-        Self(sandbox_id)
+    pub fn new_sandboxed(sandbox_id: Entity) -> Self {
+        Self(ModAccess::Sandbox(sandbox_id))
     }
 }
 
@@ -360,18 +361,12 @@ mod tests {
     use super::*;
     use crate::schedule::ModSchedules;
 
-    fn setup() -> World {
-        let mut world = World::new();
-        Sandbox::spawn_global(&mut world, ModSchedules::empty());
-        world
-    }
-
     #[test]
     fn sandboxed_propagate_marker() {
-        let mut world = setup();
+        let mut world = World::new();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
-        let marker = component.component_id.unwrap().clone();
+        let marker = component.component_id;
         let sandbox = world.spawn(component).id();
         let child = world.spawn_empty().insert(ChildOf(sandbox)).id();
 
@@ -387,7 +382,7 @@ mod tests {
 
     #[test]
     fn simple_sandboxed_propagate() {
-        let mut world = setup();
+        let mut world = World::new();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
         let sandbox = world.spawn(component).id();
@@ -403,14 +398,14 @@ mod tests {
 
     #[test]
     fn reparent_sandboxed() {
-        let mut world = setup();
+        let mut world = World::new();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
-        let marker1 = component.component_id.unwrap();
+        let marker1 = component.component_id;
         let sandbox1 = world.spawn(component).id();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
-        let marker2 = component.component_id.unwrap();
+        let marker2 = component.component_id;
         let sandbox2 = world.spawn(component).id();
 
         let child = world.spawn_empty().insert(ChildOf(sandbox1)).id();
@@ -437,16 +432,16 @@ mod tests {
 
     #[test]
     fn replace_sandbox() {
-        let mut world = setup();
+        let mut world = World::new();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
-        let marker1 = component.component_id.unwrap();
+        let marker1 = component.component_id;
         let sandbox = world.spawn(component).id();
 
         let child = world.spawn_empty().insert(ChildOf(sandbox)).id();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
-        let marker2 = component.component_id.unwrap();
+        let marker2 = component.component_id;
         world.entity_mut(sandbox).insert(component);
 
         assert!(
@@ -461,10 +456,10 @@ mod tests {
 
     #[test]
     fn remove_sandbox() {
-        let mut world = setup();
+        let mut world = World::new();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
-        let marker = component.component_id.unwrap();
+        let marker = component.component_id;
         let sandbox = world.spawn(component).id();
 
         let child = world.spawn_empty().insert(ChildOf(sandbox)).id();
@@ -483,7 +478,7 @@ mod tests {
 
     #[test]
     fn nested_sandbox_propagate() {
-        let mut world = setup();
+        let mut world = World::new();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
         let sandbox1 = world.spawn(component).id();
@@ -508,8 +503,8 @@ mod tests {
     #[test]
     fn panic_world_mismatch() {
         let result = std::panic::catch_unwind(move || {
-            let mut world = setup();
-            let mut other_world = setup();
+            let mut world = World::new();
+            let mut other_world = World::new();
 
             let component = Sandbox::new(&mut other_world, ModSchedules::empty());
 

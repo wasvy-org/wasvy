@@ -3,9 +3,7 @@ use bevy::{
     asset::AssetId,
     ecs::{
         component::Tick,
-        entity::Entity,
         error::Result as BevyResult,
-        query::FilteredAccess,
         reflect::AppTypeRegistry,
         resource::Resource as BevyResource,
         schedule::{IntoScheduleConfigs, ScheduleConfigs, SystemSet},
@@ -21,6 +19,7 @@ use bevy::{
 use wasmtime::component::{Resource, Val};
 
 use crate::{
+    access::ModAccess,
     asset::ModAsset,
     bindings::wasvy::ecs::app::{HostSystem, QueryFor},
     engine::Engine,
@@ -53,9 +52,7 @@ impl System {
         mod_name: &str,
         asset_id: &AssetId<ModAsset>,
         asset_version: &Tick,
-        access: &FilteredAccess,
-        sandbox_id: Entity,
-        sandbox_is_global: bool,
+        access: &ModAccess,
     ) -> Result<ScheduleConfigs<BoxedSystem>> {
         self.scheduled = true;
 
@@ -71,14 +68,14 @@ impl System {
             asset_id: asset_id.clone(),
             asset_version: asset_version.clone(),
             built_params,
-            sandbox_id,
-            sandbox_is_global,
+            access: *access,
         };
 
         // Generate the queries necessary to run this system
+        let filtered_access = access.filtered_access(world);
         let mut queries = Vec::with_capacity(self.params.len());
         for items in self.params.iter().filter_map(Param::filter_query) {
-            queries.push(create_query_builder(items, world, access.clone())?);
+            queries.push(create_query_builder(items, world, filtered_access.clone())?);
         }
 
         // Dynamic
@@ -140,8 +137,7 @@ struct Input {
     asset_id: AssetId<ModAsset>,
     asset_version: Tick,
     built_params: Vec<BuiltParam>,
-    sandbox_id: Entity,
-    sandbox_is_global: bool,
+    access: ModAccess,
 }
 
 impl FromWorld for Input {
@@ -184,8 +180,7 @@ fn system_runner(
             commands: &mut commands,
             type_registry: &type_registry,
             queries: &mut queries,
-            sandbox_id: input.sandbox_id,
-            sandbox_is_global: input.sandbox_is_global,
+            access: input.access.clone(),
         },
         &params,
     )?;

@@ -3,8 +3,8 @@ use bevy::{ecs::hierarchy::ChildOf, log::trace};
 use wasmtime::component::Resource;
 
 use crate::{
-    bindings::wasvy::ecs::app::HostCommands, component::insert_component, host::WasmHost,
-    runner::State,
+    access::ModAccess, bindings::wasvy::ecs::app::HostCommands, component::insert_component,
+    host::WasmHost, runner::State,
 };
 
 pub struct Commands;
@@ -18,8 +18,7 @@ impl HostCommands for WasmHost {
         let State::RunSystem {
             mut commands,
             type_registry,
-            sandbox_id,
-            sandbox_is_global,
+            access,
             ..
         } = self.access()
         else {
@@ -30,10 +29,10 @@ impl HostCommands for WasmHost {
         // The mod can still override the ChildOf with its own value
         // Note: We can't currently prevent a mod from creating a component that has a relation to a component outside the sadnbox
         // TODO: Restrict what entities a mod can reference via permissions
-        let entity = if sandbox_is_global {
-            commands.spawn_empty().id()
+        let entity = if let ModAccess::Sandbox(entity) = access {
+            commands.spawn(ChildOf(*entity)).id()
         } else {
-            commands.spawn(ChildOf(sandbox_id)).id()
+            commands.spawn_empty().id()
         };
 
         trace!("Spawn empty {entity}, with components:");

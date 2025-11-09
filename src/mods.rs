@@ -5,7 +5,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{asset::ModAsset, cleanup::RemoveSystemSet, sandbox::Sandbox};
+use crate::{access::ModAccess, asset::ModAsset, cleanup::RemoveSystemSet, prelude::Sandbox};
 
 /// This system param provides an interface to load and manage Wasvy mods
 #[derive(SystemParam)]
@@ -13,7 +13,8 @@ pub struct Mods<'w, 's> {
     commands: Commands<'w, 's>,
     asset_server: Res<'w, AssetServer>,
     mods: Query<'w, 's, Entity, With<Mod>>,
-    sandboxes: Query<'w, 's, (Entity, &'static Sandbox)>,
+    #[cfg(debug_assertions)]
+    sandboxes: Query<'w, 's, Entity, With<Sandbox>>,
 }
 
 impl Mods<'_, '_> {
@@ -24,13 +25,12 @@ impl Mods<'_, '_> {
     /// The mod will be given access to the entire World. See [docs for Global Sandbox](Sandbox)
     pub fn load<'a>(&mut self, path: impl Into<AssetPath<'a>>) {
         let mod_id = self.spawn(path);
-        let sandbox_id = self.global_sandbox();
-        self.add_to_sandbox(mod_id, sandbox_id);
+        self.enable_access(mod_id, ModAccess::World);
     }
 
-    /// Spawns a new mod from the given path.
+    /// Spawns a new instance of a mod from the given path. By default this mod will do nothing once loaded.
     ///
-    /// By default this mod will do nothing. See [Self::add_to_sandbox].
+    /// Next, you might want to give this mod access via [Self::enable_access].
     pub fn spawn<'a>(&mut self, path: impl Into<AssetPath<'a>>) -> Entity {
         let path = path.into();
         let name = path
@@ -69,43 +69,52 @@ impl Mods<'_, '_> {
         self.commands.entity(entity).despawn();
     }
 
-    /// Adds a mod to the given sandbox
+    /// Enable a [Mod]'s access to entities.
+    ///
+    /// See: [ModAccess]
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy::app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
-    pub fn add_to_sandbox<'a>(&mut self, mod_id: Entity, sandbox: Entity) {
+    pub fn enable_access<'a>(&mut self, mod_id: Entity, access: ModAccess) {
+        #[cfg(debug_assertions)]
+        if let ModAccess::Sandbox(entity) = access {
+            assert!(
+                self.sandboxes.contains(entity),
+                "ModAccess::Sandbox should contain a valid entity"
+            );
+        }
         self.commands.queue(move |world: &mut World| {
             if let Some(mut mod_id) = world.get_mut::<Mod>(mod_id) {
-                mod_id.add_to_sandbox(sandbox);
+                mod_id.enable_access(access);
             }
         });
     }
 
-    /// Removes a mod from the given sandbox
+    /// Removes a [Mod]'s access to entities.
+    ///
+    /// See: [ModAccess]
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy::app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
-    pub fn remove_from_sandbox<'a>(&mut self, mod_id: Entity, sandbox: Entity) {
+    pub fn disable_sandbox_access<'a>(&mut self, mod_id: Entity, access: ModAccess) {
+        #[cfg(debug_assertions)]
+        if let ModAccess::Sandbox(entity) = access {
+            assert!(
+                self.sandboxes.contains(entity),
+                "ModAccess::Sandbox should contain a valid entity"
+            );
+        }
         self.commands.queue(move |world: &mut World| {
             if let Some(mut mod_id) = world.get_mut::<Mod>(mod_id) {
-                mod_id.add_to_sandbox(sandbox);
+                mod_id.disable_access(&access);
             }
         });
-    }
-
-    /// Returns the entity for the [Global Sandbox](Sandbox)
-    pub fn global_sandbox(&self) -> Entity {
-        self.sandboxes
-            .iter()
-            .find(|(_, sandbox)| sandbox.is_global())
-            .map(|(entity, _)| entity)
-            .expect("global sandbox to have been spawned")
     }
 
     /// Unload all currently loaded mods.
-    pub fn clear(&mut self) {
+    pub fn despawn_all(&mut self) {
         for entity in self.mods.iter() {
             self.commands.entity(entity).despawn();
         }
@@ -122,8 +131,11 @@ pub struct Mod {
     /// A handle to wasm file for this mod
     asset: Handle<ModAsset>,
 
-    /// All of the [Sandbox] this mod should be running in
-    sandboxes: HashSet<Entity>,
+    /// All of the [accesses](ModAccess) this mod should have
+    ///
+    /// A mod will run in the world or in a sandbox, only when it is given
+    /// explicit access to do so by adding them to this set.
+    access: HashSet<ModAccess>,
 }
 
 impl Mod {
@@ -133,7 +145,7 @@ impl Mod {
     pub fn new(asset: Handle<ModAsset>) -> Self {
         Self {
             asset,
-            sandboxes: HashSet::new(),
+            access: HashSet::new(),
         }
     }
 
@@ -142,27 +154,31 @@ impl Mod {
         self.asset.clone()
     }
 
-    /// Adds a mod to the given sandbox
+    /// Enable a [Mod]'s access to entities.
+    ///
+    /// See: [ModAccess]
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy::app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
-    pub fn add_to_sandbox<'a>(&mut self, sandbox: Entity) -> bool {
-        self.sandboxes.insert(sandbox)
+    pub fn enable_access<'a>(&mut self, access: ModAccess) -> bool {
+        self.access.insert(access)
     }
 
-    /// Removes a mod from the given sandbox
+    /// Removes a [Mod]'s access to entities.
+    ///
+    /// See: [ModAccess]
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy::app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
-    pub fn remove_from_sandbox<'a>(&mut self, sandbox: Entity) -> bool {
-        self.sandboxes.remove(&sandbox)
+    pub fn disable_access<'a>(&mut self, access: &ModAccess) -> bool {
+        self.access.remove(access)
     }
 
-    /// Returns an iterator over the sandboxes contained by this mod
-    pub fn sandboxes(&self) -> impl Iterator<Item = &Entity> {
-        self.sandboxes.iter()
+    /// Returns an iterator over the accesses of this mod
+    pub(crate) fn accesses(&self) -> impl Iterator<Item = &ModAccess> {
+        self.access.iter()
     }
 
     /// [On replace](bevy::ecs::lifecycle::ComponentHooks::on_replace) for [Mod]
@@ -173,11 +189,12 @@ impl Mod {
             .expect("Mod was replaced");
 
         // After a mod is removed, its systems should no longer run
-        for sandbox_id in mod_component.sandboxes.clone() {
-            if let Some(sandbox) = world.get::<Sandbox>(sandbox_id) {
-                let command = RemoveSystemSet::new(ModSystemSet::new(ctx.entity), sandbox);
-                world.commands().queue(command);
-            }
+        for access in mod_component.access.clone() {
+            let schedules = access.schedules(&world);
+            world.commands().queue(RemoveSystemSet {
+                set: ModSystemSet::new(ctx.entity),
+                schedules,
+            });
         }
     }
 }

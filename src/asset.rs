@@ -7,6 +7,7 @@ use bevy::{
 use wasmtime::component::{Component, InstancePre, Val};
 
 use crate::{
+    access::ModAccess,
     engine::{Engine, Linker},
     host::WasmHost,
     runner::{Config, ConfigRunSystem, ConfigSetup, Runner},
@@ -47,7 +48,7 @@ impl ModAsset {
         asset_id: &AssetId<ModAsset>,
         mod_id: Entity,
         mod_name: &str,
-        sandbox_entities: &[Entity],
+        accesses: &[ModAccess],
     ) -> Option<Result<()>> {
         let change_tick = world.change_tick();
 
@@ -85,7 +86,7 @@ impl ModAsset {
             asset_version,
             mod_id,
             mod_name,
-            sandbox_entities,
+            accesses,
         });
 
         Some(call(

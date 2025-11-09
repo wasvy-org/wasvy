@@ -1,6 +1,6 @@
 use bevy::ecs::prelude::*;
 
-use crate::prelude::{ModSchedules, Sandbox};
+use crate::prelude::ModSchedules;
 
 /// A [Message] that triggers removal of scheduled system sets.
 ///
@@ -10,18 +10,8 @@ use crate::prelude::{ModSchedules, Sandbox};
 /// it can cleanup all schedules, including the one from which the message was written.
 #[derive(Message)]
 pub(crate) struct RemoveSystemSet<T> {
-    set: T,
-    schedules: ModSchedules,
-}
-
-impl<T> RemoveSystemSet<T> {
-    /// Triggers removal of scheduled system sets
-    pub(crate) fn new(set: T, sandbox: &Sandbox) -> Self {
-        Self {
-            set,
-            schedules: sandbox.schedules().clone(),
-        }
-    }
+    pub(crate) set: T,
+    pub(crate) schedules: ModSchedules,
 }
 
 impl<T> Command<()> for RemoveSystemSet<T>
@@ -29,7 +19,9 @@ where
     T: Send + Sync + 'static,
 {
     fn apply(self, world: &mut World) {
-        world.write_message(self);
+        if !self.schedules.0.is_empty() {
+            world.write_message(self);
+        }
     }
 }
 

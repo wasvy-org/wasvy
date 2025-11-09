@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{asset::ModAsset, mods::Mod, schedule::ModStartup};
+use crate::{access::ModAccess, asset::ModAsset, mods::Mod, schedule::ModStartup};
 
 /// Group all the system params we neeed to allow shared access from one &mut world
 #[derive(SystemParam)]
@@ -14,15 +14,15 @@ pub(crate) struct Setup<'w, 's> {
 }
 
 #[derive(PartialEq, Eq, Hash)]
-pub(crate) struct RanFor {
+pub(crate) struct RanWith {
     mod_id: Entity,
-    sandbox_id: Entity,
+    access: ModAccess,
 }
 
 pub(crate) fn run_setup(
     mut world: &mut World,
     param: &mut SystemState<Setup>,
-    mut ran_for: Local<HashSet<RanFor>>,
+    mut ran_with: Local<HashSet<RanWith>>,
 ) {
     let Setup { mut events, mods } = param.get_mut(world);
 
@@ -50,11 +50,8 @@ pub(crate) fn run_setup(
         info!("Loaded mod \"{name}\"");
 
         // The mod must be setup again for all of its sandboxes
-        for sandbox in mod_component.into_inner().sandboxes() {
-            ran_for.remove(&RanFor {
-                mod_id,
-                sandbox_id: *sandbox,
-            });
+        for access in mod_component.into_inner().accesses().map(Clone::clone) {
+            ran_with.remove(&RanWith { mod_id, access });
         }
 
         loaded_mods.push(mod_id);
@@ -73,40 +70,35 @@ pub(crate) fn run_setup(
             .unwrap_or("unknown")
             .to_string();
 
-        // Each mod needs to be setup for all the sandboxes it is running in
-        let sandboxes: Vec<Entity> = mod_component
+        // Each mod needs to be setup once for all its accesses
+        let accesses: Vec<ModAccess> = mod_component
             .into_inner()
-            .sandboxes()
-            .map(|entity| *entity)
+            .accesses()
             // Skip mods that have already been setup before
-            .filter(|entity| {
-                !ran_for.contains(&RanFor {
+            .filter(|access| {
+                !ran_with.contains(&RanWith {
                     mod_id,
-                    sandbox_id: *entity,
+                    access: **access,
                 })
             })
+            .map(Clone::clone)
             .collect();
 
-        if !sandboxes.is_empty() {
-            setup.push((asset_id, mod_id, name, sandboxes));
+        if !accesses.is_empty() {
+            setup.push((asset_id, mod_id, name, accesses));
         }
     }
 
     // Initiate mods with exclusive world access (runs the mod setup)
     let mut run_startup_schedule = false;
-    for (asset_id, mod_id, name, sandboxed_entities) in setup {
-        let Some(result) = ModAsset::initiate(
-            &mut world,
-            &asset_id,
-            mod_id,
-            &name,
-            &sandboxed_entities[..],
-        ) else {
+    for (asset_id, mod_id, name, accesses) in setup {
+        let Some(result) = ModAsset::initiate(&mut world, &asset_id, mod_id, &name, &accesses[..])
+        else {
             continue;
         };
 
-        for sandbox_id in sandboxed_entities {
-            ran_for.insert(RanFor { mod_id, sandbox_id });
+        for access in accesses {
+            ran_with.insert(RanWith { mod_id, access });
         }
 
         if let Err(err) = result {

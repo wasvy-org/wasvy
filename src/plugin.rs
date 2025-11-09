@@ -11,7 +11,7 @@ use crate::{
     component::WasmComponentRegistry,
     engine::{Engine, Linker, create_linker},
     mods::ModSystemSet,
-    sandbox::{Sandbox, SandboxSystemSet},
+    sandbox::{SandboxSystemSet, Sandboxed},
     schedule::{ModSchedule, ModSchedules, ModStartup},
     setup::run_setup,
 };
@@ -172,6 +172,7 @@ impl Plugin for ModloaderPlugin {
             .register_asset_loader(ModAssetLoader { linker })
             .insert_resource(engine)
             .init_resource::<WasmComponentRegistry>()
+            .insert_resource(schedules)
             .add_schedule(ModStartup::new_schedule())
             .add_message::<RemoveSystemSet<ModSystemSet>>()
             .add_message::<RemoveSystemSet<SandboxSystemSet>>()
@@ -184,7 +185,7 @@ impl Plugin for ModloaderPlugin {
                 ),
             );
 
-        Sandbox::spawn_global(app.world_mut(), schedules);
+        app.world_mut().register_component::<Sandboxed>();
 
         let asset_plugins = app.get_added_plugins::<AssetPlugin>();
         let asset_plugin = asset_plugins

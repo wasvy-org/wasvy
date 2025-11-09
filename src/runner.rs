@@ -14,7 +14,9 @@ use bevy::{
 use wasmtime::component::ResourceAny;
 use wasmtime_wasi::ResourceTable;
 
-use crate::{asset::ModAsset, engine::Engine, host::WasmHost, send_sync_ptr::SendSyncPtr};
+use crate::{
+    access::ModAccess, asset::ModAsset, engine::Engine, host::WasmHost, send_sync_ptr::SendSyncPtr,
+};
 
 pub(crate) type Store = wasmtime::Store<WasmHost>;
 
@@ -58,7 +60,7 @@ impl Runner {
                 asset_version,
                 mod_id,
                 mod_name,
-                sandbox_entities,
+                accesses: access,
             }) => Inner::Setup {
                 world: SendSyncPtr::new(world.into()),
                 app_init: false,
@@ -66,20 +68,18 @@ impl Runner {
                 asset_version,
                 mod_id,
                 mod_name: mod_name.to_string(),
-                sandbox_entities: SendSyncPtr::new(sandbox_entities.into()),
+                accesses: SendSyncPtr::new(access.into()),
             },
             Config::RunSystem(ConfigRunSystem {
                 commands,
                 type_registry,
                 queries,
-                sandbox_id,
-                sandbox_is_global,
+                access,
             }) => Inner::RunSystem {
                 commands: SendSyncPtr::new(NonNull::from_mut(commands).cast()),
                 type_registry: SendSyncPtr::new(NonNull::from_ref(type_registry)),
                 queries: SendSyncPtr::new(NonNull::from_ref(queries).cast()),
-                sandbox_id,
-                sandbox_is_global,
+                access,
             },
         }));
 
@@ -105,14 +105,13 @@ enum Inner {
         mod_name: String,
         asset_id: AssetId<ModAsset>,
         asset_version: Tick,
-        sandbox_entities: SendSyncPtr<[Entity]>,
+        accesses: SendSyncPtr<[ModAccess]>,
     },
     RunSystem {
         commands: SendSyncPtr<Commands<'static, 'static>>,
         type_registry: SendSyncPtr<AppTypeRegistry>,
         queries: SendSyncPtr<Queries<'static, 'static>>,
-        sandbox_id: Entity,
-        sandbox_is_global: bool,
+        access: ModAccess,
     },
 }
 
@@ -136,7 +135,7 @@ impl Data {
                 asset_version,
                 mod_id,
                 mod_name,
-                sandbox_entities,
+                accesses: access,
             } => Some(State::Setup {
                 // Safety: Runner::use_store ensures that this always contains a valid reference
                 // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
@@ -146,15 +145,14 @@ impl Data {
                 asset_version,
                 mod_id: *mod_id,
                 mod_name,
-                sandbox_entities: unsafe { sandbox_entities.as_ref() },
+                accesses: unsafe { access.as_ref() },
                 table,
             }),
             Inner::RunSystem {
                 commands,
                 type_registry,
                 queries,
-                sandbox_id,
-                sandbox_is_global,
+                access,
             } =>
             // Safety: Runner::use_store ensures that this always contains a valid reference
             // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
@@ -163,8 +161,7 @@ impl Data {
                     commands: commands.cast().as_mut(),
                     type_registry: type_registry.as_ref(),
                     queries: queries.cast().as_mut(),
-                    sandbox_id: *sandbox_id,
-                    sandbox_is_global: *sandbox_is_global,
+                    access,
                     table,
                 })
             },
@@ -182,15 +179,14 @@ pub(crate) enum State<'a> {
         mod_name: &'a str,
         asset_id: &'a AssetId<ModAsset>,
         asset_version: &'a Tick,
-        sandbox_entities: &'a [Entity],
+        accesses: &'a [ModAccess],
     },
     RunSystem {
         table: &'a mut ResourceTable,
         commands: &'a mut Commands<'a, 'a>,
         type_registry: &'a AppTypeRegistry,
         queries: &'a mut Queries<'a, 'a>,
-        sandbox_id: Entity,
-        sandbox_is_global: bool,
+        access: &'a ModAccess,
     },
 }
 
@@ -205,7 +201,7 @@ pub(crate) struct ConfigSetup<'a> {
     pub(crate) asset_version: Tick,
     pub(crate) mod_id: Entity,
     pub(crate) mod_name: &'a str,
-    pub(crate) sandbox_entities: &'a [Entity],
+    pub(crate) accesses: &'a [ModAccess],
 }
 
 pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
@@ -213,6 +209,5 @@ pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
     pub(crate) type_registry: &'a AppTypeRegistry,
     pub(crate) queries:
         &'a mut ParamSet<'d, 'e, Vec<Query<'f, 'g, FilteredEntityMut<'static, 'static>>>>,
-    pub(crate) sandbox_id: Entity,
-    pub(crate) sandbox_is_global: bool,
+    pub(crate) access: ModAccess,
 }

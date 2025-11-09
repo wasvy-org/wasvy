@@ -10,7 +10,7 @@ use crate::{
     host::{System, WasmHost},
     mods::ModSystemSet,
     runner::State,
-    sandbox::{Sandbox, SandboxSystemSet},
+    sandbox::SandboxSystemSet,
 };
 
 pub struct App;
@@ -51,22 +51,21 @@ impl HostApp for WasmHost {
             mod_name,
             asset_id,
             asset_version,
-            sandbox_entities,
+            accesses,
             ..
         } = self.access()
         else {
             bail!("App can only be modified in a setup function")
         };
 
-        // Each sandbox needs to have dedicated systems that run inside it
-        for sandbox_id in sandbox_entities {
-            let sandbox_id = *sandbox_id;
-            let Some(sandbox) = world.get::<Sandbox>(sandbox_id) else {
-                continue;
-            };
-
+        // Each access needs to have dedicated systems that run inside it
+        for access in accesses {
             // Validate that the schedule requested by the mod is enabled
-            let Some(schedule) = sandbox.schedules().evaluate(&schedule) else {
+            let Some(schedule) = access
+                .schedules(world)
+                .evaluate(&schedule)
+                .map(|schedule| schedule.schedule_label())
+            else {
                 warn!(
                     "Mod tried adding systems to schedule {:?}, but that system is not enabled",
                     schedule
@@ -74,24 +73,12 @@ impl HostApp for WasmHost {
                 continue;
             };
 
-            let schedule = schedule.schedule_label();
-            let access = sandbox.access();
-            let sandbox_is_global = sandbox.is_global();
-
             for system in systems.iter() {
                 let schedule_config = table
                     .get_mut(system)?
-                    .schedule(
-                        world,
-                        mod_name,
-                        asset_id,
-                        asset_version,
-                        &access,
-                        sandbox_id,
-                        sandbox_is_global,
-                    )?
+                    .schedule(world, mod_name, asset_id, asset_version, &access)?
                     .in_set(ModSystemSet::new(mod_id))
-                    .in_set(SandboxSystemSet::new(sandbox_id));
+                    .in_set(SandboxSystemSet(*access));
 
                 world
                     .get_resource_mut::<BevySchedules>()

@@ -31,6 +31,113 @@ use crate::{cleanup::DisableSystemSet, mods::ModSystemSet, schedule::ModSchedule
 /// No guards are in place to prevent mods from creating components that reference entities outside their sandbox. Thus component hooks can mutate a component on an entity within a sandbox when a mod in a different sandbox mutates a component.
 ///
 /// The intention is that an upcoming permissions system will solve this issue, giving fine-tuned access on what components mods can read from or mutate.
+///
+/// ## Example
+///
+/// ```no_run
+/// # use bevy::prelude::*;
+/// # use wasvy::prelude::*;
+/// # let mut app = App::new();
+/// app.init_resource::<Sandboxes>();
+/// app.add_systems(Startup, (load_mods, setup));
+/// app.add_systems(PreUpdate, || info!("pre update"));
+/// app.add_systems(PostUpdate, || info!("post update"));
+///
+/// /// A set of 3 "environments" for running our mods
+/// #[derive(Resource)]
+/// struct Sandboxes{
+///     sandbox_rust: Entity,
+///     sandbox_python: Entity,
+///     sandbox_all: Entity,
+/// }
+///
+/// impl FromWorld for Sandboxes {
+///     fn from_world(world: &mut World) -> Self {
+///         let sandbox = Sandbox::new(world, ModSchedules::default());
+///         let sandbox_all = world.spawn(sandbox).id();
+///
+///         let sandbox = Sandbox::new(world, ModSchedules::default());
+///         let sandbox_python = world.spawn(sandbox).id();
+///
+///         let sandbox = Sandbox::new(world, ModSchedules::default());
+///         let sandbox_rust = world.spawn(sandbox).id();
+///
+///         Self {
+///             sandbox_all,
+///             sandbox_python,
+///             sandbox_rust,
+///         }
+///     }
+/// }
+///
+/// /// Use the Mods SystemParam to alter a mod's access
+/// fn load_mods(mut mods: Mods, sandboxes: Res<Sandboxes>) {
+///     let simple = mods.spawn("mods/simple.wasm");
+///     mods.enable_access(simple, ModAccess::Sandbox(sandboxes.sandbox_rust));
+///     mods.enable_access(simple, ModAccess::Sandbox(sandboxes.sandbox_all));
+///
+///     let python = mods.spawn("mods/python.wasm");
+///     mods.enable_access(python, ModAccess::Sandbox(sandboxes.sandbox_python));
+///     mods.enable_access(python, ModAccess::Sandbox(sandboxes.sandbox_all));
+/// }
+///
+/// /// A marker component so mods can find the cube
+/// #[derive(Component, Reflect)]
+/// struct MyMarker;
+///
+/// /// Setup the scene and the 3 separate environments
+/// fn setup(
+///     mut commands: Commands,
+///     sandboxes: Res<Sandboxes>,
+///     mut meshes: ResMut<Assets<Mesh>>,
+///     mut materials: ResMut<Assets<StandardMaterial>>,
+/// ) {
+///     commands.spawn((
+///         PointLight {
+///             shadows_enabled: true,
+///             ..default()
+///         },
+///         Transform::from_xyz(4.0, 8.0, 4.0),
+///     ));
+///
+///     commands.spawn((
+///         Camera3d::default(),
+///         Transform::from_xyz(-2.5, 3.5, 6.0).looking_at(Vec3::ZERO, Vec3::Y),
+///     ));
+///
+///     /// Spawn a uniquely colored cube in each sandbox
+///     let mesh = meshes.add(Cuboid::new(1.0, 1.0, 1.0));
+///     for (color, transform, sandbox) in [
+///         (
+///             Color::srgb_u8(124, 144, 255),
+///             Transform::from_xyz(-2.0, 0.0, 0.0),
+///             sandboxes.sandbox_all,
+///         ),
+///         (
+///             Color::srgb_u8(255, 124, 144),
+///             Transform::default(),
+///             sandboxes.sandbox_python,
+///         ),
+///         (
+///             Color::srgb_u8(144, 255, 124),
+///             Transform::from_xyz(2.0, 0.0, 0.0),
+///             sandboxes.sandbox_rust,
+///         ),
+///     ] {
+///         commands.entity(sandbox).insert(transform);
+///
+///         let material = materials.add(color);
+///         commands.spawn((
+///             Name::new("My cube"),
+///             MyMarker,
+///             Mesh3d(mesh.clone()),
+///             MeshMaterial3d(material),
+///             ChildOf(sandbox),
+///             Transform::default(),
+///         ));
+///     }
+/// }
+/// ```
 #[derive(Component)]
 #[component(clone_behavior = Ignore, immutable)]
 #[component(on_add = Self::on_add, on_insert = Self::on_insert, on_replace = Self::on_replace, on_remove = Self::on_remove, on_despawn = Self::on_despawn)]

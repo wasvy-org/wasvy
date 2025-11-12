@@ -176,8 +176,8 @@ impl Mod {
         self.access.remove(access)
     }
 
-    /// Returns an iterator over the accesses of this mod
-    pub(crate) fn accesses(&self) -> impl Iterator<Item = &ModAccess> {
+    /// Returns an iterator over the [Mod Accesses](ModAccess) of this mod
+    pub fn accesses(&self) -> impl Iterator<Item = &ModAccess> {
         self.access.iter()
     }
 

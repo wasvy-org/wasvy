@@ -42,11 +42,14 @@ pub struct Sandbox {
     /// If this is [None], then that indicates this is the [Sandbox] for the world, so for all entities not already in a sandbox.
     component_id: ComponentId,
 
-    /// The world this Sandbox belongs to
-    world_id: WorldId,
+    /// Filtered access just to the entities in this sandbox
+    access: FilteredAccess,
 
     /// Mods in this sandbox will run only during the provided schedules
     schedules: ModSchedules,
+
+    /// The world this Sandbox belongs to
+    world_id: WorldId,
 }
 
 impl Sandbox {
@@ -85,10 +88,13 @@ impl Sandbox {
         };
         let component_id = world.register_component_with_descriptor(descriptor);
 
+        let access = Self::generate_access(component_id, world);
+
         let world_id = world.id();
 
         Self {
             component_id,
+            access,
             world_id,
             schedules,
         }
@@ -102,25 +108,8 @@ impl Sandbox {
     /// Returns access to only the entities within this sandbox.
     ///
     /// This is used by Wasvy to build mod systems that run exclusively in these sandboxes.
-    pub fn access(&self, world: &World) -> FilteredAccess {
-        if world.id() != self.world_id {
-            panic!("Cannot access a sandbox with another world");
-        }
-
-        let mut access = FilteredAccess::default();
-
-        // Avoid conflicting with world systems
-        access.and_with(self.component_id);
-
-        // Avoid conflicting with other sandboxes
-        access.and_with(
-            world
-                .components()
-                .component_id::<Sandboxed>()
-                .expect("Sandboxed be registered"),
-        );
-
-        access
+    pub fn access(&self) -> &FilteredAccess {
+        &self.access
     }
 
     /// Access to non-sandboxed entities
@@ -136,6 +125,32 @@ impl Sandbox {
                 .component_id::<Sandboxed>()
                 .expect("Sandboxed be registered"),
         );
+
+        access
+    }
+
+    fn generate_access(component_id: ComponentId, world: &mut World) -> FilteredAccess {
+        let mut access = FilteredAccess::default();
+
+        // Require the unique marker component
+        access.and_with(component_id);
+
+        // Avoid conflicting with world systems
+        access.and_with(
+            world
+                .components()
+                .component_id::<Sandboxed>()
+                .expect("Sandboxed be registered"),
+        );
+
+        // Avoid conflicting with all present sandboxes
+        for other_sandbox in world
+            .query::<&Sandbox>()
+            .iter(&world)
+            .filter(|sandbox| sandbox.component_id != component_id)
+        {
+            access.and_without(other_sandbox.component_id);
+        }
 
         access
     }

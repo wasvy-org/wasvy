@@ -7,10 +7,12 @@ use bevy::{
 
 use crate::{
     asset::{ModAsset, ModAssetLoader},
+    cleanup::{DisableSystemSet, disable_system_sets},
     component::WasmComponentRegistry,
     engine::{Engine, Linker, create_linker},
-    schedule::{ModStartup, Schedule, Schedules},
-    systems::run_setup,
+    sandbox::Sandboxed,
+    schedule::{ModSchedule, ModSchedules, ModStartup},
+    setup::run_setup,
 };
 
 /// This plugin adds Wasvy modding support to [`App`]
@@ -37,23 +39,23 @@ use crate::{
 /// In the host:
 /// ```no_run
 /// use bevy::{
-///     ecs::schedule::{Schedule as BevySchedule, ScheduleLabel},
+///     ecs::schedule::{Schedule, ScheduleLabel},
 ///     prelude::*,
 /// };
-/// use wasvy::{schedule::Schedule, prelude::*};
+/// use wasvy::prelude::*;
 ///
 /// #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
 /// struct SimulationStart;
 ///
 /// # let mut app = App::new();
 /// // The schedule must be added to the world's Schedules Resource
-/// app.add_schedule(BevySchedule::new(SimulationStart));
+/// app.add_schedule(Schedule::new(SimulationStart));
 ///
 /// app.add_plugins(
 ///   // We don't want mods to run systems in any other schedules
 ///   ModloaderPlugin::unscheduled()
-///     .enable_schedule(Schedule::FixedUpdate)
-///     .enable_schedule(Schedule::new_custom("simulation-start", SimulationStart))
+///     .enable_schedule(ModSchedule::FixedUpdate)
+///     .enable_schedule(ModSchedule::new_custom("simulation-start", SimulationStart))
 /// );
 /// ```
 ///
@@ -74,24 +76,38 @@ pub struct ModloaderPlugin(Mutex<Option<Inner>>);
 struct Inner {
     engine: Engine,
     linker: Linker,
-    schedules: Schedules,
+    schedules: ModSchedules,
     setup_schedule: Interned<dyn ScheduleLabel>,
 }
 
 impl Default for ModloaderPlugin {
     fn default() -> Self {
-        Self::new(Schedules::default())
+        Self::new(ModSchedules::default())
     }
 }
 
 impl ModloaderPlugin {
+    /// Creates a new modloader that will schedule mods be run during the provided Schedules
+    pub fn new(schedules: ModSchedules) -> Self {
+        let engine = Engine::new();
+        let linker = create_linker(&engine);
+        let setup_schedule = First.intern();
+        let inner = Inner {
+            engine,
+            linker,
+            schedules,
+            setup_schedule,
+        };
+        ModloaderPlugin(Mutex::new(Some(inner)))
+    }
+
     /// Creates plugin with no schedules.
     ///
     /// This means that by default loaded mods will not run unless you enable schedules manually using [ModloaderPlugin::enable_schedule]
     ///
-    /// If you want wasvy to run on all schedules use `ModloaderPlugin::default()`
+    /// If you want wasvy to run on all schedules use `ModloaderPlugin::default()` or [ModloaderPlugin::new]
     pub fn unscheduled() -> Self {
-        Self::new(Schedules::empty())
+        Self::new(ModSchedules::empty())
     }
 
     /// Enables a new schedule with the modloader.
@@ -101,7 +117,7 @@ impl ModloaderPlugin {
     /// If a mod tries to call add_system with an schedule that isn't enabled this will just produce a warning.
     ///
     /// In debug mode, this will panic if the schedule is already added.
-    pub fn enable_schedule(mut self, schedule: Schedule) -> Self {
+    pub fn enable_schedule(mut self, schedule: ModSchedule) -> Self {
         let inner = self.inner();
         inner.schedules.push(schedule);
         self
@@ -126,19 +142,6 @@ impl ModloaderPlugin {
         let inner = self.inner();
         f(&mut inner.linker);
         self
-    }
-
-    fn new(schedules: Schedules) -> Self {
-        let engine = Engine::new();
-        let linker = create_linker(&engine);
-        let setup_schedule = First.intern();
-        let inner = Inner {
-            engine,
-            linker,
-            schedules,
-            setup_schedule,
-        };
-        ModloaderPlugin(Mutex::new(Some(inner)))
     }
 
     fn inner(&mut self) -> &mut Inner {
@@ -167,10 +170,13 @@ impl Plugin for ModloaderPlugin {
         app.init_asset::<ModAsset>()
             .register_asset_loader(ModAssetLoader { linker })
             .insert_resource(engine)
-            .insert_resource(schedules)
             .init_resource::<WasmComponentRegistry>()
+            .insert_resource(schedules)
             .add_schedule(ModStartup::new_schedule())
-            .add_systems(setup_schedule, run_setup);
+            .add_message::<DisableSystemSet>()
+            .add_systems(setup_schedule, (run_setup, disable_system_sets));
+
+        app.world_mut().register_component::<Sandboxed>();
 
         let asset_plugins = app.get_added_plugins::<AssetPlugin>();
         let asset_plugin = asset_plugins

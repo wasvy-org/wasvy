@@ -1,14 +1,13 @@
-use std::mem::replace;
-
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow};
 use bevy::{
-    asset::{Asset, AssetId, AssetLoader, LoadContext, io::Reader},
-    ecs::{component::Tick, world::World},
+    asset::{Asset, AssetId, AssetLoader, Assets, LoadContext, io::Reader},
+    ecs::{component::Tick, entity::Entity, world::World},
     reflect::TypePath,
 };
 use wasmtime::component::{Component, InstancePre, Val};
 
 use crate::{
+    access::ModAccess,
     engine::{Engine, Linker},
     host::WasmHost,
     runner::{Config, ConfigRunSystem, ConfigSetup, Runner},
@@ -16,20 +15,9 @@ use crate::{
 
 /// An asset representing a loaded wasvy Mod
 #[derive(Asset, TypePath)]
-pub struct ModAsset(Inner);
-
-enum Inner {
-    /// See [ModAsset::take]
-    Placeholder,
-
-    /// The asset is loaded, but the [SETUP] function has **not** yet run
-    Loaded { instance_pre: InstancePre<WasmHost> },
-
-    /// The asset is loaded and the [SETUP] function has been run
-    Initiated {
-        version: Tick,
-        instance_pre: InstancePre<WasmHost>,
-    },
+pub struct ModAsset {
+    version: Option<Tick>,
+    instance_pre: InstancePre<WasmHost>,
 }
 
 const SETUP: &'static str = "setup";
@@ -42,42 +30,49 @@ impl ModAsset {
         let component = Component::from_binary(&loader.linker.engine(), &bytes)?;
         let instance_pre = loader.linker.instantiate_pre(&component)?;
 
-        Ok(Self(Inner::Loaded { instance_pre }))
+        Ok(Self {
+            version: None,
+            instance_pre,
+        })
     }
 
-    pub(crate) fn version(&self) -> Tick {
-        match &self.0 {
-            Inner::Initiated { version, .. } => version.clone(),
-            _ => Tick::MAX,
-        }
-    }
-
-    /// Take ownership of this asset and leave a placeholder behind
-    pub(crate) fn take(&mut self) -> Self {
-        replace(self, Self(Inner::Placeholder))
-    }
-
-    /// Replace this asset with another
-    pub(crate) fn put(&mut self, value: Self) {
-        let _ = replace(self, value);
+    pub(crate) fn version(&self) -> Option<Tick> {
+        self.version
     }
 
     /// Initiates mods by running their "setup" function
+    ///
+    /// Returns [None] if the mod could not be initialized because the asset is missing.
     pub(crate) fn initiate(
-        self,
         world: &mut World,
         asset_id: &AssetId<ModAsset>,
+        mod_id: Entity,
         mod_name: &str,
-    ) -> Result<Self> {
-        let instance_pre = match self.0 {
-            Inner::Loaded { instance_pre } => instance_pre,
-            Inner::Initiated { instance_pre, .. } => instance_pre,
-            Inner::Placeholder => unreachable!(),
+        accesses: &[ModAccess],
+    ) -> Option<Result<()>> {
+        let change_tick = world.change_tick();
+
+        let mut assets = world
+            .get_resource_mut::<Assets<Self>>()
+            .expect("ModAssets be registered");
+
+        // Will return None if the asset is not yet loaded
+        // run_setup will re-run initiate when it is finally loaded
+        let Some(asset) = assets.get_mut(*asset_id) else {
+            return None;
         };
 
-        // Assign a version based on the world tick
-        // This is useful for `system_runner`s to know they should no longer run
-        let asset_version = world.change_tick();
+        // Gets the version of this asset or assign a new one if it doesn't exist yet
+        let asset_version = match asset.version {
+            Some(version) => version,
+            None => {
+                asset.version = Some(change_tick);
+                change_tick
+            }
+        };
+
+        // This is very cheap, since it's all Arcs
+        let instance_pre = asset.instance_pre.clone();
 
         let engine = world
             .get_resource::<Engine>()
@@ -89,14 +84,19 @@ impl ModAsset {
             world,
             asset_id,
             asset_version,
+            mod_id,
             mod_name,
+            accesses,
         });
-        call(&mut runner, &instance_pre, config, SETUP, &[], &mut [])?;
 
-        Ok(Self(Inner::Initiated {
-            version: asset_version,
-            instance_pre,
-        }))
+        Some(call(
+            &mut runner,
+            &instance_pre,
+            config,
+            SETUP,
+            &[],
+            &mut [],
+        ))
     }
 
     pub(crate) fn run_system<'a, 'b, 'c, 'd, 'e, 'f, 'g>(
@@ -106,12 +106,8 @@ impl ModAsset {
         config: ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g>,
         params: &[Val],
     ) -> Result<()> {
-        let Inner::Initiated { instance_pre, .. } = &self.0 else {
-            bail!("Mod is not in Ready state");
-        };
-
         let config = Config::RunSystem(config);
-        call(runner, instance_pre, config, name, params, &mut [])
+        call(runner, &self.instance_pre, config, name, params, &mut [])
     }
 }
 

@@ -1,7 +1,7 @@
 use anyhow::{Result, bail};
 use bevy::ecs::{
     component::ComponentId,
-    query::QueryBuilder,
+    query::{FilteredAccess, QueryBuilder},
     system::QueryParamBuilder,
     world::{FilteredEntityMut, World},
 };
@@ -94,6 +94,7 @@ impl QueryForComponent {
 pub(crate) fn create_query_builder(
     original_items: &[QueryFor],
     world: &mut World,
+    access: FilteredAccess,
 ) -> Result<
     QueryParamBuilder<Box<dyn FnOnce(&mut QueryBuilder<FilteredEntityMut<'static, 'static>>)>>,
 > {
@@ -103,6 +104,7 @@ pub(crate) fn create_query_builder(
     }
 
     Ok(QueryParamBuilder::new_box(move |builder| {
+        builder.extend_access(access);
         for item in items {
             match item {
                 QueryForId::Ref(component_id) => {

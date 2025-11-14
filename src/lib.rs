@@ -1,4 +1,6 @@
+pub mod access;
 pub mod asset;
+pub mod cleanup;
 pub mod component;
 pub mod engine;
 pub mod host;
@@ -6,9 +8,10 @@ pub mod mods;
 pub mod plugin;
 pub mod prelude;
 pub mod runner;
+pub mod sandbox;
 pub mod schedule;
 pub mod send_sync_ptr;
-pub mod systems;
+pub mod setup;
 
 mod bindings {
     wasmtime::component::bindgen!({

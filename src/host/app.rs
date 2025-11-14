@@ -1,12 +1,15 @@
 use anyhow::{Result, bail};
-use bevy::{ecs::schedule::Schedules as BevySchedules, log::warn};
+use bevy::{
+    ecs::schedule::{IntoScheduleConfigs, Schedules},
+    log::warn,
+};
 use wasmtime::component::Resource;
 
 use crate::{
     bindings::wasvy::ecs::app::{HostApp, Schedule},
     host::{System, WasmHost},
+    mods::ModSystemSet,
     runner::State,
-    schedule::Schedules,
 };
 
 pub struct App;
@@ -43,35 +46,45 @@ impl HostApp for WasmHost {
         let State::Setup {
             table,
             world,
+            mod_id,
             mod_name,
             asset_id,
             asset_version,
+            accesses,
             ..
         } = self.access()
         else {
             bail!("App can only be modified in a setup function")
         };
 
-        // Validate that the schedule requested by the mod is enabled
-        let schedules = world.get_resource_or_init::<Schedules>();
-        let Some(schedule) = schedules.evaluate(&schedule) else {
-            warn!(
-                "Mod tried adding systems to schedule {:?}, but that system is not enabled",
-                schedule
-            );
-            return Ok(());
-        };
+        // Each access needs to have dedicated systems that run inside it
+        for access in accesses {
+            // Validate that the schedule requested by the mod is enabled
+            let Some(schedule) = access
+                .schedules(world)
+                .evaluate(&schedule)
+                .map(|schedule| schedule.schedule_label())
+            else {
+                warn!(
+                    "Mod tried adding systems to schedule {:?}, but that system is not enabled",
+                    schedule
+                );
+                continue;
+            };
 
-        for system in systems.iter() {
-            let system = table.get_mut(system)?;
-            let schedule_config = system.schedule(world, mod_name, asset_id, asset_version)?;
+            for system in systems.iter() {
+                let schedule_config = table
+                    .get_mut(system)?
+                    .schedule(world, mod_name, asset_id, asset_version, &access)?
+                    .in_set(ModSystemSet::All)
+                    .in_set(ModSystemSet::Mod(mod_id))
+                    .in_set(ModSystemSet::Access(*access));
 
-            let schedule = schedule.schedule_label();
-
-            let mut schedules = world
-                .get_resource_mut::<BevySchedules>()
-                .expect("running in an App");
-            schedules.add_systems(schedule, schedule_config);
+                world
+                    .get_resource_mut::<Schedules>()
+                    .expect("running in an App")
+                    .add_systems(schedule.clone(), schedule_config);
+            }
         }
 
         Ok(())

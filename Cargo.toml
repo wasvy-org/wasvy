@@ -25,7 +25,7 @@ edition = "2024"
 description = "Bevy WASM"
 license = "MIT OR Apache-2.0"
 homepage = "https://crates.io/crates/wasvy"
-repository = "https://github.com/EngoDev/wasvy"
+repository = "https://github.com/wasvy-org/wasvy"
 readme = "README.md"
 
 [workspace.dependencies]

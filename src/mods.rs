@@ -98,7 +98,7 @@ impl Mods<'_, '_> {
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy::app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
-    pub fn disable_sandbox_access<'a>(&mut self, mod_id: Entity, access: ModAccess) {
+    pub fn disable_access<'a>(&mut self, mod_id: Entity, access: ModAccess) {
         #[cfg(debug_assertions)]
         if let ModAccess::Sandbox(entity) = access {
             assert!(

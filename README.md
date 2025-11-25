@@ -27,7 +27,8 @@ Wasvy is an experimental Bevy modding engine, enabling the execution of WASM bin
 ## Features
 
 - 🪶 Easy integration with your game (see the example below)
-- 🔥 Hot reloading via [wasvy-cli](https://github.com/wasvy-org/wasvy-cli)
+- 🔥 Hot reloading
+- 🛠️ Devtools (soon) via [wasvy-cli](https://github.com/wasvy-org/wasvy-cli)
 - 🧩 WASI support powered by [wasmtime](https://wasmtime.dev/)
 
 ## Vision
@@ -102,16 +103,16 @@ wkg config --default-registry wa.dev
 
 This will make `wkg` use `wa.dev` as the default registry, which is where the latest version of `wasvy:ecs` is hosted.
 
-### Creating a New WASM Component
+### Creating a New WASM Mod
 
-1. Create a new project:
+1. Create a new crate:
 
 ```bash
 cargo new my-mod --lib
 cd my-mod
 ```
 
-2. Update your cargo.toml:
+2. Update your `cargo.toml`:
 
 ```toml
 [package]
@@ -123,12 +124,13 @@ edition = "2024"
 # Hassle-less codegen for wit
 wit-bindgen = "0.46"
 
-# Wasvy uses json for serializing components. We use serde instead of bevy_reflect since at the moment bevy-reflect bloats the wasm binary considerably
+# Wasvy uses json for serializing components. We use serde instead
+# of bevy_reflect since at the moment bevy-reflect bloats the wasm binary considerably
 serde = "1.0"
 serde_json = "1.0"
 
-# Import any bevy-sub crates you will be using
-# Note: using the serialize feature to allow using serde
+# Import any bevy-sub crates for any components you will be using
+# Note: enable the serialize feature to allow using serde
 bevy_transform = { version = "0.17.2", features = ["serialize"], default-features = false }
 bevy_math = { version = "0.17.2", features = ["serialize"], default-features = false }
 
@@ -138,10 +140,6 @@ crate-type = ["cdylib"] # necessary for wasm
 
 3. Define your WIT interface in `wit/world.wit`. Here's a basic example:
 
-```bash
-touch wit/world.wit
-```
-
 ```wit
 package component:my-mod;
 
@@ -150,7 +148,7 @@ world example {
     /// This is the wit definition for wasvy's ecs access interface
     use wasvy:ecs/app.commands;
 
-    /// An example system with a Commands and a Query system params
+    /// An example system with a Commands system params
     export my-system: func(commands: commands);
 
     /// This is important.
@@ -165,7 +163,7 @@ world example {
 wkg wit fetch
 ```
 
-This will automatically fetch the latest version of `wasvy:ecs` from [wa.dev](https://wa.dev/wasvy:ecs) and add it to your `wit` folder. You can also copy them directly from the [source](https://github.com/wasvy-org/wasvy/blob/main/wit/ecs/ecs.wit).
+This will automatically fetch the latest version of `wasvy:ecs` from [wa.dev](https://wa.dev/wasvy:ecs) and add it to your `wit` folder. You can also copy them directly from the [source](/wit/ecs/ecs.wit).
 
 5. Modify `my-mod/src/lib.rs` as shown:
 
@@ -177,14 +175,14 @@ wit_bindgen::generate!({
        "wasvy:ecs/app": generate,
     }
 });
-use wasvy::ecs::app::{App, Query, QueryFor, Schedule, System};
+use wasvy::ecs::app::{App, Commands, Schedule, System};
 
 struct MyMod;
 
 impl Guest for MyMod {
     fn setup() {
         // This must match the system we have defined in world.wit
-        // If you want more systems, just define more in the wit
+        // If you want more systems, just define more in wit
         let system = System::new("my-system");
         system.add_commands();
 
@@ -213,12 +211,11 @@ cargo build --target wasm32-wasip2 --release
 
 The resulting `.wasm` file will be in `target/wasm32-wasip2/release/my-mod.wasm`.
 
-Hint: it must be in your game's assets library for it to be visible to Bevy. After you have done this, make sure to load it via [Mods::load](https://docs.rs/wasvy/latest/wasvy/mods/struct.Mods.html#method.load) as shown above (`mods.load("mods/my-mod.wasm");`).
+Hint: The binary must be in your game's assets library for it to be visible to Bevy. By default this is `assets` in the same directory as `src`. Then, make sure to load it via [Mods::load](https://docs.rs/wasvy/latest/wasvy/mods/struct.Mods.html#method.load) as shown above (e.g. `mods.load("mods/my-mod.wasm")`).
 
 ### Tips
 
 - You can enable hot reloading for assets (including wasm files) simply by enabling Bevy's `file_watcher` feature. Try running your game with the command `cargo run --features bevy/file_watcher`
-- Build your mod directly to your game's assets folder by using `wkg wit build --output /my-game/assets/mod/my-mod.wasm`
 - The WIT registry at [WebAssembly Components Registry](https://wa.dev/) contains many useful interfaces
 
 ## Examples

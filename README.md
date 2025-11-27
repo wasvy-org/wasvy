@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="wasvy_logo.png" alt="@wasvy logo" height="320px"/>
+<img src="assets/wasvy.png" alt="@wasvy logo" height="320px"/>
 
 </div>
 
-# Wasvy - [Bevy](https://bevy.org/) WASI Integration (Just hatched! 🪺)
+# Wasvy - WASI Integration for [Bevy](https://bevy.org/) (Just hatched! 🪺)
 
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](https://github.com/wasvy-org/wasvy#license)
 [![Crates.io](https://img.shields.io/crates/v/wasvy.svg)](https://crates.io/crates/wasvy)
@@ -22,7 +22,7 @@
 
 ## Overview
 
-Wasvy is an experimental Bevy modding engine, enabling the execution of WASM binaries within Bevy applications. It's powered by WebAssembly (WASM) System Interface, enabling complete access to the Bevy ECS, network, filesystem, system clock and more!
+Wasvy is an experimental Bevy modding engine, enabling the execution of WebAssembly (WASM) binaries within Bevy applications. It's powered by WebAssembly System Interface (WASI), enabling full access to the Bevy ECS, network, filesystem, system clock and more!
 
 ## Features
 
@@ -62,13 +62,13 @@ use wasvy::prelude::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        // Adding the [`WasvyHostPlugin`] is all you need ;)
+        // Adding the [`ModloaderPlugin`] is all you need 😉
         .add_plugins(ModloaderPlugin::default())
         .add_systems(Startup, startup)
         .run();
 }
 
-/// Access the modloader's api through the Mods interface
+/// Access the modloader's api through the Mods interface 🪄
 fn startup(mut mods: Mods) {
     // Load one (or several) mods at once from the asset directory!
     mods.load("mods/my-mod.wasm");

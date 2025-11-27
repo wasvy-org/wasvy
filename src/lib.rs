@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![doc(
-    html_logo_url = "https://github.com/wasvy-org/wasvy/raw/main/wasvy_logo.png",
-    html_favicon_url = "https://github.com/wasvy-org/wasvy/raw/main/wasvy_logo.png"
+    html_logo_url = "https://github.com/wasvy-org/wasvy/raw/main/assets/logo.png",
+    html_favicon_url = "https://github.com/wasvy-org/wasvy/raw/main/assets/logo.png"
 )]
 
 pub mod access;

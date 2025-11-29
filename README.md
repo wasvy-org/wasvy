@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/wasvy.png" alt="@wasvy logo" height="320px"/>
+<img src="assets/logo.png" alt="@wasvy logo" height="320px"/>
 
 </div>
 

@@ -1,17 +1,23 @@
+#![doc = include_str!("../README.md")]
+#![doc(
+    html_logo_url = "https://github.com/wasvy-org/wasvy/raw/main/assets/logo.png",
+    html_favicon_url = "https://github.com/wasvy-org/wasvy/raw/main/assets/logo.png"
+)]
+
 pub mod access;
 pub mod asset;
-pub mod cleanup;
+pub(crate) mod cleanup;
 pub mod component;
 pub mod engine;
 pub mod host;
 pub mod mods;
 pub mod plugin;
 pub mod prelude;
-pub mod runner;
+pub(crate) mod runner;
 pub mod sandbox;
 pub mod schedule;
 pub mod send_sync_ptr;
-pub mod setup;
+pub(crate) mod setup;
 
 mod bindings {
     wasmtime::component::bindgen!({

@@ -7,7 +7,7 @@ use bevy_log::prelude::*;
 
 use crate::{
     asset::{ModAsset, ModAssetLoader},
-    cleanup::{DisableSystemSet, disable_system_sets},
+    cleanup::{DisableSystemSet, disable_mod_system_sets},
     component::WasmComponentRegistry,
     engine::{Engine, Linker, create_linker},
     sandbox::Sandboxed,
@@ -174,7 +174,7 @@ impl Plugin for ModloaderPlugin {
             .insert_resource(schedules)
             .add_schedule(ModStartup::new_schedule())
             .add_message::<DisableSystemSet>()
-            .add_systems(setup_schedule, (run_setup, disable_system_sets));
+            .add_systems(setup_schedule, (run_setup, disable_mod_system_sets));
 
         app.world_mut().register_component::<Sandboxed>();
 

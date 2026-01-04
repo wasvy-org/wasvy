@@ -1,4 +1,5 @@
-use bevy::prelude::*;
+use bevy_derive::Deref;
+use bevy_ecs::resource::Resource;
 
 use crate::host::WasmHost;
 

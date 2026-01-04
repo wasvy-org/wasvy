@@ -1,7 +1,5 @@
-use bevy::{
-    ecs::{entity::Entity, query::FilteredAccess, world::World},
-    reflect::Reflect,
-};
+use bevy_ecs::{prelude::*, query::FilteredAccess};
+use bevy_reflect::Reflect;
 
 use crate::prelude::{ModSchedules, Sandbox};
 

@@ -1,9 +1,7 @@
 use anyhow::{Context, Result, anyhow};
-use bevy::{
-    asset::{Asset, AssetId, AssetLoader, Assets, LoadContext, io::Reader},
-    ecs::{component::Tick, entity::Entity, world::World},
-    reflect::TypePath,
-};
+use bevy_asset::{Asset, AssetId, AssetLoader, Assets, LoadContext, io::Reader};
+use bevy_ecs::{change_detection::Tick, prelude::*};
+use bevy_reflect::TypePath;
 use wasmtime::component::{Component, InstancePre, Val};
 
 use crate::{
@@ -136,6 +134,7 @@ fn call(
 }
 
 /// The bevy [`AssetLoader`] for [`ModAsset`]
+#[derive(TypePath)]
 pub struct ModAssetLoader {
     pub(crate) linker: Linker,
 }

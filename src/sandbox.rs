@@ -1,14 +1,12 @@
 use std::alloc::Layout;
 
-use bevy::{
-    ecs::{
-        component::{ComponentCloneBehavior, ComponentDescriptor, ComponentId, StorageType},
-        lifecycle::HookContext,
-        query::FilteredAccess,
-        relationship::Relationship,
-        world::{DeferredWorld, WorldId},
-    },
+use bevy_ecs::{
+    component::{ComponentCloneBehavior, ComponentDescriptor, ComponentId, StorageType},
+    lifecycle::HookContext,
     prelude::*,
+    query::FilteredAccess,
+    relationship::Relationship,
+    world::{DeferredWorld, WorldId},
 };
 
 use crate::{cleanup::DisableSystemSet, mods::ModSystemSet, schedule::ModSchedules};
@@ -139,8 +137,9 @@ use crate::{cleanup::DisableSystemSet, mods::ModSystemSet, schedule::ModSchedule
 /// }
 /// ```
 #[derive(Component)]
+#[require(Name::new("Sandbox"))]
 #[component(clone_behavior = Ignore, immutable)]
-#[component(on_add = Self::on_add, on_insert = Self::on_insert, on_replace = Self::on_replace, on_remove = Self::on_remove, on_despawn = Self::on_despawn)]
+#[component(on_insert = Self::on_insert, on_replace = Self::on_replace, on_remove = Self::on_remove, on_despawn = Self::on_despawn)]
 pub struct Sandbox {
     /// Responsible for tagging all [Sandboxed] entities as belonging to this Sandbox
     ///
@@ -191,6 +190,7 @@ impl Sandbox {
                 None,
                 false,
                 clone_behavior,
+                None,
             )
         };
         let component_id = world.register_component_with_descriptor(descriptor);
@@ -260,23 +260,6 @@ impl Sandbox {
         }
 
         access
-    }
-
-    /// [On add](bevy::ecs::lifecycle::ComponentHooks::on_add) for [Sandbox]
-    fn on_add(mut world: DeferredWorld, ctx: HookContext) {
-        let Self { component_id, .. } = world.entity(ctx.entity).get().expect("Sandbox was added");
-
-        let name = world
-            .components()
-            .get_info(*component_id)
-            .expect("valid component id")
-            .name()
-            .as_string();
-
-        // Add a name for debug usage
-        world.commands().queue(move |world: &mut World| {
-            world.entity_mut(ctx.entity).insert_if_new(Name::new(name));
-        });
     }
 
     /// [On insert](bevy::ecs::lifecycle::ComponentHooks::on_insert) for [Sandbox]
@@ -460,7 +443,7 @@ struct SandboxCount(pub usize);
 
 #[cfg(test)]
 mod tests {
-    use bevy::prelude::*;
+    use bevy_ecs::prelude::*;
 
     use super::*;
     use crate::schedule::ModSchedules;

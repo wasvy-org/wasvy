@@ -1,21 +1,18 @@
 use anyhow::{Result, anyhow, bail};
-use bevy::{
-    asset::AssetId,
-    ecs::{
-        component::Tick,
-        error::Result as BevyResult,
-        reflect::AppTypeRegistry,
-        resource::Resource as BevyResource,
-        schedule::{IntoScheduleConfigs, ScheduleConfigs, SystemSet},
-        system::{
-            BoxedSystem, Commands as BevyCommands, IntoSystem, Local, LocalBuilder, ParamBuilder,
-            ParamSet, ParamSetBuilder, Query as BevyQuery, SystemParamBuilder,
-        },
-        world::{FilteredEntityMut, FromWorld, World},
+use bevy_asset::{AssetId, Assets};
+use bevy_ecs::{
+    change_detection::Tick,
+    error::Result as BevyResult,
+    prelude::*,
+    resource::Resource as BevyResource,
+    schedule::ScheduleConfigs,
+    system::{
+        BoxedSystem, Commands as BevyCommands, LocalBuilder, ParamBuilder, ParamSetBuilder,
+        Query as BevyQuery,
     },
-    log::trace,
-    prelude::{Assets, Res},
+    world::FilteredEntityMut,
 };
+use bevy_log::prelude::*;
 use wasmtime::component::{Resource, Val};
 
 use crate::{

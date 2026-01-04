@@ -1,15 +1,13 @@
 use std::ptr::NonNull;
 
 use anyhow::Result;
-use bevy::{
-    asset::AssetId,
-    ecs::{
-        component::Tick,
-        entity::Entity,
-        reflect::AppTypeRegistry,
-        system::{Commands, ParamSet, Query},
-        world::{FilteredEntityMut, World},
-    },
+use bevy_asset::AssetId;
+use bevy_ecs::{
+    change_detection::Tick,
+    entity::Entity,
+    reflect::AppTypeRegistry,
+    system::{Commands, ParamSet, Query},
+    world::{FilteredEntityMut, World},
 };
 use wasmtime::component::ResourceAny;
 use wasmtime_wasi::ResourceTable;
@@ -28,7 +26,7 @@ pub(crate) struct Runner {
 impl Runner {
     pub(crate) fn new(engine: &Engine) -> Self {
         let host = WasmHost::new();
-        let store = Store::new(&engine, host);
+        let store = Store::new(&engine.inner(), host);
 
         Self { store }
     }

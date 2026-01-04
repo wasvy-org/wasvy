@@ -12,12 +12,13 @@ repository.workspace = true
 readme.workspace = true
 
 [dependencies]
-anyhow.workspace = true
-bevy = { version = "0.17.2", features = [
+# Replace in your own project:
+wasvy = { path = "../../" } # wasvy = "0.0"
+
+bevy = { version = "0.18.0-rc.2", features = [
     "wayland",
     "dynamic_linking",
     "bevy_dev_tools",
 ] }
-bevy_egui = "0.37.0"
-bevy-inspector-egui = "0.34.0"
-wasvy = { path = "../../" }
+bevy_egui = "0.37.0" # pr is ready https://github.com/ptsd/bevy_egui/tree/bevy-0.18
+bevy-inspector-egui = "0.34.0" # no pr yet

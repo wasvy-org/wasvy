@@ -1,9 +1,7 @@
 use anyhow::{Result, bail};
-use bevy::ecs::{
-    component::ComponentId,
-    query::{FilteredAccess, QueryBuilder},
-    system::QueryParamBuilder,
-    world::{FilteredEntityMut, World},
+use bevy_ecs::{
+    component::ComponentId, prelude::*, query::FilteredAccess, system::QueryParamBuilder,
+    world::FilteredEntityMut,
 };
 use wasmtime::component::Resource;
 

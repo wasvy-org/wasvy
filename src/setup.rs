@@ -1,8 +1,10 @@
-use bevy::{
-    ecs::system::{SystemParam, SystemState},
-    platform::collections::HashSet,
+use bevy_asset::prelude::*;
+use bevy_ecs::{
     prelude::*,
+    system::{SystemParam, SystemState},
 };
+use bevy_log::prelude::*;
+use bevy_platform::collections::HashSet;
 
 use crate::{access::ModAccess, asset::ModAsset, mods::Mod, schedule::ModStartup};
 
@@ -58,7 +60,7 @@ pub(crate) fn run_setup(
     }
 
     // We need exclusive world access later in order to setup mods, so store refs to them in a vec while we still have access to the Setup system params
-    let mut setup = Vec::new();
+    let mut setup: Vec<(AssetId<ModAsset>, Entity, String, Vec<ModAccess>)> = Vec::new();
     for (mod_id, mod_component, name) in mods.iter().filter(|(mod_id, mod_component, _)| {
         // We only need to setup mods that have changed (such as sandboxes were added) or those that have loaded
         mod_component.is_changed() || loaded_mods.contains(mod_id)

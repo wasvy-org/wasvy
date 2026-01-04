@@ -1,12 +1,5 @@
-use bevy::{
-    app::{FixedPostUpdate, FixedPreUpdate, FixedUpdate, PostUpdate, PreUpdate, Update},
-    ecs::{
-        intern::Interned,
-        resource::Resource,
-        schedule::{Schedule, ScheduleLabel, Schedules},
-        world::World,
-    },
-};
+use bevy_app::prelude::*;
+use bevy_ecs::{intern::Interned, prelude::*, schedule::ScheduleLabel};
 
 use crate::bindings::wasvy::ecs::app::Schedule as WitSchedule;
 
@@ -55,7 +48,7 @@ impl ModSchedule {
     /// - `name` must match what the mod registers with via the wit api
     /// - `schedule` is the Bevy schedule this represents. This schedule must be added to the Bevy Schedules.
     ///
-    /// Note: Trying to add mod systems to the setup schedule (which defaults to [First](bevy::app::First), see
+    /// Note: Trying to add mod systems to the setup schedule (which defaults to [First](bevy_app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule))
     /// Bevy's First schedule will do nothing since this is the mod setup phase
     pub fn new_custom(name: impl ToString, schedule: impl ScheduleLabel) -> Self {

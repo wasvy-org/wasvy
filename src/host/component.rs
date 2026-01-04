@@ -1,5 +1,5 @@
 use anyhow::{Result, bail};
-use bevy::ecs::{entity::Entity, world::FilteredEntityRef};
+use bevy_ecs::{prelude::*, world::FilteredEntityRef};
 use wasmtime::component::Resource;
 
 use crate::{

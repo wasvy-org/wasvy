@@ -1,5 +1,6 @@
 use anyhow::{Result, bail};
-use bevy::{ecs::hierarchy::ChildOf, log::trace};
+use bevy_ecs::prelude::*;
+use bevy_log::prelude::*;
 use wasmtime::component::Resource;
 
 use crate::{

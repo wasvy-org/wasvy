@@ -30,13 +30,18 @@ readme = "README.md"
 
 [workspace.dependencies]
 anyhow = "1.0.99"
-bevy = { version = "0.17.2", features = ["serialize"] }
-bevy_reflect = "0.17.2"
-bevy_transform = { version = "0.17.2", features = [
+bevy_asset = "0.18.0-rc.2"
+bevy_app = "0.18.0-rc.2"
+bevy_derive = "0.18.0-rc.2"
+bevy_ecs = "0.18.0-rc.2"
+bevy_log = "0.18.0-rc.2"
+bevy_math = { version = "0.18.0-rc.2", features = [
+    "std",
     "serialize",
 ], default-features = false }
-bevy_math = { version = "0.17.2", features = [
-    "std",
+bevy_platform = "0.18.0-rc.2"
+bevy_reflect = "0.18.0-rc.2"
+bevy_transform = { version = "0.18.0-rc.2", features = [
     "serialize",
 ], default-features = false }
 serde = { version = "1.0.219", features = ["derive"] }
@@ -48,15 +53,21 @@ wit-bindgen = { version = "0.46.0", features = ["bitflags"] }
 
 [dependencies]
 anyhow.workspace = true
-bevy.workspace = true
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_derive.workspace = true
+bevy_ecs.workspace = true
+bevy_log.workspace = true
+bevy_platform.workspace = true
+bevy_reflect.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
 
-# Enable high optimizations for wasmtime and its transient dependencies
-# Drastically improves the speed loading examples (python especially)
+# Enable high optimizations for wasmtime and its transient dependencies in dev mode.
+# This drastically improves the loading speed for the example mods (python especially)
 
 # Core Wasmtime + internals
 [profile.dev.package.wasmtime-environ]

@@ -1,9 +1,9 @@
 use std::sync::Mutex;
 
-use bevy::{
-    ecs::{intern::Interned, schedule::ScheduleLabel},
-    prelude::*,
-};
+use bevy_app::prelude::*;
+use bevy_asset::prelude::*;
+use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
+use bevy_log::prelude::*;
 
 use crate::{
     asset::{ModAsset, ModAssetLoader},

@@ -2,6 +2,7 @@ use std::alloc::Layout;
 
 use bevy_ecs::{
     component::{ComponentCloneBehavior, ComponentDescriptor, ComponentId, StorageType},
+    entity::EntityHashSet,
     lifecycle::HookContext,
     prelude::*,
     query::FilteredAccess,
@@ -328,7 +329,7 @@ impl Sandbox {
 /// - Relations be cloneable (It'd be incorrect to allow Sandboxes to be cloned)
 #[derive(Component, Default, Debug, PartialEq, Eq)]
 #[relationship_target(relationship = Sandboxed)]
-pub struct SandboxedEntities(Vec<Entity>);
+pub struct SandboxedEntities(EntityHashSet);
 
 /// An entity that belongs to a sandbox
 #[derive(Component, Clone, PartialEq, Eq, Debug)]

@@ -69,7 +69,7 @@ impl System {
         };
 
         // Generate the queries necessary to run this system
-        let filtered_access = access.filtered_access(&mut world);
+        let filtered_access = access.filtered_access(world);
         let mut queries = Vec::with_capacity(self.params.len());
         for items in self.params.iter().filter_map(Param::filter_query) {
             queries.push(create_query_builder(items, world, filtered_access.clone())?);

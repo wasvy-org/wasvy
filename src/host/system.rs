@@ -239,9 +239,9 @@ fn initialize_params(source: &[BuiltParam], runner: &mut Runner) -> Result<Vec<V
 }
 
 /// Bevy doesn't return an identifier for systems added directly to the scheduler. There is
-/// [NodeId](bevy::ecs::schedule::NodeId) but that has no clear way of being used for system ordering.
+/// [NodeId](bevy_ecs::schedule::NodeId) but that has no clear way of being used for system ordering.
 ///
-/// So instead we take inspiration from bevy's [AnonymousSet](bevy::ecs::schedule::AnonymousSet)
+/// So instead we take inspiration from bevy's [AnonymousSet](bevy_ecs::schedule::AnonymousSet)
 /// and we identify each system with an extra [SystemSet] all to itself.
 // Note: Using an AnonymousSet could work but unfortunately the method used to create one is private.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]

@@ -18,7 +18,10 @@ use crate::{
 /// This plugin adds Wasvy modding support to [`App`]
 ///
 /// ```no_run
-/// use bevy::prelude::*;
+/// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
+/// # use bevy_app::prelude::*;
+/// # struct DefaultPlugins;
+/// # impl Plugin for DefaultPlugins { fn build(&self, app: &mut App){} }
 /// use wasvy::prelude::*;
 ///
 /// App::new()
@@ -38,10 +41,8 @@ use crate::{
 ///
 /// In the host:
 /// ```no_run
-/// use bevy::{
-///     ecs::schedule::{Schedule, ScheduleLabel},
-///     prelude::*,
-/// };
+/// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
+/// # use bevy_app::prelude::*;
 /// use wasvy::prelude::*;
 ///
 /// #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]

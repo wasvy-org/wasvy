@@ -33,8 +33,9 @@ use crate::{cleanup::DisableSystemSet, mods::ModSystemSet, schedule::ModSchedule
 ///
 /// ## Example
 ///
-/// ```no_run
-/// # use bevy::prelude::*;
+/// ```ignore
+/// # use bevy_ecs::prelude::*;
+/// # use bevy_app::prelude::*;
 /// # use wasvy::prelude::*;
 /// # let mut app = App::new();
 /// app.init_resource::<Sandboxes>();
@@ -263,7 +264,7 @@ impl Sandbox {
         access
     }
 
-    /// [On insert](bevy::ecs::lifecycle::ComponentHooks::on_insert) for [Sandbox]
+    /// [On insert](bevy_ecs::lifecycle::ComponentHooks::on_insert) for [Sandbox]
     fn on_insert(mut world: DeferredWorld, ctx: HookContext) {
         let Self { world_id, .. } = world
             .entity(ctx.entity)
@@ -278,7 +279,7 @@ impl Sandbox {
         Sandboxed::add_children(ctx.entity, ctx.entity, &mut world);
     }
 
-    /// [On replace](bevy::ecs::lifecycle::ComponentHooks::on_replace) for [Sandbox]
+    /// [On replace](bevy_ecs::lifecycle::ComponentHooks::on_replace) for [Sandbox]
     fn on_replace(mut world: DeferredWorld, ctx: HookContext) {
         let component_id = world
             .entity(ctx.entity)
@@ -294,7 +295,7 @@ impl Sandbox {
         }
     }
 
-    /// [On remove](bevy::ecs::lifecycle::ComponentHooks::on_remove) for [Sandbox]
+    /// [On remove](bevy_ecs::lifecycle::ComponentHooks::on_remove) for [Sandbox]
     fn on_remove(mut world: DeferredWorld, ctx: HookContext) {
         // A SandboxedEntities and Sandboxed cannot exist without a Sandbox
         world
@@ -303,7 +304,7 @@ impl Sandbox {
             .remove::<SandboxedEntities>();
     }
 
-    /// [On despawn](bevy::ecs::lifecycle::ComponentHooks::on_despawn) for [Sandbox]
+    /// [On despawn](bevy_ecs::lifecycle::ComponentHooks::on_despawn) for [Sandbox]
     fn on_despawn(mut world: DeferredWorld, ctx: HookContext) {
         let schedules = world
             .entity(ctx.entity)
@@ -369,7 +370,7 @@ impl Sandboxed {
         }
     }
 
-    /// [On insert](bevy::ecs::lifecycle::ComponentHooks::on_insert) for [Sandboxed]
+    /// [On insert](bevy_ecs::lifecycle::ComponentHooks::on_insert) for [Sandboxed]
     fn on_insert(mut world: DeferredWorld, ctx: HookContext) {
         let Self(sandbox) = world.entity(ctx.entity).get().expect("Component was added");
 
@@ -393,7 +394,7 @@ impl Sandboxed {
         <Self as Relationship>::on_insert(world, ctx);
     }
 
-    /// [On replace](bevy::ecs::lifecycle::ComponentHooks::on_replace) for [Sandboxed]
+    /// [On replace](bevy_ecs::lifecycle::ComponentHooks::on_replace) for [Sandboxed]
     fn on_replace(mut world: DeferredWorld, ctx: HookContext) {
         let Self(sandbox) = world.entity(ctx.entity).get().expect("Component was added");
 
@@ -444,14 +445,20 @@ struct SandboxCount(pub usize);
 
 #[cfg(test)]
 mod tests {
-    use bevy_ecs::prelude::*;
+    use bevy_ecs::{prelude::*, relationship::RelationshipSourceCollection};
 
     use super::*;
     use crate::schedule::ModSchedules;
 
+    fn setup() -> World {
+        let mut world = World::new();
+        world.register_component::<Sandboxed>();
+        world
+    }
+
     #[test]
     fn sandboxed_propagate_marker() {
-        let mut world = World::new();
+        let mut world = setup();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
         let marker = component.component_id;
@@ -470,23 +477,27 @@ mod tests {
 
     #[test]
     fn simple_sandboxed_propagate() {
-        let mut world = World::new();
+        let mut world = setup();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
         let sandbox = world.spawn(component).id();
         let child = world.spawn_empty().insert(ChildOf(sandbox)).id();
         let nested_child = world.spawn_empty().insert(ChildOf(child)).id();
 
+        let mut set = EntityHashSet::new();
+        set.add(child);
+        set.add(nested_child);
+
         assert_eq!(
             world.entity(sandbox).get(),
-            Some(&SandboxedEntities(vec![child, nested_child])),
+            Some(&SandboxedEntities(set)),
             "All Children have the sandbox relation and were added to the SandboxedEntities"
         );
     }
 
     #[test]
     fn reparent_sandboxed() {
-        let mut world = World::new();
+        let mut world = setup();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
         let marker1 = component.component_id;
@@ -520,7 +531,7 @@ mod tests {
 
     #[test]
     fn replace_sandbox() {
-        let mut world = World::new();
+        let mut world = setup();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
         let marker1 = component.component_id;
@@ -544,7 +555,7 @@ mod tests {
 
     #[test]
     fn remove_sandbox() {
-        let mut world = World::new();
+        let mut world = setup();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
         let marker = component.component_id;
@@ -566,7 +577,7 @@ mod tests {
 
     #[test]
     fn nested_sandbox_propagate() {
-        let mut world = World::new();
+        let mut world = setup();
 
         let component = Sandbox::new(&mut world, ModSchedules::empty());
         let sandbox1 = world.spawn(component).id();
@@ -591,8 +602,8 @@ mod tests {
     #[test]
     fn panic_world_mismatch() {
         let result = std::panic::catch_unwind(move || {
-            let mut world = World::new();
-            let mut other_world = World::new();
+            let mut world = setup();
+            let mut other_world = setup();
 
             let component = Sandbox::new(&mut other_world, ModSchedules::empty());
 

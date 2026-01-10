@@ -5,7 +5,7 @@ use crate::bindings::wasvy::ecs::app::Schedule as WitSchedule;
 
 /// This is an enum representing schedules in Bevy where mods can also be run.
 ///
-/// See the docs for [bevy schedules](bevy::app::Main).
+/// See the docs for [bevy schedules](bevy_app::Main).
 ///
 /// None of the first run schedules (like Startup) are included since mods can't be guaranteed to load fast enough to run in them.
 /// So instead, many repeating schedules are run instead

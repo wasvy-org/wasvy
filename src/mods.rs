@@ -255,3 +255,33 @@ impl ModSystemSet {
         Self::Access(ModAccess::Sandbox(sandbox_id))
     }
 }
+
+/// An enum that defines what happens when a mod is despawned (or reloaded)
+///
+/// Set this value during plugin instantiation via
+/// [ModloaderPlugin::set_despawn_behaviour](crate::plugin::ModloaderPlugin::set_despawn_behaviour).
+///
+/// The default behaviour is to despawn all entities this mod spawned.
+/// See [DespawnEntities](ModDespawnBehaviour::DespawnEntities).
+#[derive(Resource, Debug, Default, PartialEq, Eq)]
+pub enum ModDespawnBehaviour {
+    /// Do nothing when a mod is despawned
+    None,
+
+    /// The default. Despawn all entities this mod spawned.
+    ///
+    /// So for example if your mod spawns a cube in the center of the scene,
+    /// when this mod is hot reloaded the cube is despawned, and the newest
+    /// version of the mod spawns a new cube in its place.
+    #[default]
+    DespawnEntities,
+}
+
+impl ModDespawnBehaviour {
+    pub(crate) fn is_despawn_entities(world: &World) -> bool {
+        match world.get_resource() {
+            None | Some(ModDespawnBehaviour::DespawnEntities) => true,
+            Some(ModDespawnBehaviour::None) => false,
+        }
+    }
+}

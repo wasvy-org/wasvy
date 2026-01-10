@@ -6,8 +6,10 @@ use wasmtime::component::{Component, InstancePre, Val};
 
 use crate::{
     access::ModAccess,
+    cleanup::DespawnModEntities,
     engine::{Engine, Linker},
     host::WasmHost,
+    mods::ModDespawnBehaviour,
     runner::{Config, ConfigRunSystem, ConfigSetup, Runner},
 };
 
@@ -69,8 +71,24 @@ impl ModAsset {
             }
         };
 
-        // This is very cheap, since it's all Arcs
+        // This is very cheap, since it's just Arcs
         let instance_pre = asset.instance_pre.clone();
+
+        // The mod might have reloaded. It's necessary we perform cleanup
+        // if the mod has spawned entities before.
+        if ModDespawnBehaviour::is_despawn_entities(world) {
+            let (entities, mut commands) = world.entities_and_commands();
+            let despawn = entities
+                .get(mod_id)
+                .expect("Mod entity exists")
+                .get::<DespawnModEntities>()
+                .expect(
+                    "DespawnModEntities should have been registered as a required componet for Mod",
+                );
+            for source_entity in despawn.iter() {
+                commands.entity(source_entity).try_despawn();
+            }
+        }
 
         let engine = world
             .get_resource::<Engine>()

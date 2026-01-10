@@ -73,7 +73,7 @@ impl HostApp for WasmHost {
             for system in systems.iter() {
                 let schedule_config = table
                     .get_mut(system)?
-                    .schedule(world, mod_name, asset_id, asset_version, &access)?
+                    .schedule(world, mod_id, mod_name, asset_id, asset_version, &access)?
                     .in_set(ModSystemSet::All)
                     .in_set(ModSystemSet::Mod(mod_id))
                     .in_set(ModSystemSet::Access(*access));

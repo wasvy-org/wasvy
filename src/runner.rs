@@ -13,7 +13,8 @@ use wasmtime::component::ResourceAny;
 use wasmtime_wasi::ResourceTable;
 
 use crate::{
-    access::ModAccess, asset::ModAsset, engine::Engine, host::WasmHost, send_sync_ptr::SendSyncPtr,
+    access::ModAccess, asset::ModAsset, cleanup::InsertDespawnComponent, engine::Engine,
+    host::WasmHost, send_sync_ptr::SendSyncPtr,
 };
 
 pub(crate) type Store = wasmtime::Store<WasmHost>;
@@ -73,11 +74,13 @@ impl Runner {
                 type_registry,
                 queries,
                 access,
+                insert_despawn_component,
             }) => Inner::RunSystem {
                 commands: SendSyncPtr::new(NonNull::from_mut(commands).cast()),
                 type_registry: SendSyncPtr::new(NonNull::from_ref(type_registry)),
                 queries: SendSyncPtr::new(NonNull::from_ref(queries).cast()),
                 access,
+                insert_despawn_component,
             },
         }));
 
@@ -110,6 +113,7 @@ enum Inner {
         type_registry: SendSyncPtr<AppTypeRegistry>,
         queries: SendSyncPtr<Queries<'static, 'static>>,
         access: ModAccess,
+        insert_despawn_component: InsertDespawnComponent,
     },
 }
 
@@ -151,6 +155,7 @@ impl Data {
                 type_registry,
                 queries,
                 access,
+                insert_despawn_component,
             } =>
             // Safety: Runner::use_store ensures that this always contains a valid reference
             // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
@@ -159,6 +164,7 @@ impl Data {
                     commands: commands.cast().as_mut(),
                     type_registry: type_registry.as_ref(),
                     queries: queries.cast().as_mut(),
+                    insert_despawn_component,
                     access,
                     table,
                 })
@@ -185,6 +191,7 @@ pub(crate) enum State<'a> {
         type_registry: &'a AppTypeRegistry,
         queries: &'a mut Queries<'a, 'a>,
         access: &'a ModAccess,
+        insert_despawn_component: &'a InsertDespawnComponent,
     },
 }
 
@@ -208,4 +215,5 @@ pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
     pub(crate) queries:
         &'a mut ParamSet<'d, 'e, Vec<Query<'f, 'g, FilteredEntityMut<'static, 'static>>>>,
     pub(crate) access: ModAccess,
+    pub(crate) insert_despawn_component: InsertDespawnComponent,
 }

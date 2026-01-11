@@ -1,35 +1,34 @@
 package wasvy:ecs;
 
 /// This is the world that the bevy host implements to give ECS functionality to the WASM component.
-/// Like `register-system`.
 world host {
 	import app;
 }
 
 /// This is the world that the WASM guest implements.
 ///
-/// These are basically the mandatory functions that a WASM component
-/// must have for it to be called from the Bevy host.
+/// This is the mandatory interface that a WASM component
+/// must implement for it to be called from the Bevy host.
 world guest {
 	import app;
+	use app.{app};
 
-	/// This function is called once on startup for each WASM component (Not Bevy component).
-	export setup: func();
+	/// This method is called once on startup for each WASM component (Not Bevy component).
+	///
+	/// In this method you should register and configure `system`s via the `app` provided as a
+	/// parameter.
+	export setup: func(app: app);
 }
 
 interface app {
 	/// A mod, similar to bevy::App
+	///
+	/// This is an interface through which mods may interact with the bevy app.
 	resource app {
-		/// Construct an new App: an interface through which mods may interact with the bevy world.
-		///
-		/// Each mod may only do this once inside its setup function call. Attempting to do this
-		/// twice or outside setup will trap.
-		constructor();
-
 		/// Adds systems to the mod
 		add-systems: func(
 			schedule: schedule,
-			systems: list<system>,
+			systems: list<borrow<system>>,
 		);
 	}
 

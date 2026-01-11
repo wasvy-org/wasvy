@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 struct GuestComponent;
 
 impl Guest for GuestComponent {
-    fn setup() {
+    fn setup(app: App) {
         // Define an example system with commands that runs on startup
         let spawn_entities = System::new("spawn-entities");
         spawn_entities.add_commands();
@@ -31,9 +31,8 @@ impl Guest for GuestComponent {
         ]);
 
         // Register the systems to run in the Update schedule
-        let app = App::new();
-        app.add_systems(&Schedule::ModStartup, vec![spawn_entities]);
-        app.add_systems(&Schedule::Update, vec![spin_cube]);
+        app.add_systems(&Schedule::ModStartup, &[&spawn_entities]);
+        app.add_systems(&Schedule::Update, &[&spin_cube]);
     }
 
     fn spawn_entities(commands: Commands) {

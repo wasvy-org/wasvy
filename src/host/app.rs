@@ -13,24 +13,6 @@ use crate::{
 pub struct App;
 
 impl HostApp for WasmHost {
-    fn new(&mut self) -> Result<Resource<App>> {
-        let State::Setup {
-            table, app_init, ..
-        } = self.access()
-        else {
-            bail!("App can only be instantiated in a setup function")
-        };
-
-        if *app_init {
-            bail!("App can only be instantiated once")
-        }
-
-        let app_res = table.push(App)?;
-        *app_init = true;
-
-        Ok(app_res)
-    }
-
     fn add_systems(
         &mut self,
         _self: Resource<App>,

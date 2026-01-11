@@ -8,7 +8,7 @@ use crate::{
     access::ModAccess,
     cleanup::DespawnModEntities,
     engine::{Engine, Linker},
-    host::WasmHost,
+    host::{App, WasmHost},
     mods::ModDespawnBehaviour,
     runner::{Config, ConfigRunSystem, ConfigSetup, Runner},
 };
@@ -105,12 +105,13 @@ impl ModAsset {
             accesses,
         });
 
+        let app = runner.new_resource(App).expect("Table has space left");
         Some(call(
             &mut runner,
             &instance_pre,
             config,
             SETUP,
-            &[],
+            &[Val::Resource(app)],
             &mut [],
         ))
     }

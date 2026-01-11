@@ -62,7 +62,6 @@ impl Runner {
                 accesses,
             }) => Inner::Setup {
                 world: SendSyncPtr::new(world.into()),
-                app_init: false,
                 asset_id: *asset_id,
                 asset_version,
                 mod_id,
@@ -101,7 +100,6 @@ enum Inner {
     Uninitialized,
     Setup {
         world: SendSyncPtr<World>,
-        app_init: bool,
         mod_id: Entity,
         mod_name: String,
         asset_id: AssetId<ModAsset>,
@@ -132,7 +130,6 @@ impl Data {
         match &mut self.0 {
             Inner::Setup {
                 world,
-                app_init,
                 asset_id,
                 asset_version,
                 mod_id,
@@ -142,7 +139,6 @@ impl Data {
                 // Safety: Runner::use_store ensures that this always contains a valid reference
                 // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
                 world: unsafe { world.as_mut() },
-                app_init,
                 asset_id,
                 asset_version,
                 mod_id: *mod_id,
@@ -178,7 +174,6 @@ pub(crate) enum State<'a> {
     Setup {
         world: &'a mut World,
         table: &'a mut ResourceTable,
-        app_init: &'a mut bool,
         mod_id: Entity,
         mod_name: &'a str,
         asset_id: &'a AssetId<ModAsset>,

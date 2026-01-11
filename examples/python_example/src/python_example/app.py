@@ -7,7 +7,7 @@ import example
 from example.imports.app import App, Commands, Query, QueryFor_Mut, QueryFor_With, Schedule_Update, System
 
 class Example(example.Example):
-    def setup(self):
+    def setup(self, app: App):
         spin_cube = System("spin-cube")
         spin_cube.add_query([
             QueryFor_Mut("bevy_transform::components::transform::Transform"),
@@ -20,7 +20,6 @@ class Example(example.Example):
             QueryFor_With("python::MyComponent")
         ])
 
-        app = App()
         app.add_systems(Schedule_Update(), [my_system, spin_cube])
 
     # Spin speed

@@ -9,15 +9,18 @@ pub mod asset;
 pub(crate) mod cleanup;
 pub mod component;
 pub mod engine;
+pub(crate) mod entity;
 pub mod host;
 pub mod mods;
 pub mod plugin;
 pub mod prelude;
+pub(crate) mod query;
 pub(crate) mod runner;
 pub mod sandbox;
 pub mod schedule;
 pub mod send_sync_ptr;
 pub(crate) mod setup;
+pub(crate) mod system;
 
 mod bindings {
     wasmtime::component::bindgen!({
@@ -27,11 +30,14 @@ mod bindings {
         // to return traps from generated functions.
         imports: { default: trappable },
         with: {
-            "wasvy:ecs/app.app": crate::host::App,
-            "wasvy:ecs/app.system": crate::host::System,
-            "wasvy:ecs/app.commands": crate::host::Commands,
-            "wasvy:ecs/app.query": crate::host::Query,
-            "wasvy:ecs/app.component": crate::host::Component,
+            "wasvy:ecs/app.app": crate::host::WasmApp,
+            "wasvy:ecs/app.system": crate::host::WasmSystem,
+            "wasvy:ecs/app.commands": crate::host::WasmCommands,
+            "wasvy:ecs/app.entity": crate::host::WasmEntity,
+            "wasvy:ecs/app.entity-commands": crate::host::WasmEntityCommands,
+            "wasvy:ecs/app.query": crate::host::WasmQuery,
+            "wasvy:ecs/app.query-result": crate::host::WasmQueryResult,
+            "wasvy:ecs/app.component": crate::host::WasmComponent,
         },
     });
 }

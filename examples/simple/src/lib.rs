@@ -19,9 +19,10 @@ struct GuestComponent;
 
 impl Guest for GuestComponent {
     fn setup(app: App) {
-        // Define an example system with commands that runs on startup
+        // Define an example system with commands that run on startup
         let spawn_entities = System::new("spawn-entities");
         spawn_entities.add_commands();
+        app.add_systems(&Schedule::ModStartup, &[&spawn_entities]);
 
         // Define another new system that queries for entities with a Transform and a Marker component
         let spin_cube = System::new("spin-cube");
@@ -29,9 +30,6 @@ impl Guest for GuestComponent {
             QueryFor::Mut("bevy_transform::components::transform::Transform".to_string()),
             QueryFor::With("host_example::MyMarker".to_string()),
         ]);
-
-        // Register the systems to run in the Update schedule
-        app.add_systems(&Schedule::ModStartup, &[&spawn_entities]);
         app.add_systems(&Schedule::Update, &[&spin_cube]);
     }
 
@@ -56,15 +54,18 @@ impl Guest for GuestComponent {
     }
 
     fn spin_cube(query: Query) {
-        while let Some(components) = query.iter() {
-            // Get and deserialize the first component
-            let mut transform: Transform = from_json(&components[0].get());
+        while let Some(results) = query.iter() {
+            // Get the first component
+            let component = results.component(0);
+
+            // Deserialize the first component
+            let mut transform: Transform = from_json(&component.get());
 
             // Spin the cube
             transform.rotate(Quat::from_rotation_y(0.025));
 
             // Set the new component value
-            components[0].set(&to_json(&transform));
+            component.set(&to_json(&transform));
         }
     }
 }

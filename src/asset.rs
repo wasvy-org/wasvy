@@ -8,9 +8,10 @@ use crate::{
     access::ModAccess,
     cleanup::DespawnModEntities,
     engine::{Engine, Linker},
-    host::{App, WasmHost},
+    host::{WasmApp, WasmHost},
     mods::ModDespawnBehaviour,
     runner::{Config, ConfigRunSystem, ConfigSetup, Runner},
+    system::AddSystems,
 };
 
 /// An asset representing a loaded wasvy Mod
@@ -42,14 +43,14 @@ impl ModAsset {
 
     /// Initiates mods by running their "setup" function
     ///
-    /// Returns [None] if the mod could not be initialized because the asset is missing.
+    /// Returns false if the mod could not be initialized because the asset is missing.
     pub(crate) fn initiate(
         world: &mut World,
         asset_id: &AssetId<ModAsset>,
         mod_id: Entity,
         mod_name: &str,
         accesses: &[ModAccess],
-    ) -> Option<Result<()>> {
+    ) -> Result<bool> {
         let change_tick = world.change_tick();
 
         let mut assets = world
@@ -59,7 +60,7 @@ impl ModAsset {
         // Will return None if the asset is not yet loaded
         // run_setup will re-run initiate when it is finally loaded
         let Some(asset) = assets.get_mut(*asset_id) else {
-            return None;
+            return Ok(false);
         };
 
         // Gets the version of this asset or assign a new one if it doesn't exist yet
@@ -96,24 +97,35 @@ impl ModAsset {
 
         let mut runner = Runner::new(&engine);
 
+        let mut systems = AddSystems::default();
         let config = Config::Setup(ConfigSetup {
             world,
-            asset_id,
-            asset_version,
-            mod_id,
-            mod_name,
-            accesses,
+            add_systems: &mut systems,
         });
 
-        let app = runner.new_resource(App).expect("Table has space left");
-        Some(call(
+        // The setup method takes an App parameter.
+        let app = runner.new_resource(WasmApp).expect("Table has space left");
+        call(
             &mut runner,
             &instance_pre,
             config,
             SETUP,
             &[Val::Resource(app)],
             &mut [],
-        ))
+        )?;
+
+        // Now register all the mod's systems
+        systems.add_systems(
+            world,
+            accesses,
+            runner.table(),
+            mod_id,
+            mod_name,
+            asset_id,
+            &asset_version,
+        )?;
+
+        Ok(true)
     }
 
     pub(crate) fn run_system<'a, 'b, 'c, 'd, 'e, 'f, 'g>(

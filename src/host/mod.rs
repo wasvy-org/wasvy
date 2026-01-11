@@ -1,3 +1,5 @@
+use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
+
 use crate::{
     bindings::wasvy::ecs::app::*,
     runner::{Data, State},
@@ -6,16 +8,20 @@ use crate::{
 mod app;
 mod commands;
 mod component;
+mod entity;
+mod entity_commands;
 mod query;
+mod query_result;
 mod system;
 
 pub use app::*;
 pub use commands::*;
 pub use component::*;
+pub use entity::*;
+pub use entity_commands::*;
 pub use query::*;
+pub use query_result::*;
 pub use system::*;
-
-use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 
 pub struct WasmHost {
     data: Data,

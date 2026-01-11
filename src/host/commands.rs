@@ -1,66 +1,39 @@
-use anyhow::{Result, bail};
-use bevy_ecs::prelude::*;
-use bevy_log::prelude::*;
+use anyhow::Result;
 use wasmtime::component::Resource;
 
 use crate::{
-    access::ModAccess, bindings::wasvy::ecs::app::HostCommands, cleanup::DespawnModEntity,
-    component::insert_component, host::WasmHost, runner::State,
+    bindings::wasvy::ecs::app::{Bundle, HostCommands},
+    entity::{insert, map_entity, spawn_empty},
+    host::{WasmEntity, WasmEntityCommands, WasmHost},
 };
 
-pub struct Commands;
+pub struct WasmCommands;
 
 impl HostCommands for WasmHost {
+    fn spawn_empty(&mut self, _: Resource<WasmCommands>) -> Result<Resource<WasmEntityCommands>> {
+        spawn_empty(self)
+    }
+
     fn spawn(
         &mut self,
-        _self: Resource<Commands>,
-        components: Vec<(String, String)>,
-    ) -> Result<()> {
-        let State::RunSystem {
-            mut commands,
-            type_registry,
-            access,
-            insert_despawn_component,
-            ..
-        } = self.access()
-        else {
-            bail!("commands resource is only accessible when running systems")
-        };
+        _: Resource<WasmCommands>,
+        bundle: Bundle,
+    ) -> Result<Resource<WasmEntityCommands>> {
+        let entity_commands = spawn_empty(self)?;
+        insert(self, &entity_commands, bundle)?;
+        Ok(entity_commands)
+    }
 
-        let mut entity_commands = commands.spawn_empty();
-
-        // Make sure the entity is not spawned outside the sandbox
-        // The mod can still override the ChildOf with its own value
-        // Note: We can't currently prevent a mod from creating a component that has a relation to a component outside the sandbox
-        // TODO: Restrict what entities a mod can reference via permissions
-        if let ModAccess::Sandbox(entity) = access {
-            entity_commands.insert(ChildOf(*entity));
-        };
-
-        // Make sure this entity is despawned when the mod is despawned. See [ModDespawnBehaviour]
-        if let Some(mod_id) = insert_despawn_component.0 {
-            entity_commands.insert(DespawnModEntity(mod_id));
-        }
-
-        let entity = entity_commands.id();
-        trace!("Spawn empty {entity}, with components:");
-
-        for (type_path, serialized_component) in components {
-            trace!("- {type_path}: {serialized_component}");
-            insert_component(
-                &mut commands,
-                type_registry,
-                entity,
-                type_path,
-                serialized_component,
-            )?;
-        }
-
-        Ok(())
+    fn entity(
+        &mut self,
+        _: Resource<WasmCommands>,
+        entity: Resource<WasmEntity>,
+    ) -> Result<Resource<WasmEntityCommands>> {
+        map_entity(self, entity)
     }
 
     // Note: this is never guaranteed to be called by the wasi binary
-    fn drop(&mut self, commands: Resource<Commands>) -> Result<()> {
+    fn drop(&mut self, commands: Resource<WasmCommands>) -> Result<()> {
         let _ = self.table().delete(commands)?;
 
         Ok(())

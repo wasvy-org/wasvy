@@ -1,20 +1,19 @@
 use std::ptr::NonNull;
 
 use anyhow::Result;
-use bevy_asset::AssetId;
-use bevy_ecs::{
-    change_detection::Tick,
-    entity::Entity,
-    reflect::AppTypeRegistry,
-    system::{Commands, ParamSet, Query},
-    world::{FilteredEntityMut, World},
-};
+use bevy_ecs::{prelude::*, reflect::AppTypeRegistry, world::FilteredEntityMut};
 use wasmtime::component::ResourceAny;
 use wasmtime_wasi::ResourceTable;
 
 use crate::{
-    access::ModAccess, asset::ModAsset, cleanup::InsertDespawnComponent, engine::Engine,
-    host::WasmHost, send_sync_ptr::SendSyncPtr,
+    access::ModAccess,
+    cleanup::InsertDespawnComponent,
+    component::WasmComponentRegistry,
+    engine::Engine,
+    host::WasmHost,
+    query::{Queries, QueryResolver},
+    send_sync_ptr::SendSyncPtr,
+    system::AddSystems,
 };
 
 pub(crate) type Store = wasmtime::Store<WasmHost>;
@@ -55,29 +54,25 @@ impl Runner {
         self.store.data_mut().set_data(Data(match config {
             Config::Setup(ConfigSetup {
                 world,
-                asset_id,
-                asset_version,
-                mod_id,
-                mod_name,
-                accesses,
+                add_systems: systems,
             }) => Inner::Setup {
                 world: SendSyncPtr::new(world.into()),
-                asset_id: *asset_id,
-                asset_version,
-                mod_id,
-                mod_name: mod_name.to_string(),
-                accesses: SendSyncPtr::new(accesses.into()),
+                add_systems: SendSyncPtr::new(systems.into()),
             },
             Config::RunSystem(ConfigRunSystem {
                 commands,
                 type_registry,
+                wasm_registry,
                 queries,
+                query_resolver,
                 access,
                 insert_despawn_component,
             }) => Inner::RunSystem {
                 commands: SendSyncPtr::new(NonNull::from_mut(commands).cast()),
                 type_registry: SendSyncPtr::new(NonNull::from_ref(type_registry)),
+                wasm_registry: SendSyncPtr::new(NonNull::from_ref(wasm_registry)),
                 queries: SendSyncPtr::new(NonNull::from_ref(queries).cast()),
+                query_resolver: SendSyncPtr::new(NonNull::from_ref(query_resolver)),
                 access,
                 insert_despawn_component,
             },
@@ -100,23 +95,18 @@ enum Inner {
     Uninitialized,
     Setup {
         world: SendSyncPtr<World>,
-        mod_id: Entity,
-        mod_name: String,
-        asset_id: AssetId<ModAsset>,
-        asset_version: Tick,
-        accesses: SendSyncPtr<[ModAccess]>,
+        add_systems: SendSyncPtr<AddSystems>,
     },
     RunSystem {
         commands: SendSyncPtr<Commands<'static, 'static>>,
         type_registry: SendSyncPtr<AppTypeRegistry>,
+        wasm_registry: SendSyncPtr<WasmComponentRegistry>,
         queries: SendSyncPtr<Queries<'static, 'static>>,
+        query_resolver: SendSyncPtr<QueryResolver>,
         access: ModAccess,
         insert_despawn_component: InsertDespawnComponent,
     },
 }
-
-type Queries<'w, 's> =
-    ParamSet<'w, 's, Vec<Query<'static, 'static, FilteredEntityMut<'static, 'static>>>>;
 
 impl Data {
     pub(crate) fn uninitialized() -> Self {
@@ -130,26 +120,20 @@ impl Data {
         match &mut self.0 {
             Inner::Setup {
                 world,
-                asset_id,
-                asset_version,
-                mod_id,
-                mod_name,
-                accesses,
+                add_systems: systems,
             } => Some(State::Setup {
                 // Safety: Runner::use_store ensures that this always contains a valid reference
                 // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
                 world: unsafe { world.as_mut() },
-                asset_id,
-                asset_version,
-                mod_id: *mod_id,
-                mod_name,
-                accesses: unsafe { accesses.as_ref() },
                 table,
+                add_systems: unsafe { systems.as_mut() },
             }),
             Inner::RunSystem {
                 commands,
                 type_registry,
+                wasm_registry,
                 queries,
+                query_resolver,
                 access,
                 insert_despawn_component,
             } =>
@@ -159,7 +143,9 @@ impl Data {
                 Some(State::RunSystem {
                     commands: commands.cast().as_mut(),
                     type_registry: type_registry.as_ref(),
+                    wasm_registry: wasm_registry.as_ref(),
                     queries: queries.cast().as_mut(),
+                    query_resolver: query_resolver.as_ref(),
                     insert_despawn_component,
                     access,
                     table,
@@ -174,17 +160,15 @@ pub(crate) enum State<'a> {
     Setup {
         world: &'a mut World,
         table: &'a mut ResourceTable,
-        mod_id: Entity,
-        mod_name: &'a str,
-        asset_id: &'a AssetId<ModAsset>,
-        asset_version: &'a Tick,
-        accesses: &'a [ModAccess],
+        add_systems: &'a mut AddSystems,
     },
     RunSystem {
         table: &'a mut ResourceTable,
         commands: &'a mut Commands<'a, 'a>,
         type_registry: &'a AppTypeRegistry,
+        wasm_registry: &'a WasmComponentRegistry,
         queries: &'a mut Queries<'a, 'a>,
+        query_resolver: &'a QueryResolver,
         access: &'a ModAccess,
         insert_despawn_component: &'a InsertDespawnComponent,
     },
@@ -197,18 +181,16 @@ pub(crate) enum Config<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
 
 pub(crate) struct ConfigSetup<'a> {
     pub(crate) world: &'a mut World,
-    pub(crate) asset_id: &'a AssetId<ModAsset>,
-    pub(crate) asset_version: Tick,
-    pub(crate) mod_id: Entity,
-    pub(crate) mod_name: &'a str,
-    pub(crate) accesses: &'a [ModAccess],
+    pub(crate) add_systems: &'a mut AddSystems,
 }
 
 pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
     pub(crate) commands: &'a mut Commands<'b, 'c>,
     pub(crate) type_registry: &'a AppTypeRegistry,
+    pub(crate) wasm_registry: &'a WasmComponentRegistry,
     pub(crate) queries:
         &'a mut ParamSet<'d, 'e, Vec<Query<'f, 'g, FilteredEntityMut<'static, 'static>>>>,
+    pub(crate) query_resolver: &'a QueryResolver,
     pub(crate) access: ModAccess,
     pub(crate) insert_despawn_component: InsertDespawnComponent,
 }

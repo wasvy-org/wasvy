@@ -47,9 +47,9 @@ bevy_transform = { version = "0.18.0-rc.2", features = [
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
 thiserror = "2.0.16"
-wasmtime = { version = "36.0.2", features = ["component-model"] }
-wasmtime-wasi = "36.0.2"
-wit-bindgen = { version = "0.46.0", features = ["bitflags"] }
+wasmtime = { version = "40.0.1", features = ["component-model"] }
+wasmtime-wasi = "40.0.1"
+wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
 
 [dependencies]
 anyhow.workspace = true

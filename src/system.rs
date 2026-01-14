@@ -26,9 +26,9 @@ use crate::{
     runner::{ConfigRunSystem, Runner},
 };
 
-/// A helper struct that stores systems That thew mod
+/// A helper struct that stores dynamic systems that a mod would like to register.
 ///
-/// Wasvy only registers systems after setup has successfully run.
+/// Wasvy only registers systems after mod's setup method has successfully run.
 #[derive(Default)]
 pub(crate) struct AddSystems(Vec<(Schedule, Vec<Resource<WasmSystem>>)>);
 
@@ -57,7 +57,7 @@ impl AddSystems {
                     .map(|schedule| schedule.schedule_label())
                 else {
                     warn!(
-                        "Mod tried adding systems to schedule {schedule:?}, but that system is not enabled"
+                        "Mod tried adding systems to schedule {schedule:?}, but that schedule is not enabled. See ModSchedules docs."
                     );
                     continue;
                 };
@@ -314,7 +314,7 @@ impl DynamicSystemId {
 impl SystemSet for DynamicSystemId {
     // As of bevy 0.18 this function's only purpose is for debugging
     fn is_anonymous(&self) -> bool {
-        // This is technically incorrect, but it makes bevy use the system name as node name instead of SystemIdentifier(usize)
+        // This is technically incorrect, but it makes bevy use the system name as node name instead of DynamicSystemId(usize)
         true
     }
 
@@ -323,6 +323,6 @@ impl SystemSet for DynamicSystemId {
     }
 }
 
-/// An tracker to ensure unique [SystemIdentifier]s in the world
+/// An tracker to ensure unique [DynamicSystemId]s in the world
 #[derive(Default, BevyResource)]
 struct DynamicSystemSetCount(usize);

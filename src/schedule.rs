@@ -7,14 +7,23 @@ use crate::bindings::wasvy::ecs::app::Schedule as WitSchedule;
 ///
 /// See the docs for [bevy schedules](bevy_app::Main).
 ///
-/// None of the first run schedules (like Startup) are included since mods can't be guaranteed to load fast enough to run in them.
-/// So instead, many repeating schedules are run instead
+/// Call [ModloaderPlugin::enable_schedule](crate::plugin::ModloaderPlugin::enable_schedule)
+/// to enable new or custom schedules for mods.
+///
+/// None of the startup schedules (like [PreStartup](bevy_app::PreStartup),
+/// [Startup](bevy_app::Startup), etc) are included since mods can't usually run
+/// within them, since mods take time to load and begin loading these schedules
+/// have finished running.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ModSchedule {
     /// A custom schedule that runs the first time a mod is loaded.
     ///
-    /// In reality, this isn't really a Bevy schedule.
-    /// It is a custom schedule that runs before PreUpdate.
+    /// It is a custom schedule that runs during the setup schedule
+    /// (which defaults to [First](bevy_app::First)), see
+    /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)).
+    ///
+    /// Upon being loaded, mods are guaranteed to only run this schedule once,
+    /// even if other mods are loaded afterwards.
     ModStartup,
 
     /// See the Bevy schedule [PreUpdate]
@@ -35,7 +44,7 @@ pub enum ModSchedule {
     /// See the Bevy schedule [FixedPostUpdate]
     FixedPostUpdate,
 
-    /// A custom schedule. See [Schedule::new_custom] for more details.
+    /// A custom schedule. See [ModSchedule::new_custom] for more details.
     Custom {
         name: String,
         schedule: Interned<dyn ScheduleLabel>,
@@ -99,9 +108,16 @@ impl ModStartup {
     }
 }
 
-/// A collection of the [Schedules] where Wasvy will run mods
+/// A collection of the [Schedules] where Wasvy will run mod systems.
 ///
-/// This object exists in the world as a Resource, representing
+/// Adjust this via [ModloaderPlugin::new](crate::plugin::ModloaderPlugin::new). This will only affect
+/// mods with access to the world.
+///
+/// Or more simply, call [ModloaderPlugin::enable_schedule](crate::plugin::ModloaderPlugin::enable_schedule) with
+/// [ModloaderPlugin::default](crate::plugin::ModloaderPlugin::default).
+///
+/// When using a [Sandbox](crate::sandbox::Sandbox), this is provided as an argument to adjust schedules for
+/// mod systems that run in that sandbox.
 #[derive(Resource, Debug, Clone)]
 pub struct ModSchedules(pub Vec<ModSchedule>);
 

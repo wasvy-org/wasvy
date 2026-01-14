@@ -102,11 +102,6 @@ impl QueryIdGenerator {
 pub(crate) struct QueryId(usize);
 
 /// A cursor so we can resume iterating the query from the last position.
-//
-// This is not the most efficient. Ideally we wouldn't need to walk
-// to the nth iter each time, but this allows to avoid unsafe/lifetimes.
-//
-// TODO: Store an actual proper cursor.
 #[derive(Default, Clone, Copy)]
 pub(crate) struct QueryCursor(usize);
 
@@ -121,11 +116,15 @@ impl QueryCursor {
     /// Retrieves the entity at the cursor
     pub(crate) fn entity(&self, queries: &mut Queries<'_, '_>, id: QueryId) -> Option<Entity> {
         let query = queries.get_mut(id.0);
+
+        // This is not the most efficient. Ideally we wouldn't need to walk
+        // to the nth iter each time, but this allows to avoid unsafe.
+        // TODO: Store an actual proper cursor.
         query.iter().nth(self.0).map(|a| a.id())
     }
 }
 
-/// Needed to at runtime to construct the components wit resources returned from iter() on a query resource
+/// Needed at runtime to construct the components wit resources returned from iter() on a query resource
 ///
 /// Note: Ignores query filters (with and without) since these are not relevant
 #[derive(Clone)]

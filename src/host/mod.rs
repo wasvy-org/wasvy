@@ -52,7 +52,6 @@ impl WasmHost {
 
     pub(crate) fn clear(&mut self) {
         self.set_data(Data::uninitialized());
-        self.table = ResourceTable::new();
     }
 
     /// Access to the data contained in the [`WasmHost`]

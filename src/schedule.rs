@@ -108,7 +108,7 @@ impl ModStartup {
     }
 }
 
-/// A collection of the [Schedules] where Wasvy will run mod systems.
+/// A collection of the [ModSchedules] where Wasvy will run mod systems.
 ///
 /// Adjust this via [ModloaderPlugin::new](crate::plugin::ModloaderPlugin::new). This will only affect
 /// mods with access to the world.

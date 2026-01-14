@@ -50,29 +50,15 @@ impl HostEntityCommands for WasmHost {
     }
 
     fn despawn(&mut self, entity_commands: Resource<WasmEntityCommands>) -> Result<()> {
-        let State::RunSystem {
-            table, commands, ..
-        } = self.access()
-        else {
-            bail!("EntityCommands resource is only accessible when running systems")
-        };
-
-        let entity_commands = table.get(&entity_commands)?;
-        commands.entity(entity_commands.entity).despawn();
+        let mut entity_commands = access(self, entity_commands)?;
+        entity_commands.despawn();
 
         Ok(())
     }
 
     fn try_despawn(&mut self, entity_commands: Resource<WasmEntityCommands>) -> Result<()> {
-        let State::RunSystem {
-            table, commands, ..
-        } = self.access()
-        else {
-            bail!("EntityCommands resource is only accessible when running systems")
-        };
-
-        let entity_commands = table.get(&entity_commands)?;
-        commands.entity(entity_commands.entity).try_despawn();
+        let mut entity_commands = access(self, entity_commands)?;
+        entity_commands.try_despawn();
 
         Ok(())
     }
@@ -83,4 +69,19 @@ impl HostEntityCommands for WasmHost {
 
         Ok(())
     }
+}
+
+fn access(
+    host: &mut WasmHost,
+    entity_commands: Resource<WasmEntityCommands>,
+) -> Result<EntityCommands<'_>> {
+    let State::RunSystem {
+        table, commands, ..
+    } = host.access()
+    else {
+        bail!("EntityCommands resource is only accessible when running systems")
+    };
+
+    let entity_commands = table.get(&entity_commands)?;
+    Ok(commands.entity(entity_commands.entity))
 }

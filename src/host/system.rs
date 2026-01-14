@@ -75,8 +75,9 @@ impl HostSystem for WasmHost {
 
     // Note: this is never guaranteed to be called by the wasi binary
     fn drop(&mut self, _: Resource<WasmSystem>) -> Result<()> {
-        // Don't drop! After running setup, wasvy will find and register all WasmSystems
-        // via WasmSystemParent and
+        // Don't drop! After running setup, wasvy will find and register all
+        // [WasmSystems] via [AddSystems]. If they are dropped, they will not be
+        // in the wasm resource table when [AddSystems::add_systems] is called.
 
         Ok(())
     }

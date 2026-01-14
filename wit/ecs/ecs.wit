@@ -23,7 +23,9 @@ world guest {
 interface app {
 	/// A mod, similar to bevy::App
 	///
-	/// This is an interface through which mods may interact with the bevy app.
+	/// This is an interface through which mods may interact with the Bevy App.
+	///
+	/// To access this, make sure to import the 'guest' world and implement `setup`.
 	resource app {
 		/// Adds systems to the mod
 		add-systems: func(
@@ -32,7 +34,7 @@ interface app {
 		);
 	}
 
-	/// An interface with which to define a new system for the host
+	/// An interface with which to define a new system for the host.
 	///
 	/// Usage:
 	/// 1. Construct a new system, giving it a unique name

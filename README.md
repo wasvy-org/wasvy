@@ -131,8 +131,8 @@ serde_json = "1.0"
 
 # Import any bevy-sub crates for any components you will be using
 # Note: enable the serialize feature to allow using serde
-bevy_transform = { version = "0.18.0-rc.2", features = ["serialize"], default-features = false }
-bevy_math = { version = "0.18.0-rc.2", features = ["serialize"], default-features = false }
+bevy_transform = { version = "0.18.0", features = ["serialize"], default-features = false }
+bevy_math = { version = "0.18.0", features = ["serialize"], default-features = false }
 
 [lib]
 crate-type = ["cdylib"] # necessary for wasm

@@ -27,11 +27,11 @@ mod bindings {
         // to return traps from generated functions.
         imports: { default: trappable },
         with: {
-            "wasvy:ecs/app/app": crate::host::App,
-            "wasvy:ecs/app/system": crate::host::System,
-            "wasvy:ecs/app/commands": crate::host::Commands,
-            "wasvy:ecs/app/query": crate::host::Query,
-            "wasvy:ecs/app/component": crate::host::Component,
+            "wasvy:ecs/app.app": crate::host::App,
+            "wasvy:ecs/app.system": crate::host::System,
+            "wasvy:ecs/app.commands": crate::host::Commands,
+            "wasvy:ecs/app.query": crate::host::Query,
+            "wasvy:ecs/app.component": crate::host::Component,
         },
     });
 }

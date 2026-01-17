@@ -1,9 +1,8 @@
-use bevy::{
-    asset::AssetPath,
-    ecs::{lifecycle::HookContext, system::SystemParam, world::DeferredWorld},
-    platform::collections::HashSet,
-    prelude::*,
-};
+use bevy_asset::{AssetPath, AssetServer, Handle};
+use bevy_ecs::{lifecycle::HookContext, prelude::*, system::SystemParam, world::DeferredWorld};
+use bevy_log::prelude::*;
+use bevy_platform::collections::HashSet;
+use bevy_reflect::Reflect;
 
 use crate::{access::ModAccess, asset::ModAsset, cleanup::DisableSystemSet, prelude::Sandbox};
 
@@ -51,7 +50,7 @@ impl Mods<'_, '_> {
     /// This is equivalent to doing:
     ///
     /// ```
-    /// # use bevy::prelude::*;
+    /// # use bevy_ecs::prelude::*;
     /// fn system(mut commands: Commands) {
     /// #   let my_mod = commands.spawn_empty().id();
     ///     commands.entity(my_mod).despawn()
@@ -62,7 +61,7 @@ impl Mods<'_, '_> {
     /// then simply keep a [handle](Mod::asset) to it or spawn an extra mod without adding it to a sandbox.
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
-    /// schedule (which defaults to [First](bevy::app::First), see
+    /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
     pub fn despawn(&mut self, entity: Entity) {
         debug_assert!(self.mods.contains(entity));
@@ -74,7 +73,7 @@ impl Mods<'_, '_> {
     /// See: [ModAccess]
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
-    /// schedule (which defaults to [First](bevy::app::First), see
+    /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
     pub fn enable_access<'a>(&mut self, mod_id: Entity, access: ModAccess) {
         #[cfg(debug_assertions)]
@@ -96,7 +95,7 @@ impl Mods<'_, '_> {
     /// See: [ModAccess]
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
-    /// schedule (which defaults to [First](bevy::app::First), see
+    /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
     pub fn disable_access<'a>(&mut self, mod_id: Entity, access: ModAccess) {
         #[cfg(debug_assertions)]
@@ -159,7 +158,7 @@ impl Mod {
     /// See: [ModAccess]
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
-    /// schedule (which defaults to [First](bevy::app::First), see
+    /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
     pub fn enable_access<'a>(&mut self, access: ModAccess) -> bool {
         self.access.insert(access)
@@ -170,7 +169,7 @@ impl Mod {
     /// See: [ModAccess]
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
-    /// schedule (which defaults to [First](bevy::app::First), see
+    /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
     pub fn disable_access<'a>(&mut self, access: &ModAccess) -> bool {
         self.access.remove(access)
@@ -181,7 +180,7 @@ impl Mod {
         self.access.iter()
     }
 
-    /// [On despawn](bevy::ecs::lifecycle::ComponentHooks::on_despawn) for [Mod]
+    /// [On despawn](bevy_ecs::lifecycle::ComponentHooks::on_despawn) for [Mod]
     fn on_despawn(mut world: DeferredWorld, ctx: HookContext) {
         let mod_component = world
             .entity(ctx.entity)

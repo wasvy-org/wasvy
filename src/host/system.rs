@@ -1,21 +1,18 @@
 use anyhow::{Result, anyhow, bail};
-use bevy::{
-    asset::AssetId,
-    ecs::{
-        component::Tick,
-        error::Result as BevyResult,
-        reflect::AppTypeRegistry,
-        resource::Resource as BevyResource,
-        schedule::{IntoScheduleConfigs, ScheduleConfigs, SystemSet},
-        system::{
-            BoxedSystem, Commands as BevyCommands, IntoSystem, Local, LocalBuilder, ParamBuilder,
-            ParamSet, ParamSetBuilder, Query as BevyQuery, SystemParamBuilder,
-        },
-        world::{FilteredEntityMut, FromWorld, World},
+use bevy_asset::{AssetId, Assets};
+use bevy_ecs::{
+    change_detection::Tick,
+    error::Result as BevyResult,
+    prelude::*,
+    resource::Resource as BevyResource,
+    schedule::ScheduleConfigs,
+    system::{
+        BoxedSystem, Commands as BevyCommands, LocalBuilder, ParamBuilder, ParamSetBuilder,
+        Query as BevyQuery,
     },
-    log::trace,
-    prelude::{Assets, Res},
+    world::FilteredEntityMut,
 };
+use bevy_log::prelude::*;
 use wasmtime::component::{Resource, Val};
 
 use crate::{
@@ -72,7 +69,7 @@ impl System {
         };
 
         // Generate the queries necessary to run this system
-        let filtered_access = access.filtered_access(&mut world);
+        let filtered_access = access.filtered_access(world);
         let mut queries = Vec::with_capacity(self.params.len());
         for items in self.params.iter().filter_map(Param::filter_query) {
             queries.push(create_query_builder(items, world, filtered_access.clone())?);
@@ -242,9 +239,9 @@ fn initialize_params(source: &[BuiltParam], runner: &mut Runner) -> Result<Vec<V
 }
 
 /// Bevy doesn't return an identifier for systems added directly to the scheduler. There is
-/// [NodeId](bevy::ecs::schedule::NodeId) but that has no clear way of being used for system ordering.
+/// [NodeId](bevy_ecs::schedule::NodeId) but that has no clear way of being used for system ordering.
 ///
-/// So instead we take inspiration from bevy's [AnonymousSet](bevy::ecs::schedule::AnonymousSet)
+/// So instead we take inspiration from bevy's [AnonymousSet](bevy_ecs::schedule::AnonymousSet)
 /// and we identify each system with an extra [SystemSet] all to itself.
 // Note: Using an AnonymousSet could work but unfortunately the method used to create one is private.
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]

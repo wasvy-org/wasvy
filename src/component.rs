@@ -1,18 +1,17 @@
 use std::{alloc::Layout, any::TypeId};
 
 use anyhow::{Result, anyhow};
-use bevy::{
-    ecs::{
-        component::{ComponentDescriptor, ComponentId},
-        reflect::ReflectCommandExt,
-        world::{FilteredEntityMut, FilteredEntityRef},
-    },
-    platform::collections::HashMap,
+use bevy_derive::{Deref, DerefMut};
+use bevy_ecs::{
+    component::{ComponentDescriptor, ComponentId},
     prelude::*,
-    reflect::{
-        ReflectFromPtr,
-        serde::{TypedReflectDeserializer, TypedReflectSerializer},
-    },
+    reflect::ReflectCommandExt,
+    world::{FilteredEntityMut, FilteredEntityRef},
+};
+use bevy_platform::collections::HashMap;
+use bevy_reflect::{
+    PartialReflect, Reflect, ReflectFromPtr,
+    serde::{TypedReflectDeserializer, TypedReflectSerializer},
 };
 use serde::de::DeserializeSeed;
 
@@ -20,7 +19,7 @@ pub type TypePath = String;
 
 /// Registry for storing the components that are registered from WASM assets.
 ///
-/// Note that this is unique per world, not per app like the [AppTypeRegistry](bevy::ecs::reflect::AppTypeRegistry)
+/// Note that this is unique per world, not per app like the [AppTypeRegistry](bevy_ecs::reflect::AppTypeRegistry)
 #[derive(Default, Clone, Debug, Resource, Deref, DerefMut)]
 pub struct WasmComponentRegistry(HashMap<TypePath, ComponentId>);
 
@@ -168,6 +167,7 @@ fn get_wasm_component_id(type_path: &str, world: &mut World) -> ComponentId {
                 }),
                 true,
                 WasmComponent::clone_behavior(),
+                None,
             )
         };
 

@@ -1,8 +1,6 @@
 use anyhow::{Result, bail};
-use bevy::{
-    ecs::schedule::{IntoScheduleConfigs, Schedules},
-    log::warn,
-};
+use bevy_ecs::prelude::*;
+use bevy_log::prelude::*;
 use wasmtime::component::Resource;
 
 use crate::{

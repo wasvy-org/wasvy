@@ -1,7 +1,5 @@
-use bevy::{
-    ecs::{entity::Entity, query::FilteredAccess, world::World},
-    reflect::Reflect,
-};
+use bevy_ecs::{prelude::*, query::FilteredAccess};
+use bevy_reflect::Reflect;
 
 use crate::prelude::{ModSchedules, Sandbox};
 
@@ -35,7 +33,7 @@ impl ModAccess {
     /// Returns world access to only the entities granted by this access.
     ///
     /// This is used by Wasvy to build mod systems that don't conflict (can run in parallel) between different accesses.
-    pub fn filtered_access(&self, world: &mut World) -> FilteredAccess {
+    pub fn filtered_access(&self, world: &World) -> FilteredAccess {
         match self {
             Self::Sandbox(entity) => world
                 .get::<Sandbox>(*entity)

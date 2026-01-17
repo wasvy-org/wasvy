@@ -1,4 +1,10 @@
-use bevy::ecs::prelude::*;
+use bevy_ecs::{
+    prelude::*,
+    schedule::{ScheduleCleanupPolicy, ScheduleError},
+    system::SystemState,
+};
+use bevy_log::prelude::*;
+use bevy_platform::collections::{HashMap, HashSet};
 
 use crate::{mods::ModSystemSet, prelude::ModSchedules};
 
@@ -22,17 +28,51 @@ impl Command<()> for DisableSystemSet {
     }
 }
 
-pub(crate) fn disable_system_sets(
-    mut messages: MessageReader<DisableSystemSet>,
-    mut schedules: ResMut<Schedules>,
+pub(crate) fn disable_mod_system_sets(
+    world: &mut World,
+    param: &mut SystemState<MessageReader<DisableSystemSet>>,
 ) {
-    for message in messages.read() {
-        for schedule in message.schedules.0.iter() {
-            // Quick and dirty way of ensuring systems sets no longer run
-            // TODO: Next bevy release, remove systems from the schedule
-            // See: https://github.com/bevyengine/bevy/pull/20298
-            let sets = message.set.clone().run_if(|| false);
-            schedules.configure_sets(schedule.schedule_label(), sets);
+    let mut messages = param.get_mut(world);
+
+    // Collect a map of unique bevy schedule labels and the sets that need to be removed from them
+    let mut remove = HashMap::new();
+    for DisableSystemSet { set, schedules } in messages.read() {
+        for schedule in schedules.0.iter() {
+            remove
+                .entry(schedule.schedule_label())
+                .or_insert(HashSet::new())
+                .insert(set.clone());
         }
+    }
+
+    // Remove sets from each schedule
+    for (label, sets) in remove {
+        let mut schedules = world
+            .get_resource_mut::<Schedules>()
+            .expect("Running in a bevy App");
+
+        // We must remove and then re-add the schedule so we can call remove_systems_in_set with exclusive world access
+        let Some(mut schedule) = schedules.remove(label) else {
+            continue;
+        };
+
+        for set in sets {
+            if let Err(error) = schedule.remove_systems_in_set(
+                set.clone(),
+                world,
+                ScheduleCleanupPolicy::RemoveSetAndSystems,
+            ) {
+                if !matches!(error, ScheduleError::SetNotFound) {
+                    warn!(
+                        "Unable to remove system set {set:?}. Systems from unloaded mods might still be running!\nError: {error}."
+                    );
+                }
+            }
+        }
+
+        world
+            .get_resource_mut::<Schedules>()
+            .expect("Running in a bevy App")
+            .insert(schedule);
     }
 }

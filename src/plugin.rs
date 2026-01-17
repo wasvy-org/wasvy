@@ -1,13 +1,13 @@
 use std::sync::Mutex;
 
-use bevy::{
-    ecs::{intern::Interned, schedule::ScheduleLabel},
-    prelude::*,
-};
+use bevy_app::prelude::*;
+use bevy_asset::prelude::*;
+use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
+use bevy_log::prelude::*;
 
 use crate::{
     asset::{ModAsset, ModAssetLoader},
-    cleanup::{DisableSystemSet, disable_system_sets},
+    cleanup::{DisableSystemSet, disable_mod_system_sets},
     component::WasmComponentRegistry,
     engine::{Engine, Linker, create_linker},
     sandbox::Sandboxed,
@@ -18,7 +18,10 @@ use crate::{
 /// This plugin adds Wasvy modding support to [`App`]
 ///
 /// ```no_run
-/// use bevy::prelude::*;
+/// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
+/// # use bevy_app::prelude::*;
+/// # struct DefaultPlugins;
+/// # impl Plugin for DefaultPlugins { fn build(&self, app: &mut App){} }
 /// use wasvy::prelude::*;
 ///
 /// App::new()
@@ -38,10 +41,8 @@ use crate::{
 ///
 /// In the host:
 /// ```no_run
-/// use bevy::{
-///     ecs::schedule::{Schedule, ScheduleLabel},
-///     prelude::*,
-/// };
+/// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
+/// # use bevy_app::prelude::*;
 /// use wasvy::prelude::*;
 ///
 /// #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
@@ -174,7 +175,7 @@ impl Plugin for ModloaderPlugin {
             .insert_resource(schedules)
             .add_schedule(ModStartup::new_schedule())
             .add_message::<DisableSystemSet>()
-            .add_systems(setup_schedule, (run_setup, disable_system_sets));
+            .add_systems(setup_schedule, (run_setup, disable_mod_system_sets));
 
         app.world_mut().register_component::<Sandboxed>();
 

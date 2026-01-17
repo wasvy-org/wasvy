@@ -24,16 +24,16 @@
           # TODO: submit wkg to nix-packages
           wkg = pkgs.rustPlatform.buildRustPackage rec {
             pname = "wkg";
-            version = "0.10.0";
+            version = "0.13.0";
 
             src = pkgs.fetchFromGitHub {
               owner = "bytecodealliance";
               repo = "wasm-pkg-tools";
               rev = "v${version}";
-              hash = "sha256-VZ+rUZi6o2onMFxK/BMyi6ZjuDS0taJh5w3r33KCZTU=";
+              hash = "sha256-6adUBw3jtmEq1y+hdnE7EBMgF5KChXr2MtOiSEPi1Ao=";
             };
             
-            cargoHash = "sha256-dHhJT/edEYagLQoUcXCLPA4fUJdN9ZoOITLpWAH5p/0=";
+            cargoHash = "sha256-BAHdOrLrSspSN1WsCtglCOQebI39zw6Byj9EgvU3onA=";
 
             nativeBuildInputs = [ pkgs.pkg-config ];
             buildInputs = [ pkgs.openssl ];

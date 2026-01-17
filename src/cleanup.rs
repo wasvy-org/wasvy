@@ -99,7 +99,7 @@ pub(crate) struct InsertDespawnComponent(pub(crate) Option<Entity>);
 
 impl InsertDespawnComponent {
     pub(crate) fn new(mod_id: Entity, world: &World) -> Self {
-        Self(if ModDespawnBehaviour::is_despawn_entities(world) {
+        Self(if ModDespawnBehaviour::should_despawn_entities(world) {
             Some(mod_id)
         } else {
             None

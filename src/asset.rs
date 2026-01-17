@@ -76,7 +76,7 @@ impl ModAsset {
 
         // The mod might have reloaded. It's necessary we perform cleanup
         // if the mod has spawned entities before.
-        if ModDespawnBehaviour::is_despawn_entities(world) {
+        if ModDespawnBehaviour::should_despawn_entities(world) {
             let (entities, mut commands) = world.entities_and_commands();
             let despawn = entities
                 .get(mod_id)

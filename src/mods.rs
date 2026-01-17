@@ -278,7 +278,7 @@ pub enum ModDespawnBehaviour {
 }
 
 impl ModDespawnBehaviour {
-    pub(crate) fn is_despawn_entities(world: &World) -> bool {
+    pub(crate) fn should_despawn_entities(world: &World) -> bool {
         match world.get_resource() {
             None | Some(ModDespawnBehaviour::DespawnEntities) => true,
             Some(ModDespawnBehaviour::None) => false,

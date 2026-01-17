@@ -1,3 +1,5 @@
+use std::fmt;
+
 use anyhow::{Context, Result, anyhow};
 use bevy_asset::{Asset, AssetId, AssetLoader, Assets, LoadContext, io::Reader};
 use bevy_ecs::{change_detection::Tick, prelude::*};
@@ -42,26 +44,19 @@ impl ModAsset {
     }
 
     /// Initiates mods by running their "setup" function
-    ///
-    /// Returns false if the mod could not be initialized because the asset is missing.
     pub(crate) fn initiate(
         world: &mut World,
         asset_id: &AssetId<ModAsset>,
         mod_id: Entity,
         mod_name: &str,
         accesses: &[ModAccess],
-    ) -> Result<bool> {
+    ) -> Result<()> {
         let change_tick = world.change_tick();
 
         let mut assets = world
             .get_resource_mut::<Assets<Self>>()
             .expect("ModAssets be registered");
-
-        // Will return None if the asset is not yet loaded
-        // run_setup will re-run initiate when it is finally loaded
-        let Some(asset) = assets.get_mut(*asset_id) else {
-            return Ok(false);
-        };
+        let asset = assets.get_mut(*asset_id).ok_or(AssetNotFound)?;
 
         // Gets the version of this asset or assign a new one if it doesn't exist yet
         let asset_version = match asset.version {
@@ -125,7 +120,7 @@ impl ModAsset {
             &asset_version,
         )?;
 
-        Ok(true)
+        Ok(())
     }
 
     pub(crate) fn run_system<'a, 'b, 'c, 'd, 'e, 'f, 'g>(
@@ -137,6 +132,21 @@ impl ModAsset {
     ) -> Result<()> {
         let config = Config::RunSystem(config);
         call(runner, &self.instance_pre, config, name, params, &mut [])
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct AssetNotFound;
+
+impl From<AssetNotFound> for anyhow::Error {
+    fn from(_: AssetNotFound) -> Self {
+        anyhow::anyhow!("Asset not found. Maybe it hasn't loaded yet.")
+    }
+}
+
+impl fmt::Display for AssetNotFound {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Asset not found. Maybe it hasn't loaded yet.")
     }
 }
 

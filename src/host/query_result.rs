@@ -4,7 +4,7 @@ use wasmtime::component::Resource;
 
 use crate::{
     bindings::wasvy::ecs::app::{ComponentIndex, HostQueryResult},
-    entity::{ToEntity, map_entity},
+    entity::map_entity,
     host::{WasmComponent, WasmEntity, WasmHost},
     query::QueryId,
     runner::State,
@@ -22,8 +22,8 @@ impl WasmQueryResult {
     }
 }
 
-impl ToEntity for WasmQueryResult {
-    fn entity(&self) -> Entity {
+impl Into<Entity> for &WasmQueryResult {
+    fn into(self) -> Entity {
         self.entity
     }
 }

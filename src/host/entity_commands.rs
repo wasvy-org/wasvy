@@ -4,24 +4,22 @@ use wasmtime::component::Resource;
 
 use crate::{
     bindings::wasvy::ecs::app::{Bundle, BundleTypes, HostEntityCommands},
-    entity::{FromEntity, ToEntity, insert, map_entity, remove},
+    entity::{insert, map_entity, remove},
     host::{WasmEntity, WasmHost},
     runner::State,
 };
 
-pub struct WasmEntityCommands {
-    entity: Entity,
-}
+pub struct WasmEntityCommands(pub(crate) Entity);
 
-impl ToEntity for WasmEntityCommands {
-    fn entity(&self) -> Entity {
-        self.entity
+impl Into<Entity> for &WasmEntityCommands {
+    fn into(self) -> Entity {
+        self.0
     }
 }
 
-impl FromEntity for WasmEntityCommands {
-    fn from_entity(entity: Entity) -> Self {
-        Self { entity }
+impl From<Entity> for WasmEntityCommands {
+    fn from(value: Entity) -> Self {
+        Self(value)
     }
 }
 
@@ -83,5 +81,5 @@ fn access(
     };
 
     let entity_commands = table.get(&entity_commands)?;
-    Ok(commands.entity(entity_commands.entity))
+    Ok(commands.entity(entity_commands.0))
 }

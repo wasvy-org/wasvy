@@ -15,25 +15,11 @@ use crate::{
     runner::State,
 };
 
-pub(crate) trait ToEntity
-where
-    Self: Send + 'static,
-{
-    fn entity(&self) -> Entity;
-}
-
-pub(crate) trait FromEntity
-where
-    Self: Send + 'static,
-{
-    fn from_entity(entity: Entity) -> Self;
-}
-
 /// A helper to ingest one host resource and create another with the same entity
-pub(crate) fn map_entity<I, O>(host: &mut WasmHost, input: Resource<I>) -> Result<Resource<O>>
+pub(crate) fn map_entity<I, F>(host: &mut WasmHost, input: Resource<I>) -> Result<Resource<F>>
 where
-    I: ToEntity,
-    O: FromEntity,
+    for<'a> &'a I: Into<Entity>,
+    F: From<Entity> + Send,
 {
     let State::RunSystem { table, .. } = host.access() else {
         bail!(
@@ -43,13 +29,13 @@ where
     };
 
     let input = table.get(&input)?;
-    let entity = input.entity();
+    let entity = input.into();
     entity_resource(entity, table)
 }
 
-pub(crate) fn spawn_empty<T>(host: &mut WasmHost) -> Result<Resource<T>>
+pub(crate) fn spawn_empty<F>(host: &mut WasmHost) -> Result<Resource<F>>
 where
-    T: FromEntity,
+    F: From<Entity> + Send,
 {
     let State::RunSystem {
         commands,
@@ -85,7 +71,7 @@ where
 
 pub(crate) fn insert<T>(host: &mut WasmHost, input: &Resource<T>, bundle: Bundle) -> Result<()>
 where
-    T: ToEntity,
+    for<'a> &'a T: Into<Entity>,
 {
     if bundle.is_empty() {
         return Ok(());
@@ -105,7 +91,7 @@ where
     };
 
     let input = table.get(input)?;
-    let entity = input.entity();
+    let entity = input.into();
     trace!("Insert components to ({entity})");
     for (type_path, serialized_component) in bundle {
         trace!("- {type_path}: {serialized_component}");
@@ -123,7 +109,7 @@ where
 
 pub(crate) fn remove<T>(host: &mut WasmHost, input: Resource<T>, bundle: BundleTypes) -> Result<()>
 where
-    T: ToEntity,
+    for<'a> &'a T: Into<Entity>,
 {
     if bundle.is_empty() {
         return Ok(());
@@ -143,7 +129,7 @@ where
     };
 
     let input = table.get(&input)?;
-    let entity = input.entity();
+    let entity = input.into();
     trace!("Remove components from ({entity})");
     for type_path in bundle {
         trace!("- {type_path}");
@@ -155,9 +141,9 @@ where
 
 fn entity_resource<T>(entity: Entity, table: &mut ResourceTable) -> Result<Resource<T>>
 where
-    T: FromEntity,
+    T: From<Entity> + Send,
 {
-    let output = T::from_entity(entity);
+    let output = T::from(entity);
     let output = table.push(output)?;
     Ok(output)
 }

@@ -2,23 +2,19 @@ use anyhow::Result;
 use bevy_ecs::prelude::*;
 use wasmtime::component::Resource;
 
-use crate::{
-    bindings::wasvy::ecs::app::HostEntity,
-    entity::{FromEntity, ToEntity},
-    host::WasmHost,
-};
+use crate::{bindings::wasvy::ecs::app::HostEntity, host::WasmHost};
 
 pub struct WasmEntity(pub(crate) Entity);
 
-impl ToEntity for WasmEntity {
-    fn entity(&self) -> Entity {
+impl Into<Entity> for &WasmEntity {
+    fn into(self) -> Entity {
         self.0
     }
 }
 
-impl FromEntity for WasmEntity {
-    fn from_entity(entity: Entity) -> Self {
-        Self(entity)
+impl From<Entity> for WasmEntity {
+    fn from(value: Entity) -> Self {
+        Self(value)
     }
 }
 

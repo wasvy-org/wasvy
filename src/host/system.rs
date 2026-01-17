@@ -19,6 +19,7 @@ use crate::{
     access::ModAccess,
     asset::ModAsset,
     bindings::wasvy::ecs::app::{HostSystem, QueryFor},
+    cleanup::InsertDespawnComponent,
     engine::Engine,
     host::{Commands, Query, QueryForComponent, WasmHost, create_query_builder},
     runner::{ConfigRunSystem, Runner, State},
@@ -46,6 +47,7 @@ impl System {
     pub(crate) fn schedule(
         &mut self,
         mut world: &mut World,
+        mod_id: Entity,
         mod_name: &str,
         asset_id: &AssetId<ModAsset>,
         asset_version: &Tick,
@@ -66,6 +68,7 @@ impl System {
             asset_version: asset_version.clone(),
             built_params,
             access: *access,
+            insert_despawn_component: InsertDespawnComponent::new(mod_id, world),
         };
 
         // Generate the queries necessary to run this system
@@ -135,6 +138,7 @@ struct Input {
     asset_version: Tick,
     built_params: Vec<BuiltParam>,
     access: ModAccess,
+    insert_despawn_component: InsertDespawnComponent,
 }
 
 impl FromWorld for Input {
@@ -178,6 +182,7 @@ fn system_runner(
             type_registry: &type_registry,
             queries: &mut queries,
             access: input.access.clone(),
+            insert_despawn_component: input.insert_despawn_component.clone(),
         },
         &params,
     )?;

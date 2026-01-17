@@ -21,4 +21,4 @@ bevy = { version = "0.18.0", features = [
     "bevy_dev_tools",
 ] }
 bevy_egui = "0.39.0"
-#bevy-inspector-egui = "0.35.0" # should be here soon!
+bevy-inspector-egui = "0.36.0"

@@ -2,7 +2,7 @@ use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
 use bevy::prelude::*;
 use bevy::{DefaultPlugins, app::App};
 use bevy_egui::EguiPlugin;
-//use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 // Get started by importing the prelude
 use wasvy::prelude::*;
@@ -16,7 +16,7 @@ fn main() {
             // Plus some helpers for the example
             FpsOverlayPlugin::default(),
             EguiPlugin::default(),
-            //WorldInspectorPlugin::new(),
+            WorldInspectorPlugin::new(),
         ))
         .add_systems(Startup, (load_mods, setup))
         .run();

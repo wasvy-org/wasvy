@@ -78,7 +78,7 @@ QueryFor = Union[QueryFor_Ref, QueryFor_Mut, QueryFor_With, QueryFor_Without]
 
 class System:
     """
-    An interface with which to define a new system for the host
+    An interface with which to define a new system for the host.
     
     Usage:
     1. Construct a new system, giving it a unique name
@@ -101,8 +101,6 @@ class System:
         raise NotImplementedError
     def add_query(self, query: List[QueryFor]) -> None:
         """
-        Adds a single system-param
-        add-single: func(query: list<query-for>);
         Adds a query system-param
         """
         raise NotImplementedError
@@ -129,9 +127,9 @@ class System:
 
 class App:
     """
-    A mod, similar to bevy::App
+    This is an interface (similar to bevy::App) through which mods may interact with the Bevy App.
     
-    This is an interface through which mods may interact with the bevy app.
+    To access this, make sure to import the 'guest' world and implement `setup`.
     """
     
     def add_systems(self, schedule: Schedule, systems: List[System]) -> None:
@@ -181,16 +179,10 @@ class EntityCommands:
         Adds a `bundle` of components to the entity.
         
         This will overwrite any previous value(s) of the same component type.
-        See `insert_if_new` to keep the old value instead.
         """
         raise NotImplementedError
     def remove(self, bundle: List[str]) -> None:
         """
-        Adds a `bundle` of components to the entity without overwriting.
-        
-        This is the same as `insert`, but in case of duplicate components
-        will leave the old values instead of replacing them with new ones.
-        insert-if-new: func(bundle: bundle);
         Removes a Bundle of components from the entity if it exists.
         """
         raise NotImplementedError
@@ -299,14 +291,19 @@ class QueryResult:
         raise NotImplementedError
     def component(self, index: int) -> Component:
         """
-        Gets the component at the specified index.
+        Gets the component at the specified index. Order is the same as declared
+        during setup. Query filters do not count as components.
         
-        So for example, if your system was registered as:
+        So for example:
         
         ```
-        let system = System::new("example");
-        system.add_
-        app.add_system(system);
+        spin_cube.add_query(&[
+        QueryFor::Mut("A"),     // component index 0
+        QueryFor::With("B"),    // none
+        QueryFor::Ref("C"),     // component index 1
+        QueryFor::Without("D"), // none
+        ]);
+        ```
         """
         raise NotImplementedError
     def __enter__(self) -> Self:
@@ -322,15 +319,6 @@ class QueryResult:
 
 class Query:
     """
-    A single system param.
-    
-    This is identical to query but will only match a single entity.
-    
-    If this query doesn't match just one entity, the system will be skipped.
-    resource single {
-    /// Evaluates and returns the query result
-    get: func() -> query-result;
-    }
     A query system param
     """
     

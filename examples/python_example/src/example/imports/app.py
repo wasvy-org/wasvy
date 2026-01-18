@@ -78,7 +78,7 @@ QueryFor = Union[QueryFor_Ref, QueryFor_Mut, QueryFor_With, QueryFor_Without]
 
 class System:
     """
-    An interface with which to define a new system for the host
+    An interface with which to define a new system for the host.
     
     Usage:
     1. Construct a new system, giving it a unique name
@@ -127,18 +127,11 @@ class System:
 
 class App:
     """
-    A mod, similar to bevy::App
+    This is an interface (similar to bevy::App) through which mods may interact with the Bevy App.
+    
+    To access this, make sure to import the 'guest' world and implement `setup`.
     """
     
-    def __init__(self) -> None:
-        """
-        Construct an new App: an interface through which mods may interact with the bevy world.
-        
-        Each mod may only do this once inside its setup function call. Attempting to do this
-        twice or outside setup will trap.
-        """
-        raise NotImplementedError
-
     def add_systems(self, schedule: Schedule, systems: List[System]) -> None:
         """
         Adds systems to the mod
@@ -155,12 +148,100 @@ class App:
         raise NotImplementedError
 
 
-class Commands:
+class Entity:
     """
-    A commands system param
+    An identifier for an entity.
     """
     
-    def spawn(self, components: List[Tuple[str, str]]) -> None:
+    def __enter__(self) -> Self:
+        """Returns self"""
+        return self
+                                
+    def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None) -> bool | None:
+        """
+        Release this resource.
+        """
+        raise NotImplementedError
+
+
+class EntityCommands:
+    """
+    A list of commands that will be run to modify an `entity`.
+    """
+    
+    def id(self) -> Entity:
+        """
+        Returns the identifier for this entity
+        """
+        raise NotImplementedError
+    def insert(self, bundle: List[Tuple[str, str]]) -> None:
+        """
+        Adds a `bundle` of components to the entity.
+        
+        This will overwrite any previous value(s) of the same component type.
+        """
+        raise NotImplementedError
+    def remove(self, bundle: List[str]) -> None:
+        """
+        Removes a Bundle of components from the entity if it exists.
+        """
+        raise NotImplementedError
+    def despawn(self) -> None:
+        """
+        Despawns the entity.
+        
+        This will emit a warning if the entity does not exist.
+        """
+        raise NotImplementedError
+    def try_despawn(self) -> None:
+        """
+        Despawns the entity.
+        
+        Unlike `despawn`, this will not emit a warning if the entity does not exist.
+        """
+        raise NotImplementedError
+    def __enter__(self) -> Self:
+        """Returns self"""
+        return self
+                                
+    def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None) -> bool | None:
+        """
+        Release this resource.
+        """
+        raise NotImplementedError
+
+
+class Commands:
+    """
+    A `command` queue system param to perform structural changes to the world.
+    
+    Since each command requires exclusive access to the world,
+    all queued commands are automatically applied in sequence.
+    
+    Each command can be used to modify the world in arbitrary ways:
+    - spawning or despawning entities
+    - inserting components on new or existing entities
+    - etc.
+    """
+    
+    def spawn_empty(self) -> EntityCommands:
+        """
+        Spawns a new empty `entity` and returns its corresponding `entity-commands`.
+        """
+        raise NotImplementedError
+    def spawn(self, bundle: List[Tuple[str, str]]) -> EntityCommands:
+        """
+        Spawns a new `entity` with the given components
+        and returns the entity's corresponding `entity-commands`.
+        """
+        raise NotImplementedError
+    def entity(self, entity: Entity) -> EntityCommands:
+        """
+        Returns the `entity-commands` for the given `entity`.
+        
+        This method does not guarantee that commands queued by the returned `entity-commands`
+        will be successful, since the entity could be despawned before they are executed.
+        """
         raise NotImplementedError
     def __enter__(self) -> Self:
         """Returns self"""
@@ -198,12 +279,50 @@ class Component:
         raise NotImplementedError
 
 
+class QueryResult:
+    """
+    A query system param
+    """
+    
+    def entity(self) -> Entity:
+        """
+        Returns the entity id for the query
+        """
+        raise NotImplementedError
+    def component(self, index: int) -> Component:
+        """
+        Gets the component at the specified index. Order is the same as declared
+        during setup. Query filters do not count as components.
+        
+        So for example:
+        
+        ```
+        spin_cube.add_query(&[
+        QueryFor::Mut("A"),     // component index 0
+        QueryFor::With("B"),    // none
+        QueryFor::Ref("C"),     // component index 1
+        QueryFor::Without("D"), // none
+        ]);
+        ```
+        """
+        raise NotImplementedError
+    def __enter__(self) -> Self:
+        """Returns self"""
+        return self
+                                
+    def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None) -> bool | None:
+        """
+        Release this resource.
+        """
+        raise NotImplementedError
+
+
 class Query:
     """
     A query system param
     """
     
-    def iter(self) -> Optional[List[Component]]:
+    def iter(self) -> Optional[QueryResult]:
         """
         Evaluates and returns the next query results
         """

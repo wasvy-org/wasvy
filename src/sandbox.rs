@@ -163,7 +163,7 @@ pub struct Sandbox {
 impl Sandbox {
     /// Creates a new [Sandbox] component
     ///
-    /// Mods in this Sandbox will run only during the provided [Schedules]
+    /// Mods in this Sandbox will run only during the provided [ModSchedules]
     pub fn new(world: &mut World, schedules: ModSchedules) -> Self {
         // Get and also increment the count
         let sandbox_count = world.get_resource_or_insert_with(|| SandboxCount(1));

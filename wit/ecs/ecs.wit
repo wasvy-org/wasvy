@@ -1,39 +1,39 @@
 package wasvy:ecs;
 
-/// This is the world that the bevy host implements to give ECS functionality to the WASM component.
-/// Like `register-system`.
+/// This is the world that the Bevy host (the game/app) implements
+/// to give ECS functionality to the WASM guest (the mod).
 world host {
 	import app;
 }
 
-/// This is the world that the WASM guest implements.
+/// This is the world that the WASM guest (the mod) implements.
 ///
-/// These are basically the mandatory functions that a WASM component
-/// must have for it to be called from the Bevy host.
+/// This is the mandatory interface that a WASM component
+/// must implement for it to be called from the Bevy host (the game/app).
 world guest {
 	import app;
+	use app.{app};
 
-	/// This function is called once on startup for each WASM component (Not Bevy component).
-	export setup: func();
+	/// This method is called once on startup for each WASM component (Not Bevy component).
+	///
+	/// In this method you should register and configure `system`s via the `app` resource
+	/// passed as a parameter.
+	export setup: func(app: app);
 }
 
 interface app {
-	/// A mod, similar to bevy::App
+	/// This is an interface (similar to bevy::App) through which mods may interact with the Bevy App.
+	///
+	/// To access this, make sure to import the 'guest' world and implement `setup`.
 	resource app {
-		/// Construct an new App: an interface through which mods may interact with the bevy world.
-		///
-		/// Each mod may only do this once inside its setup function call. Attempting to do this
-		/// twice or outside setup will trap.
-		constructor();
-
 		/// Adds systems to the mod
 		add-systems: func(
 			schedule: schedule,
-			systems: list<system>,
+			systems: list<borrow<system>>,
 		);
 	}
 
-	/// An interface with which to define a new system for the host
+	/// An interface with which to define a new system for the host.
 	///
 	/// Usage:
 	/// 1. Construct a new system, giving it a unique name
@@ -58,16 +58,82 @@ interface app {
 		before: func(other: borrow<system>);
 	}
 
-	/// A commands system param
+	/// A `command` queue system param to perform structural changes to the world.
+	///
+	/// Since each command requires exclusive access to the world,
+	/// all queued commands are automatically applied in sequence.
+	///
+	/// Each command can be used to modify the world in arbitrary ways:
+	/// - spawning or despawning entities
+	/// - inserting components on new or existing entities
+	/// - etc.
 	resource commands {
-		spawn: func(components: list<tuple<type-path, serialized-component>>);
-		// etc
+		/// Spawns a new empty `entity` and returns its corresponding `entity-commands`.
+		spawn-empty: func() -> entity-commands;
+
+		/// Spawns a new `entity` with the given components
+		/// and returns the entity's corresponding `entity-commands`.
+		spawn: func(bundle: bundle) -> entity-commands;
+
+		/// Returns the `entity-commands` for the given `entity`.
+		///
+		/// This method does not guarantee that commands queued by the returned `entity-commands`
+		/// will be successful, since the entity could be despawned before they are executed.
+		entity: func(entity: borrow<entity>) -> entity-commands;
 	}
+
+	/// A list of commands that will be run to modify an `entity`.
+	resource entity-commands {
+		/// Returns the identifier for this entity
+		id: func() -> entity;
+
+		/// Adds a `bundle` of components to the entity.
+		///
+		/// This will overwrite any previous value(s) of the same component type.
+		insert: func(bundle: bundle);
+
+		/// Removes a Bundle of components from the entity if it exists.
+		remove: func(bundle: bundle-types);
+
+		/// Despawns the entity.
+		///
+		/// This will emit a warning if the entity does not exist.
+		despawn: func();
+
+		/// Despawns the entity.
+		///
+		/// Unlike `despawn`, this will not emit a warning if the entity does not exist.
+		try-despawn: func();
+	}
+
+	/// An identifier for an entity.
+	resource entity {}
 
 	/// A query system param
 	resource query {
 		/// Evaluates and returns the next query results
-		iter: func() -> option<list<component>>;
+		iter: func() -> option<query-result>;
+	}
+
+	/// A query system param
+	resource query-result {
+		/// Returns the entity id for the query
+		entity: func() -> entity;
+
+		/// Gets the component at the specified index. Order is the same as declared
+		/// during setup. Query filters do not count as components.
+		///
+		/// So for example:
+		///
+		/// ```
+		/// spin_cube.add_query(&[
+		///   QueryFor::Mut("A"),     // component index 0
+		///   QueryFor::With("B"),    // none
+		///   QueryFor::Ref("C"),     // component index 1
+		///   QueryFor::Without("D"), // none
+		/// ]);
+		/// ```
+		component: func(index: component-index) -> component;
 	}
 
 	resource component {
@@ -88,6 +154,15 @@ interface app {
 	///
 	/// Note: for components returned by query::optional this is an option<t>
 	type serialized-component = string;
+
+	/// Just a simple list of tuples composed of the type-path and the serialized component string
+	type bundle = list<tuple<type-path, serialized-component>>;
+
+	/// A bundle without the serialized components
+	type bundle-types = list<type-path>;
+
+	/// Each query supports up to 255 components
+	type component-index = u8;
 
 	variant schedule {
 		/// A custom schedule that runs the first time a mod is loaded.

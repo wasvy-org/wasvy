@@ -8,11 +8,11 @@ run-host-example:
 
 # Requires `poetry` to run
 build-example-python:
-	cd examples/python_example/src/python_example && poetry run componentize-py --wit-path ../../wit/ --world example componentize app -o ../../../host_example/assets/mods/python.wasm
+	cd examples/python_example/src && poetry run componentize-py --wit-path ../wit/ --world example componentize app -o ../../host_example/assets/mods/python.wasm
 
 # Create the bindings for the python example
 example-bindings-python:
-	cd examples/python_example && poetry run componentize-py --wit-path wit/ --world example bindings src/python_example
+	cd examples/python_example && rm -rf ./src/example && poetry run componentize-py --wit-path wit/ --world example bindings src
 
 # For the fetching to take effect you must delete the deps folder manually
 example-fetch-deps example:

@@ -1,3 +1,5 @@
+use std::fmt;
+
 use anyhow::{Context, Result, anyhow};
 use bevy_asset::{Asset, AssetId, AssetLoader, Assets, LoadContext, io::Reader};
 use bevy_ecs::{change_detection::Tick, prelude::*};
@@ -8,9 +10,10 @@ use crate::{
     access::ModAccess,
     cleanup::DespawnModEntities,
     engine::{Engine, Linker},
-    host::WasmHost,
+    host::{WasmApp, WasmHost},
     mods::ModDespawnBehaviour,
     runner::{Config, ConfigRunSystem, ConfigSetup, Runner},
+    system::AddSystems,
 };
 
 /// An asset representing a loaded wasvy Mod
@@ -41,26 +44,19 @@ impl ModAsset {
     }
 
     /// Initiates mods by running their "setup" function
-    ///
-    /// Returns [None] if the mod could not be initialized because the asset is missing.
     pub(crate) fn initiate(
         world: &mut World,
         asset_id: &AssetId<ModAsset>,
         mod_id: Entity,
         mod_name: &str,
         accesses: &[ModAccess],
-    ) -> Option<Result<()>> {
+    ) -> Result<()> {
         let change_tick = world.change_tick();
 
         let mut assets = world
             .get_resource_mut::<Assets<Self>>()
             .expect("ModAssets be registered");
-
-        // Will return None if the asset is not yet loaded
-        // run_setup will re-run initiate when it is finally loaded
-        let Some(asset) = assets.get_mut(*asset_id) else {
-            return None;
-        };
+        let asset = assets.get_mut(*asset_id).ok_or(AssetNotFound)?;
 
         // Gets the version of this asset or assign a new one if it doesn't exist yet
         let asset_version = match asset.version {
@@ -96,23 +92,35 @@ impl ModAsset {
 
         let mut runner = Runner::new(&engine);
 
+        let mut systems = AddSystems::default();
         let config = Config::Setup(ConfigSetup {
             world,
-            asset_id,
-            asset_version,
-            mod_id,
-            mod_name,
-            accesses,
+            add_systems: &mut systems,
         });
 
-        Some(call(
+        // The setup method takes an App parameter.
+        let app = runner.new_resource(WasmApp).expect("Table has space left");
+        call(
             &mut runner,
             &instance_pre,
             config,
             SETUP,
-            &[],
+            &[Val::Resource(app)],
             &mut [],
-        ))
+        )?;
+
+        // Now register all the mod's systems
+        systems.add_systems(
+            world,
+            accesses,
+            runner.table(),
+            mod_id,
+            mod_name,
+            asset_id,
+            &asset_version,
+        )?;
+
+        Ok(())
     }
 
     pub(crate) fn run_system<'a, 'b, 'c, 'd, 'e, 'f, 'g>(
@@ -124,6 +132,21 @@ impl ModAsset {
     ) -> Result<()> {
         let config = Config::RunSystem(config);
         call(runner, &self.instance_pre, config, name, params, &mut [])
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct AssetNotFound;
+
+impl From<AssetNotFound> for anyhow::Error {
+    fn from(_: AssetNotFound) -> Self {
+        anyhow::anyhow!("Asset not found. Maybe it hasn't loaded yet.")
+    }
+}
+
+impl fmt::Display for AssetNotFound {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Asset not found. Maybe it hasn't loaded yet.")
     }
 }
 

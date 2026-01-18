@@ -89,6 +89,24 @@ pub(crate) fn insert_component(
     Ok(())
 }
 
+pub(crate) fn remove_component(
+    commands: &mut Commands,
+    wasm_registry: &WasmComponentRegistry,
+    entity: Entity,
+    type_path: String,
+) -> Result<()> {
+    // Remove guest types (inserted as json strings)
+    if let Some(component_id) = wasm_registry.0.get(&type_path) {
+        commands.entity(entity).remove_by_id(*component_id);
+    }
+    // handle types that are known by bevy (inserted as concrete types)
+    else {
+        commands.entity(entity).remove_reflect(type_path);
+    }
+
+    Ok(())
+}
+
 /// A collection containing a [ComponentId], and a [TypeId]
 ///
 /// The type id is [None] for guest components, and [Some] for concrete host types
@@ -185,15 +203,15 @@ fn get_wasm_component_id(type_path: &str, world: &mut World) -> ComponentId {
 /// Retrieves the value of a component on an entity given a json string
 pub(crate) fn get_component(
     entity: &FilteredEntityRef,
-    component_ref: ComponentRef,
+    component: &ComponentRef,
     type_registry: &AppTypeRegistry,
 ) -> Result<String> {
     let val = entity
-        .get_by_id(component_ref.component_id)
+        .get_by_id(component.component_id)
         .expect("to be able to find this component id on the entity");
 
     // Types that are known by bevy (inserted as concrete types)
-    if let Some(type_id) = component_ref.type_id {
+    if let Some(type_id) = component.type_id {
         let type_registry = type_registry.read();
         let type_registration = type_registry
             .get(type_id)

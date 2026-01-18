@@ -29,9 +29,12 @@ class Example(Protocol):
         raise NotImplementedError
 
     @abstractmethod
-    def setup(self) -> None:
+    def setup(self, app: app.App) -> None:
         """
-        This function is called once on startup for each WASM component (Not Bevy component).
+        This method is called once on startup for each WASM component (Not Bevy component).
+        
+        In this method you should register and configure `system`s via the `app` resource
+        passed as a parameter.
         """
         raise NotImplementedError
 

@@ -1,46 +1,32 @@
 use anyhow::{Result, bail};
-use bevy_ecs::{prelude::*, world::FilteredEntityRef};
+use bevy_ecs::prelude::*;
 use wasmtime::component::Resource;
 
 use crate::{
-    bindings::wasvy::ecs::app::{HostComponent, SerializedComponent},
-    component::{ComponentRef, get_component, set_component},
-    host::{QueryForComponent, WasmHost},
+    bindings::wasvy::ecs::app::{ComponentIndex, HostComponent, SerializedComponent},
+    host::WasmHost,
+    query::QueryId,
     runner::State,
 };
 
-pub struct Component {
-    query_index: usize,
+pub struct WasmComponent {
+    index: ComponentIndex,
+    id: QueryId,
     entity: Entity,
-    component_ref: ComponentRef,
-    mutable: bool,
 }
 
-impl Component {
-    pub(crate) fn new(
-        query_index: usize,
-        entity: &FilteredEntityRef,
-        component: &QueryForComponent,
-    ) -> Result<Self> {
-        let (component_ref, mutable) = match component {
-            QueryForComponent::Ref(component_ref) => (component_ref, false),
-            QueryForComponent::Mut(component_ref) => (component_ref, true),
-        };
-
-        Ok(Self {
-            query_index,
-            entity: entity.id(),
-            component_ref: component_ref.clone(),
-            mutable,
-        })
+impl WasmComponent {
+    pub(crate) fn new(index: ComponentIndex, id: QueryId, entity: Entity) -> Self {
+        Self { index, id, entity }
     }
 }
 
 impl HostComponent for WasmHost {
-    fn get(&mut self, component: Resource<Component>) -> Result<SerializedComponent> {
+    fn get(&mut self, component: Resource<WasmComponent>) -> Result<SerializedComponent> {
         let State::RunSystem {
             table,
             queries,
+            query_resolver,
             type_registry,
             ..
         } = self.access()
@@ -48,25 +34,25 @@ impl HostComponent for WasmHost {
             bail!("Component can only be accessed in systems")
         };
 
-        let Component {
-            query_index,
-            entity,
-            component_ref,
-            ..
-        } = table.get(&component)?;
-
-        let query = queries.get_mut(*query_index);
-        let entity = query.get(*entity).expect("Component entity to be valid");
-
-        let value = get_component(&entity, component_ref.clone(), type_registry)?;
-
-        Ok(value)
+        let component = table.get(&component)?;
+        query_resolver.get(
+            component.id,
+            component.entity,
+            component.index,
+            queries,
+            type_registry,
+        )
     }
 
-    fn set(&mut self, component: Resource<Component>, value: SerializedComponent) -> Result<()> {
+    fn set(
+        &mut self,
+        component: Resource<WasmComponent>,
+        value: SerializedComponent,
+    ) -> Result<()> {
         let State::RunSystem {
             table,
             queries,
+            query_resolver,
             type_registry,
             ..
         } = self.access()
@@ -74,28 +60,19 @@ impl HostComponent for WasmHost {
             bail!("Component can only be accessed in systems")
         };
 
-        let Component {
-            query_index,
-            entity,
-            component_ref,
-            mutable,
-        } = table.get(&component)?;
-        if !mutable {
-            bail!("Component is not mutable!")
-        }
-
-        let mut query = queries.get_mut(*query_index);
-        let mut entity = query
-            .get_mut(*entity)
-            .expect("Component entity to be valid");
-
-        set_component(&mut entity, component_ref, value, type_registry)?;
-
-        Ok(())
+        let component = table.get(&component)?;
+        query_resolver.set(
+            component.id,
+            component.entity,
+            component.index,
+            value,
+            queries,
+            type_registry,
+        )
     }
 
     // Note: this is never guaranteed to be called by the wasi binary
-    fn drop(&mut self, component: Resource<Component>) -> Result<()> {
+    fn drop(&mut self, component: Resource<WasmComponent>) -> Result<()> {
         let _ = self.table().delete(component)?;
 
         Ok(())

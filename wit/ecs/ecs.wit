@@ -1,29 +1,28 @@
 package wasvy:ecs;
 
-/// This is the world that the bevy host implements to give ECS functionality to the WASM component.
+/// This is the world that the Bevy host (the game/app) implements
+/// to give ECS functionality to the WASM guest (the mod).
 world host {
 	import app;
 }
 
-/// This is the world that the WASM guest implements.
+/// This is the world that the WASM guest (the mod) implements.
 ///
 /// This is the mandatory interface that a WASM component
-/// must implement for it to be called from the Bevy host.
+/// must implement for it to be called from the Bevy host (the game/app).
 world guest {
 	import app;
 	use app.{app};
 
 	/// This method is called once on startup for each WASM component (Not Bevy component).
 	///
-	/// In this method you should register and configure `system`s via the `app` provided as a
-	/// parameter.
+	/// In this method you should register and configure `system`s via the `app` resource
+	/// passed as a parameter.
 	export setup: func(app: app);
 }
 
 interface app {
-	/// A mod, similar to bevy::App
-	///
-	/// This is an interface through which mods may interact with the Bevy App.
+	/// This is an interface (similar to bevy::App) through which mods may interact with the Bevy App.
 	///
 	/// To access this, make sure to import the 'guest' world and implement `setup`.
 	resource app {

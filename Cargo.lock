@@ -3513,7 +3513,7 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 
 [[package]]
 name = "host_example"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
@@ -5488,7 +5488,7 @@ checksum = "e320a6c5ad31d271ad523dcf3ad13e2767ad8b1cb8f047f75a8aeaf8da139da2"
 
 [[package]]
 name = "simple"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "bevy_math",
  "bevy_transform",
@@ -6661,7 +6661,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anyhow",
  "bevy_app",

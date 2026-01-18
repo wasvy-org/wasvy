@@ -52,7 +52,7 @@ cargo add wasvy
 
 ## Quick Start
 
-```rust
+```rust,ignore
 use bevy::prelude::*;
 use bevy::{DefaultPlugins, app::App};
 
@@ -167,7 +167,7 @@ This will automatically fetch the latest version of `wasvy:ecs` from [wa.dev](ht
 
 5. Modify `my-mod/src/lib.rs` as shown:
 
-```rust
+```rust,ignore
 wit_bindgen::generate!({
     path: ["./wit"],
     world: "component:my-mod/example",

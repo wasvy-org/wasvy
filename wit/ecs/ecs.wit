@@ -1,4 +1,4 @@
-package wasvy:ecs;
+package wasvy:ecs@0.0.6;
 
 /// This is the world that the Bevy host (the game/app) implements
 /// to give ECS functionality to the WASM guest (the mod).
@@ -125,7 +125,7 @@ interface app {
 		///
 		/// So for example:
 		///
-		/// ```rust,ignore
+		/// ```
 		/// spin_cube.add_query(&[
 		///   QueryFor::Mut("A"),     // component index 0
 		///   QueryFor::With("B"),    // none

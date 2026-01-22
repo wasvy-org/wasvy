@@ -66,6 +66,13 @@ thiserror.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
 
+# These lints may be important signals about code quality, but normal Bevy code
+# commonly triggers them and the CI workflow treats them as errors, so we've
+# chosen to allow them in this template.
+[lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"
+
 # Enable high optimizations for wasmtime and its transient dependencies in dev mode.
 # This drastically improves the loading speed for the example mods (python especially)
 

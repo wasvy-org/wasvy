@@ -22,9 +22,9 @@ impl WasmQueryResult {
     }
 }
 
-impl Into<Entity> for &WasmQueryResult {
-    fn into(self) -> Entity {
-        self.entity
+impl From<&WasmQueryResult> for Entity {
+    fn from(value: &WasmQueryResult) -> Self {
+        value.entity
     }
 }
 

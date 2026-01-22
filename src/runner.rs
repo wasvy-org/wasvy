@@ -26,7 +26,7 @@ pub(crate) struct Runner {
 impl Runner {
     pub(crate) fn new(engine: &Engine) -> Self {
         let host = WasmHost::new();
-        let store = Store::new(&engine.inner(), host);
+        let store = Store::new(engine.inner(), host);
 
         Self { store }
     }
@@ -40,7 +40,7 @@ impl Runner {
         T: Send + 'static,
     {
         let resource = self.table().push(entry)?;
-        Ok(resource.try_into_resource_any(&mut self.store)?)
+        resource.try_into_resource_any(&mut self.store)
     }
 
     pub(crate) fn use_store<'a, 'b, 'c, 'd, 'e, 'f, 'g, F, R>(

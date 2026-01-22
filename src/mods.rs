@@ -75,7 +75,7 @@ impl Mods<'_, '_> {
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
-    pub fn enable_access<'a>(&mut self, mod_id: Entity, access: ModAccess) {
+    pub fn enable_access(&mut self, mod_id: Entity, access: ModAccess) {
         #[cfg(debug_assertions)]
         if let ModAccess::Sandbox(entity) = access {
             assert!(
@@ -97,7 +97,7 @@ impl Mods<'_, '_> {
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
-    pub fn disable_access<'a>(&mut self, mod_id: Entity, access: ModAccess) {
+    pub fn disable_access(&mut self, mod_id: Entity, access: ModAccess) {
         #[cfg(debug_assertions)]
         if let ModAccess::Sandbox(entity) = access {
             assert!(
@@ -160,7 +160,7 @@ impl Mod {
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
-    pub fn enable_access<'a>(&mut self, access: ModAccess) -> bool {
+    pub fn enable_access(&mut self, access: ModAccess) -> bool {
         self.access.insert(access)
     }
 
@@ -171,7 +171,7 @@ impl Mod {
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
-    pub fn disable_access<'a>(&mut self, access: &ModAccess) -> bool {
+    pub fn disable_access(&mut self, access: &ModAccess) -> bool {
         self.access.remove(access)
     }
 
@@ -200,11 +200,12 @@ impl Mod {
 }
 
 /// SystemSets for systems from mod added to the schedule graph by wasvy
-#[derive(SystemSet, Clone, Debug, Hash, PartialEq, Eq)]
+#[derive(SystemSet, Clone, Debug, Hash, PartialEq, Eq, Default)]
 pub enum ModSystemSet {
     /// A system set for all mod systems
     ///
     /// Use this variant if you want to define systems that run before or after all mods.
+    #[default]
     All,
 
     /// A system set for all the systems of a specific Mod
@@ -219,15 +220,6 @@ pub enum ModSystemSet {
 }
 
 impl ModSystemSet {
-    /// Creates the system set for all Mods.
-    ///
-    /// All mod systems will be included in this set.
-    ///
-    /// This is useful if you want to define systems that run before or after all mods.
-    pub const fn new() -> Self {
-        Self::All
-    }
-
     /// Creates the system set for a Mod.
     ///
     /// All of the mod's systems will be included in this set.

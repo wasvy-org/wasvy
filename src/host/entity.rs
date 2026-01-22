@@ -6,9 +6,9 @@ use crate::{bindings::wasvy::ecs::app::HostEntity, host::WasmHost};
 
 pub struct WasmEntity(pub(crate) Entity);
 
-impl Into<Entity> for &WasmEntity {
-    fn into(self) -> Entity {
-        self.0
+impl From<&WasmEntity> for Entity {
+    fn from(value: &WasmEntity) -> Self {
+        value.0
     }
 }
 

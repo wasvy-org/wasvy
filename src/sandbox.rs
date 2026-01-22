@@ -255,7 +255,7 @@ impl Sandbox {
         // Avoid conflicting with all present sandboxes
         for other_sandbox in world
             .query::<&Sandbox>()
-            .iter(&world)
+            .iter(world)
             .filter(|sandbox| sandbox.component_id != component_id)
         {
             access.and_without(other_sandbox.component_id);

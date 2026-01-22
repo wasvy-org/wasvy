@@ -22,10 +22,10 @@ impl ModAccess {
                 .get::<Sandbox>(*entity)
                 .map(|sandbox| sandbox.schedules().clone())
                 // The sandbox doesn't exist, so no schedules
-                .unwrap_or_else(|| ModSchedules::empty()),
+                .unwrap_or_else(ModSchedules::empty),
             Self::World => world
                 .get_resource::<ModSchedules>()
-                .map(Clone::clone)
+                .cloned()
                 .expect("ModSchedules be registered"),
         }
     }
@@ -39,7 +39,7 @@ impl ModAccess {
                 .get::<Sandbox>(*entity)
                 .map(|sandbox| sandbox.access().clone())
                 // The sandbox doesn't exist, so there is nothing to match
-                .unwrap_or_else(|| FilteredAccess::matches_nothing()),
+                .unwrap_or_else(FilteredAccess::matches_nothing),
             Self::World => Sandbox::access_non_sandboxed(world),
         }
     }

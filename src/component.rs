@@ -123,14 +123,14 @@ pub(crate) struct ComponentRef {
 
 impl ComponentRef {
     /// See [ComponentRef]
-    pub(crate) fn new(type_path: &str, mut world: &mut World) -> Result<Self> {
+    pub(crate) fn new(type_path: &str, world: &mut World) -> Result<Self> {
         let type_registry = world
             .get_resource::<AppTypeRegistry>()
             .expect("there to be an AppTypeRegistry")
             .read();
 
         // First try finding types known by bevy (inserted as concrete types)
-        if let Some(type_registration) = type_registry.get_with_type_path(&type_path) {
+        if let Some(type_registration) = type_registry.get_with_type_path(type_path) {
             let type_id = type_registration.type_id();
             let component_id = world
                 .components()
@@ -146,7 +146,7 @@ impl ComponentRef {
         else {
             drop(type_registry);
 
-            let component_id = get_wasm_component_id(type_path, &mut world);
+            let component_id = get_wasm_component_id(type_path, world);
 
             Ok(Self {
                 component_id,

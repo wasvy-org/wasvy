@@ -23,14 +23,14 @@ pub struct ModAsset {
     instance_pre: InstancePre<WasmHost>,
 }
 
-const SETUP: &'static str = "setup";
+const SETUP: &str = "setup";
 
 impl ModAsset {
     pub(crate) async fn new(loader: &ModAssetLoader, reader: &mut dyn Reader) -> Result<Self> {
         let mut bytes = vec![];
         reader.read_to_end(&mut bytes).await?;
 
-        let component = Component::from_binary(&loader.linker.engine(), &bytes)?;
+        let component = Component::from_binary(loader.linker.engine(), &bytes)?;
         let instance_pre = loader.linker.instantiate_pre(&component)?;
 
         Ok(Self {
@@ -90,7 +90,7 @@ impl ModAsset {
             .get_resource::<Engine>()
             .expect("Engine should never be removed from world");
 
-        let mut runner = Runner::new(&engine);
+        let mut runner = Runner::new(engine);
 
         let mut systems = AddSystems::default();
         let config = Config::Setup(ConfigSetup {
@@ -156,7 +156,7 @@ fn call(
     config: Config,
     name: &str,
     params: &[Val],
-    mut results: &mut [Val],
+    results: &mut [Val],
 ) -> Result<()> {
     runner.use_store(config, move |mut store| {
         let instance = instance_pre
@@ -167,7 +167,7 @@ fn call(
             .get_func(&mut store, name)
             .ok_or(anyhow!("Missing {name} function"))?;
 
-        func.call(&mut store, params, &mut results)
+        func.call(&mut store, params, results)
             .context("Failed to run the desired wasm function")?;
 
         Ok(())

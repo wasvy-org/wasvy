@@ -65,12 +65,11 @@ pub(crate) fn disable_mod_system_sets(
                 set.clone(),
                 world,
                 ScheduleCleanupPolicy::RemoveSetAndSystems,
-            ) {
-                if !matches!(error, ScheduleError::SetNotFound) {
-                    warn!(
-                        "Unable to remove system set {set:?}. Systems from unloaded mods might still be running!\nError: {error}."
-                    );
-                }
+            ) && !matches!(error, ScheduleError::SetNotFound)
+            {
+                warn!(
+                    "Unable to remove system set {set:?}. Systems from unloaded mods might still be running!\nError: {error}."
+                );
             }
         }
 

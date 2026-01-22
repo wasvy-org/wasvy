@@ -202,7 +202,7 @@ impl Plugin for ModloaderPlugin {
 
         let asset_plugins = app.get_added_plugins::<AssetPlugin>();
         let asset_plugin = asset_plugins
-            .get(0)
+            .first()
             .expect("ModloaderPlugin requires AssetPlugin to be loaded.");
 
         // Warn a user running the App in debug; they probably want hot-reloading

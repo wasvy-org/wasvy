@@ -11,9 +11,9 @@ use crate::{
 
 pub struct WasmEntityCommands(pub(crate) Entity);
 
-impl Into<Entity> for &WasmEntityCommands {
-    fn into(self) -> Entity {
-        self.0
+impl From<&WasmEntityCommands> for Entity {
+    fn from(value: &WasmEntityCommands) -> Self {
+        value.0
     }
 }
 

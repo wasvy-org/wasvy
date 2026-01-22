@@ -27,7 +27,7 @@ pub(crate) struct RanWith {
 }
 
 pub(crate) fn run_setup(
-    mut world: &mut World,
+    world: &mut World,
     param: &mut SystemState<Setup>,
     mut ran_with: Local<HashSet<RanWith>>,
 ) {
@@ -99,8 +99,7 @@ pub(crate) fn run_setup(
     // Initiate mods with exclusive world access (runs the mod setup)
     let mut run_startup_schedule = false;
     for (asset_id, mod_id, name, accesses) in setup {
-        let Err(err) = ModAsset::initiate(&mut world, &asset_id, mod_id, &name, &accesses[..])
-        else {
+        let Err(err) = ModAsset::initiate(world, &asset_id, mod_id, &name, &accesses[..]) else {
             info!("Successfully initialized mod \"{name}\"");
             run_startup_schedule = true;
             continue;

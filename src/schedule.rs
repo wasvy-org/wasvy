@@ -76,7 +76,7 @@ impl ModSchedule {
             Self::FixedPreUpdate => FixedPreUpdate.intern(),
             Self::FixedUpdate => FixedUpdate.intern(),
             Self::FixedPostUpdate => FixedPostUpdate.intern(),
-            Self::Custom { schedule, .. } => schedule.clone(),
+            Self::Custom { schedule, .. } => *schedule,
         }
     }
 }
@@ -181,7 +181,7 @@ impl ModSchedules {
                     ModSchedule::Custom { name, .. } => name == custom_name,
                     _ => false,
                 })
-                .map(Clone::clone),
+                .cloned(),
         }
     }
 }

@@ -1,5 +1,6 @@
 // This file is copied directly from wasmtime/src/runtime/vm/send_sync_ptr.rs
 // in order to expose the SendSyncPtr util
+#![allow(clippy::all)]
 
 use core::fmt;
 use core::hash::{Hash, Hasher};

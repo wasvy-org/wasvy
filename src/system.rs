@@ -53,7 +53,7 @@ impl AddSystems {
             for (schedule, systems) in self.0.iter() {
                 // Validate that the schedule requested by the mod is enabled
                 let Some(schedule) = mod_schedules
-                    .evaluate(&schedule)
+                    .evaluate(schedule)
                     .map(|schedule| schedule.schedule_label())
                 else {
                     warn!(
@@ -67,7 +67,7 @@ impl AddSystems {
                     .map(|system| table.get(system).expect("Resource not be dropped"))
                 {
                     Self::add_system(
-                        schedule.clone(),
+                        schedule,
                         system,
                         world,
                         mod_id,
@@ -100,7 +100,7 @@ impl AddSystems {
             mod_name,
             asset_id,
             asset_version,
-            &access,
+            access,
         )?
         .in_set(ModSystemSet::All)
         .in_set(ModSystemSet::Mod(mod_id))
@@ -116,7 +116,7 @@ impl AddSystems {
 
     pub(crate) fn schedule(
         sys: &WasmSystem,
-        mut world: &mut World,
+        world: &mut World,
         mod_id: Entity,
         mod_name: &str,
         asset_id: &AssetId<ModAsset>,
@@ -130,8 +130,8 @@ impl AddSystems {
         let input = Input {
             mod_name: mod_name.to_string(),
             system_name: sys.name.clone(),
-            asset_id: asset_id.clone(),
-            asset_version: asset_version.clone(),
+            asset_id: *asset_id,
+            asset_version: *asset_version,
             built_params,
             query_resolver,
             access: *access,
@@ -157,7 +157,7 @@ impl AddSystems {
             // TODO: FilteredResourcesMutParamBuilder::new(|builder| {}),
             ParamSetBuilder(queries),
         )
-            .build_state(&mut world)
+            .build_state(world)
             .build_system(system_runner)
             .with_name(format!("wasvy[{mod_name}]::{}", sys.name));
 
@@ -230,8 +230,8 @@ fn system_runner(
             wasm_registry: &wasm_registry,
             queries: &mut queries,
             query_resolver: &input.query_resolver,
-            access: input.access.clone(),
-            insert_despawn_component: input.insert_despawn_component.clone(),
+            access: input.access,
+            insert_despawn_component: input.insert_despawn_component,
         },
         &params[..],
     )?;

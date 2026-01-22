@@ -145,7 +145,6 @@ impl AddSystems {
             queries.push(create_query_builder(items, world, filtered_access.clone())?);
         }
 
-        // Dynamic
         let system = (
             LocalBuilder(input),
             LocalBuilder(Vec::with_capacity(queries.len())),
@@ -158,7 +157,7 @@ impl AddSystems {
             ParamSetBuilder(queries),
         )
             .build_state(world)
-            .build_system(system_runner)
+            .build_system(dynamic_system)
             .with_name(format!("wasvy[{mod_name}]::{}", sys.name));
 
         let boxed_system = Box::new(IntoSystem::into_system(system));
@@ -193,7 +192,10 @@ impl FromWorld for Input {
     }
 }
 
-fn system_runner(
+/// Since mod systems are by their very nature dynamic, they require a
+/// flexible dynamic equivalent at runtime that can adjust to access
+/// just what that mod system needs.
+fn dynamic_system(
     input: Local<Input>,
     mut params: Local<Vec<Val>>,
     assets: Res<Assets<ModAsset>>,

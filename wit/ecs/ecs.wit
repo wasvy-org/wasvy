@@ -125,7 +125,7 @@ interface app {
 		///
 		/// So for example:
 		///
-		/// ```
+		/// ```rust,ignore
 		/// spin_cube.add_query(&[
 		///   QueryFor::Mut("A"),     // component index 0
 		///   QueryFor::With("B"),    // none

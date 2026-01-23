@@ -1,3 +1,4 @@
+/// Wasvy: Wasi interface for the Bevy ecs
 package wasvy:ecs@0.0.6;
 
 /// This is the world that the Bevy host (the game/app) implements

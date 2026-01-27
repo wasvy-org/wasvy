@@ -6671,11 +6671,33 @@ dependencies = [
  "bevy_log",
  "bevy_platform",
  "bevy_reflect",
+ "inventory",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
  "wasmtime",
  "wasmtime-wasi",
+ "wasvy_macros",
+]
+
+[[package]]
+name = "wasvy_guest"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "wasvy_macros"
+version = "0.0.0"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
+ "wit-parser",
 ]
 
 [[package]]

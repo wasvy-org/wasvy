@@ -13,7 +13,7 @@ readme.workspace = true
 publish = true
 
 [workspace]
-members = ["examples/host_example", "examples/simple"]
+members = ["crates/wasvy_guest", "crates/wasvy_macros", "examples/host_example", "examples/simple"]
 resolver = "2"
 
 [workspace.package]
@@ -47,6 +47,7 @@ bevy_transform = { version = "0.18.0", features = [
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
 thiserror = "2.0.16"
+inventory = "0.3.15"
 wasmtime = { version = "40.0.1", features = ["component-model"] }
 wasmtime-wasi = "40.0.1"
 wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
@@ -65,6 +66,8 @@ serde_json.workspace = true
 thiserror.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
+inventory.workspace = true
+wasvy_macros = { path = "crates/wasvy_macros" }
 
 # These lints may be important signals about code quality, but normal Bevy code
 # commonly triggers them and the CI workflow treats them as errors, so we've

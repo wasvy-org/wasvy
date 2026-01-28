@@ -1,0 +1,9 @@
+package wasvy:ecs;
+
+interface app {
+  resource component {}
+}
+
+world host {
+  import app;
+}

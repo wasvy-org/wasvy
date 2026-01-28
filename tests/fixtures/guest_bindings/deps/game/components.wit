@@ -1,0 +1,12 @@
+package game:components;
+
+interface components {
+  /// wasvy:type-path=tests::fixtures::components::Health
+  resource health {
+    foo: func();
+  }
+}
+
+world host {
+  import components;
+}

@@ -17,6 +17,7 @@ use crate::{
 #[derive(SystemParam)]
 pub(crate) struct Setup<'w, 's> {
     events: MessageReader<'w, 's, AssetEvent<ModAsset>>,
+    assets: Res<'w, Assets<ModAsset>>,
     mods: Query<'w, 's, (Entity, Ref<'static, Mod>, Option<&'static Name>)>,
 }
 
@@ -31,7 +32,11 @@ pub(crate) fn run_setup(
     param: &mut SystemState<Setup>,
     mut ran_with: Local<HashSet<RanWith>>,
 ) {
-    let Setup { mut events, mods } = param.get_mut(world);
+    let Setup {
+        mut events,
+        assets,
+        mods,
+    } = param.get_mut(world);
 
     // Mod ids who's asset has been loaded (or hot-reloaded)
     let mut loaded_mods = Vec::new();
@@ -71,6 +76,9 @@ pub(crate) fn run_setup(
         mod_component.is_changed() || loaded_mods.contains(mod_id)
     }) {
         let asset_id = mod_component.asset().id();
+        if assets.get(asset_id).is_none() {
+            continue;
+        }
 
         let name = name
             .map(|name| name.as_str())

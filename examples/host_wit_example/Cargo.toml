@@ -1,0 +1,23 @@
+[package]
+name = "host_wit_example"
+version = "0.0.0"
+edition = "2024"
+publish = false
+build = "build.rs"
+
+[dependencies]
+wasvy = { path = "../../" }
+bevy_app = "0.18.0"
+bevy_asset = "0.18.0"
+bevy_ecs = "0.18.0"
+bevy_log = "0.18.0"
+bevy_reflect = "0.18.0"
+serde_json = "1.0.143"
+wasmtime = { version = "40.0.1", features = ["component-model"] }
+
+[build-dependencies]
+wasvy = { path = "../../" }
+bevy_ecs = "0.18.0"
+bevy_reflect = "0.18.0"
+
+[workspace]

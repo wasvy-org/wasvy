@@ -1,3 +1,8 @@
+//! Component serialization and dynamic component storage.
+//!
+//! This module handles registration and access of both native Bevy components
+//! and guest-defined components that are represented as JSON.
+
 use std::{alloc::Layout, any::TypeId};
 
 use anyhow::{Result, anyhow};
@@ -15,6 +20,7 @@ use bevy_reflect::{
 };
 use serde::de::DeserializeSeed;
 
+/// Fully-qualified type path used to identify a component type.
 pub type TypePath = String;
 
 /// Registry for storing the components that are registered from WASM assets.
@@ -119,6 +125,7 @@ pub(crate) fn remove_component(
 pub(crate) struct ComponentRef {
     component_id: ComponentId,
     type_id: Option<TypeId>,
+    type_path: TypePath,
 }
 
 impl ComponentRef {
@@ -140,6 +147,7 @@ impl ComponentRef {
             Ok(Self {
                 component_id,
                 type_id: Some(type_id),
+                type_path: type_path.to_string(),
             })
         }
         // Otherwise handle guest types (inserted as json strings)
@@ -151,12 +159,17 @@ impl ComponentRef {
             Ok(Self {
                 component_id,
                 type_id: None,
+                type_path: type_path.to_string(),
             })
         }
     }
 
     pub(crate) fn component_id(&self) -> ComponentId {
         self.component_id
+    }
+
+    pub(crate) fn type_path(&self) -> &str {
+        &self.type_path
     }
 }
 
@@ -275,4 +288,66 @@ pub(crate) fn set_component(
 
         Ok(())
     }
+}
+
+pub(crate) fn with_component_ref<R>(
+    entity: &FilteredEntityRef,
+    component_ref: &ComponentRef,
+    type_registry: &AppTypeRegistry,
+    f: impl FnOnce(&dyn Reflect) -> Result<R>,
+) -> Result<R> {
+    let val = entity
+        .get_by_id(component_ref.component_id)
+        .expect("to be able to find this component id on the entity");
+
+    let Some(type_id) = component_ref.type_id else {
+        return Err(anyhow!(
+            "Component {} does not support method invocation",
+            component_ref.type_path
+        ));
+    };
+
+    let type_registry = type_registry.read();
+    let type_registration = type_registry
+        .get(type_id)
+        .expect("ComponentRef type_id be registered");
+    let reflect_from_ptr = type_registration
+        .data::<ReflectFromPtr>()
+        .expect("ReflectFromPtr to be registered");
+
+    // SAFETY: val is of the same type that reflect_from_ptr was constructed for
+    let reflect = unsafe { reflect_from_ptr.as_reflect(val) };
+
+    f(reflect)
+}
+
+pub(crate) fn with_component_mut<R>(
+    entity: &mut FilteredEntityMut,
+    component_ref: &ComponentRef,
+    type_registry: &AppTypeRegistry,
+    f: impl FnOnce(&mut dyn Reflect) -> Result<R>,
+) -> Result<R> {
+    let mut val = entity
+        .get_mut_by_id(component_ref.component_id)
+        .expect("to be able to find this component id on the entity");
+
+    let Some(type_id) = component_ref.type_id else {
+        return Err(anyhow!(
+            "Component {} does not support method invocation",
+            component_ref.type_path
+        ));
+    };
+
+    let type_registry = type_registry.read();
+    let type_registration = type_registry
+        .get(type_id)
+        .expect("ComponentRef type_id be registered");
+    let reflect_from_ptr = type_registration
+        .data::<ReflectFromPtr>()
+        .expect("ReflectFromPtr to be registered");
+
+    // SAFETY: val is of the same type that reflect_from_ptr was constructed for
+    let reflect = unsafe { reflect_from_ptr.as_reflect_mut(val.as_mut()) };
+
+    f(reflect)
 }

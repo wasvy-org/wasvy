@@ -6,10 +6,12 @@ use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
 use bevy_log::prelude::*;
 
 use crate::{
+    authoring::register_all,
     asset::{ModAsset, ModAssetLoader},
     cleanup::{DespawnModEntities, DisableSystemSet, disable_mod_system_sets},
     component::WasmComponentRegistry,
     engine::{Engine, Linker, create_linker},
+    methods::MethodRegistry,
     mods::{Mod, ModDespawnBehaviour},
     sandbox::Sandboxed,
     schedule::{ModSchedule, ModSchedules, ModStartup},
@@ -193,10 +195,13 @@ impl Plugin for ModloaderPlugin {
             .insert_resource(engine)
             .insert_resource(despawn_behaviour)
             .init_resource::<WasmComponentRegistry>()
+            .init_resource::<MethodRegistry>()
             .insert_resource(schedules)
             .add_schedule(ModStartup::new_schedule())
             .add_message::<DisableSystemSet>()
             .add_systems(setup_schedule, (run_setup, disable_mod_system_sets));
+
+        register_all(app);
 
         app.world_mut().register_component::<Sandboxed>();
 

@@ -1,5 +1,5 @@
 /// Wasvy: Wasi interface for the Bevy ecs
-package wasvy:ecs@0.0.6;
+package wasvy:ecs;
 
 /// This is the world that the Bevy host (the game/app) implements
 /// to give ECS functionality to the WASM guest (the mod).
@@ -145,6 +145,11 @@ interface app {
 		///
 		/// Traps if this component was not declared as mutable
 		set: func(value: serialized-component);
+
+		/// Invokes a method on this component.
+		///
+		/// `params` must be a JSON array string. The return value is JSON.
+		invoke: func(method: string, params: serialized-component) -> serialized-component;
 	}
 
 	/// A fully-qualified type name

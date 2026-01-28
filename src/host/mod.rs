@@ -1,3 +1,7 @@
+//! Host-side implementations for the Wasvy WIT interfaces.
+//!
+//! These types back the `wasvy:ecs` resources exposed to guest mods.
+
 use wasmtime_wasi::{ResourceTable, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 
 use crate::{
@@ -23,6 +27,9 @@ pub use query::*;
 pub use query_result::*;
 pub use system::*;
 
+/// Host state shared across mod executions.
+///
+/// This implements the Wasvy WIT host traits used by guest modules.
 pub struct WasmHost {
     data: Data,
     table: ResourceTable,

@@ -1,9 +1,6 @@
 use std::{env, fs, path::PathBuf};
 
-#[allow(dead_code)]
-mod components {
-    include!("src/components.rs");
-}
+wasvy::include_wasvy_components!("src");
 
 fn main() {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR"));

@@ -41,6 +41,15 @@ pub fn guest_bindings(input: TokenStream) -> TokenStream {
     }
 }
 
+#[proc_macro]
+pub fn include_wasvy_components(input: TokenStream) -> TokenStream {
+    let args = syn::parse_macro_input!(input as IncludeComponentsArgs);
+    match expand_include_components(args) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
 #[proc_macro_attribute]
 pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as Item);
@@ -393,6 +402,10 @@ struct GuestBindingsArgs {
     paths: Vec<syn::LitStr>,
 }
 
+struct IncludeComponentsArgs {
+    path: syn::LitStr,
+}
+
 impl syn::parse::Parse for AutoHostArgs {
     fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
         let mut path = None;
@@ -461,6 +474,13 @@ impl syn::parse::Parse for GuestBindingsArgs {
         let tokens: proc_macro2::TokenStream = input.parse()?;
         let paths = extract_paths_from_stream(tokens)?;
         Ok(Self { paths })
+    }
+}
+
+impl syn::parse::Parse for IncludeComponentsArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let lit: syn::LitStr = input.parse()?;
+        Ok(Self { path: lit })
     }
 }
 
@@ -740,6 +760,30 @@ fn expand_guest_bindings(
     })
 }
 
+fn expand_include_components(args: IncludeComponentsArgs) -> syn::Result<proc_macro2::TokenStream> {
+    let base = resolve_wit_path(&args.path);
+    let base = PathBuf::from(base);
+    let mut files = Vec::new();
+    collect_rs_files(&base, &mut files)
+        .map_err(|err| syn::Error::new(args.path.span(), err.to_string()))?;
+
+    let mut root = ModuleNode::default();
+    for path in files.iter() {
+        let Ok(contents) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        if !contains_wasvy_attr(&contents) {
+            continue;
+        }
+        let segments = module_segments(&base, path)
+            .map_err(|err| syn::Error::new(args.path.span(), err))?;
+        root.insert(&segments, path.clone());
+    }
+
+    let rendered = render_modules(&root);
+    Ok(rendered)
+}
+
 fn render_params(
     resolve: &Resolve,
     params: &[(String, wit_parser::Type)],
@@ -983,6 +1027,129 @@ fn collect_paths(
 
 fn lit_to_litstr(lit: &proc_macro2::Literal) -> Option<syn::LitStr> {
     syn::parse_str::<syn::LitStr>(&lit.to_string()).ok()
+}
+
+fn collect_rs_files(dir: &PathBuf, out: &mut Vec<PathBuf>) -> std::io::Result<()> {
+    if !dir.exists() {
+        return Ok(());
+    }
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.file_name().and_then(|s| s.to_str()) == Some("target") {
+            continue;
+        }
+        if path.is_dir() {
+            collect_rs_files(&path, out)?;
+        } else if path.extension().and_then(|s| s.to_str()) == Some("rs") {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
+fn contains_wasvy_attr(contents: &str) -> bool {
+    contents.contains("wasvy::component") || contents.contains("wasvy::methods")
+}
+
+#[derive(Default)]
+struct ModuleNode {
+    file: Option<PathBuf>,
+    children: std::collections::BTreeMap<String, ModuleNode>,
+}
+
+impl ModuleNode {
+    fn insert(&mut self, segments: &[String], file: PathBuf) {
+        if segments.is_empty() {
+            self.file = Some(file);
+            return;
+        }
+        let head = segments[0].clone();
+        let tail = &segments[1..];
+        let child = self.children.entry(head).or_default();
+        child.insert(tail, file);
+    }
+}
+
+fn render_modules(node: &ModuleNode) -> proc_macro2::TokenStream {
+    render_module_node(None, node)
+}
+
+fn render_module_node(name: Option<&str>, node: &ModuleNode) -> proc_macro2::TokenStream {
+    let mut items = Vec::new();
+    if let Some(file) = &node.file {
+        let lit = syn::LitStr::new(&file.to_string_lossy(), proc_macro2::Span::call_site());
+        items.push(quote! {
+            include!(#lit);
+        });
+    } else {
+        for (child_name, child) in node.children.iter() {
+            items.push(render_module_node(Some(child_name), child));
+        }
+    }
+
+    if let Some(name) = name {
+        let ident = rust_ident(name);
+        quote! {
+            mod #ident {
+                #(#items)*
+            }
+        }
+    } else {
+        quote! {
+            #(#items)*
+        }
+    }
+}
+
+fn module_segments(base: &PathBuf, file: &PathBuf) -> Result<Vec<String>, String> {
+    let rel = file
+        .strip_prefix(base)
+        .map_err(|_| "file is not under base path".to_string())?;
+    let file_name = rel.file_name().and_then(|s| s.to_str()).ok_or_else(|| {
+        format!("invalid utf-8 path: {}", file.to_string_lossy())
+    })?;
+
+    let mut segments: Vec<String> = rel
+        .parent()
+        .map(|p| {
+            p.components()
+                .filter_map(|c| c.as_os_str().to_str().map(sanitize_ident))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    if file_name == "lib.rs" || file_name == "main.rs" {
+        segments.clear();
+        return Ok(segments);
+    }
+
+    if file_name != "mod.rs" {
+        let stem_path = PathBuf::from(file_name);
+        let stem = stem_path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| "invalid file stem".to_string())?;
+        segments.push(sanitize_ident(stem));
+    }
+
+    Ok(segments)
+}
+
+fn sanitize_ident(raw: &str) -> String {
+    let mut cleaned = String::new();
+    for (i, ch) in raw.chars().enumerate() {
+        let c = if ch == '-' { '_' } else { ch };
+        if i == 0 && c.is_ascii_digit() {
+            cleaned.push('_');
+        }
+        cleaned.push(c);
+    }
+    if cleaned.is_empty() {
+        "_".to_string()
+    } else {
+        cleaned
+    }
 }
 
 fn resolve_wit_path(path: &syn::LitStr) -> String {

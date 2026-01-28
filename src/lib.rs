@@ -46,5 +46,6 @@ mod bindings {
 }
 
 pub use wasvy_macros::{
-    auto_host_components, component, guest_bindings, guest_type_paths, method, methods,
+    auto_host_components, component, guest_bindings, guest_type_paths, include_wasvy_components,
+    method, methods,
 };

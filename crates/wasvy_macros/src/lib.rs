@@ -51,6 +51,7 @@ pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
         Item::Enum(item) => {
             let ident = &item.ident;
             let fn_ident = format_ident!("__wasvy_component_type_path_{}", ident);
+            let register_ident = format_ident!("__wasvy_register_component_{}", ident);
             quote! {
                 #item
 
@@ -72,6 +73,15 @@ pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     type_path: #fn_ident,
                     name: stringify!(#ident),
                 });
+
+                #[allow(non_snake_case)]
+                fn #register_ident(app: &mut #wasvy_path::authoring::App) {
+                    <#ident as #wasvy_path::authoring::WasvyComponent>::register(app);
+                }
+
+                #wasvy_path::__wasvy_submit_component_registration!(
+                    #wasvy_path::authoring::WasvyComponentRegistration { register: #register_ident }
+                );
             }
         }
         other => {
@@ -127,6 +137,8 @@ pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
         ..input
     };
 
+    let register_ident = format_ident!("__wasvy_register_methods_{}", type_ident);
+
     let expanded = quote! {
         #impl_block
 
@@ -135,6 +147,15 @@ pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 #(#registrations)*
             }
         }
+
+        #[allow(non_snake_case)]
+        fn #register_ident(registry: &mut #wasvy_path::methods::MethodRegistry) {
+            <#type_ident as #wasvy_path::authoring::WasvyMethods>::register_methods(registry);
+        }
+
+        #wasvy_path::__wasvy_submit_methods_registration!(
+            #wasvy_path::authoring::WasvyMethodsRegistration { register: #register_ident }
+        );
     };
 
     expanded.into()
@@ -143,6 +164,7 @@ pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
 fn expand_component_struct(item: ItemStruct, wasvy_path: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     let ident = &item.ident;
     let fn_ident = format_ident!("__wasvy_component_type_path_{}", ident);
+    let register_ident = format_ident!("__wasvy_register_component_{}", ident);
     quote! {
         #item
 
@@ -164,6 +186,15 @@ fn expand_component_struct(item: ItemStruct, wasvy_path: &proc_macro2::TokenStre
             type_path: #fn_ident,
             name: stringify!(#ident),
         });
+
+        #[allow(non_snake_case)]
+        fn #register_ident(app: &mut #wasvy_path::authoring::App) {
+            <#ident as #wasvy_path::authoring::WasvyComponent>::register(app);
+        }
+
+        #wasvy_path::__wasvy_submit_component_registration!(
+            #wasvy_path::authoring::WasvyComponentRegistration { register: #register_ident }
+        );
     }
 }
 
@@ -435,7 +466,7 @@ impl syn::parse::Parse for GuestBindingsArgs {
 
 fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::TokenStream> {
     let wasvy_path = wasvy_path();
-    let path_value = resolve_wit_path(&args.path);
+    let path_value = resolve_wit_path_with_fallbacks(&args.path);
     let world_value = args.world.value();
 
     let mut resolve = Resolve::default();
@@ -964,5 +995,44 @@ fn resolve_wit_path(path: &syn::LitStr) -> String {
     } else {
         resolved_path
     };
+    if resolved_path.exists() {
+        return resolved_path.to_string_lossy().to_string();
+    }
+
+    if let Some(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR").ok().map(PathBuf::from) {
+        let candidates = [
+            manifest_dir.join("target/wasvy/components.wit"),
+            manifest_dir.join("../target/wasvy/components.wit"),
+            manifest_dir.join("../../target/wasvy/components.wit"),
+        ];
+        for candidate in candidates {
+            if candidate.exists() {
+                return candidate.to_string_lossy().to_string();
+            }
+        }
+    }
+
+    resolved_path.to_string_lossy().to_string()
+}
+
+fn resolve_wit_path_with_fallbacks(path: &syn::LitStr) -> String {
+    let resolved_path = PathBuf::from(resolve_wit_path(path));
+    if resolved_path.exists() {
+        return resolved_path.to_string_lossy().to_string();
+    }
+
+    if let Some(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR").ok().map(PathBuf::from) {
+        let candidates = [
+            manifest_dir.join("target/wasvy/components.wit"),
+            manifest_dir.join("../target/wasvy/components.wit"),
+            manifest_dir.join("../../target/wasvy/components.wit"),
+        ];
+        for candidate in candidates {
+            if candidate.exists() {
+                return candidate.to_string_lossy().to_string();
+            }
+        }
+    }
+
     resolved_path.to_string_lossy().to_string()
 }

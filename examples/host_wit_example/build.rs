@@ -17,8 +17,12 @@ fn main() {
 
     write_wit(&manifest_dir.join("wit/components.wit"), &output);
     write_wit(&repo_root.join("target/wasvy/components.wit"), &output);
+    write_wit(&manifest_dir.join("target/wasvy/components.wit"), &output);
 
     println!("cargo:rerun-if-changed=src/components.rs");
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=wit");
+    println!("cargo:rerun-if-changed=wit/components.wit");
 }
 
 fn write_wit(path: &PathBuf, output: &str) {

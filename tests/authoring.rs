@@ -75,3 +75,37 @@ fn component_plugin_registers_type() {
 
     assert!(registry.get_with_type_path(Health::type_path()).is_some());
 }
+
+#[test]
+fn auto_registration_plugin_registers_all() {
+    let mut app = App::new();
+    app.add_plugins(WasvyAutoRegistrationPlugin);
+
+    {
+        let registry = app
+            .world()
+            .get_resource::<AppTypeRegistry>()
+            .expect("AppTypeRegistry to exist");
+        let registry = registry.read();
+        assert!(registry.get_with_type_path(Health::type_path()).is_some());
+    }
+
+    let methods = app
+        .world_mut()
+        .get_resource_mut::<MethodRegistry>()
+        .expect("MethodRegistry to exist");
+    let mut health = Health {
+        current: 2.0,
+        max: 10.0,
+    };
+    let out = methods
+        .invoke(
+            Health::type_path(),
+            "heal",
+            MethodTarget::Write(&mut health),
+            "[1.0]",
+        )
+        .unwrap();
+    assert_eq!(out, "null");
+    assert!((health.current - 3.0).abs() < f32::EPSILON);
+}

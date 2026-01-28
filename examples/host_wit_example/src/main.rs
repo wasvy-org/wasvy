@@ -27,8 +27,6 @@ fn main() {
         ))
         .add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)))
         .add_plugins(ModloaderPlugin::default().add_functionality(add_components_to_linker))
-        .add_plugins(WasvyComponentPlugin::<Health>::default())
-        .add_plugins(WasvyMethodsPlugin::<Health>::default())
         .add_plugins(WitGeneratorPlugin::default())
         .add_systems(Startup, (spawn_entities, load_mods))
         .run();

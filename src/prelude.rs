@@ -1,5 +1,8 @@
 pub use crate::access::ModAccess;
-pub use crate::authoring::{WasvyComponent, WasvyComponentPlugin, WasvyMethods, WasvyMethodsPlugin};
+pub use crate::authoring::{
+    WasvyAutoRegistrationPlugin, WasvyComponent, WasvyComponentPlugin, WasvyMethods,
+    WasvyMethodsPlugin,
+};
 pub use crate::asset::ModAsset;
 pub use crate::witgen::{WitGeneratorPlugin, WitGeneratorSettings};
 pub use crate::mods::{Mod, ModDespawnBehaviour, ModSystemSet, Mods};

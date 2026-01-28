@@ -9,13 +9,13 @@ use bevy_ecs::prelude::*;
 
 #[derive(Clone, Debug)]
 pub struct WitComponentInfo {
-    pub type_path: &'static str,
+    pub type_path: fn() -> &'static str,
     pub name: &'static str,
 }
 
 #[derive(Clone, Debug)]
 pub struct WitMethodInfo {
-    pub type_path: &'static str,
+    pub type_path: fn() -> &'static str,
     pub name: &'static str,
     pub arg_names: &'static [&'static str],
     pub arg_types: &'static [&'static str],
@@ -123,19 +123,21 @@ pub fn generate_wit(settings: &WitGeneratorSettings) -> String {
     let mut components: BTreeMap<String, ComponentEntry> = BTreeMap::new();
 
     for info in inventory::iter::<WitComponentInfo> {
+        let type_path = (info.type_path)();
         let entry = components
-            .entry(info.type_path.to_string())
+            .entry(type_path.to_string())
             .or_insert_with(ComponentEntry::default);
         entry.name = info.name.to_string();
-        entry.type_path = info.type_path.to_string();
+        entry.type_path = type_path.to_string();
     }
 
     for info in inventory::iter::<WitMethodInfo> {
+        let type_path = (info.type_path)();
         let entry = components
-            .entry(info.type_path.to_string())
+            .entry(type_path.to_string())
             .or_insert_with(ComponentEntry::default);
         if entry.type_path.is_empty() {
-            entry.type_path = info.type_path.to_string();
+            entry.type_path = type_path.to_string();
         }
         entry.methods.push(MethodEntry {
             name: info.name.to_string(),
@@ -306,14 +308,14 @@ mod tests {
 
     inventory::submit! {
         WitComponentInfo {
-            type_path: "game::Health",
+            type_path: health_type_path,
             name: "Health",
         }
     }
 
     inventory::submit! {
         WitMethodInfo {
-            type_path: "game::Health",
+            type_path: health_type_path,
             name: "heal",
             arg_names: &["amount"],
             arg_types: &["f32"],
@@ -324,13 +326,17 @@ mod tests {
 
     inventory::submit! {
         WitMethodInfo {
-            type_path: "game::Health",
+            type_path: health_type_path,
             name: "pct",
             arg_names: &[],
             arg_types: &[],
             ret: "f32",
             mutable: false,
         }
+    }
+
+    fn health_type_path() -> &'static str {
+        "game::Health"
     }
 
     #[test]

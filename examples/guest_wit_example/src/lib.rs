@@ -1,5 +1,5 @@
 mod bindings {
-    wit_bindgen::generate!({
+    wasvy_macros::guest_bindings!({
         path: ["./wit"],
         world: "component:guest-wit/example",
         with: {
@@ -12,13 +12,6 @@ mod bindings {
 use bindings::game::components::components::Health;
 use bindings::wasvy::ecs::app::{App, Query, QueryFor, Schedule, System};
 use bindings::*;
-
-wasvy_macros::guest_type_paths! {
-    path = "wit",
-    package = "game:components",
-    interface = "components",
-    module = bindings::game::components::components,
-}
 
 struct GuestComponent;
 

@@ -45,4 +45,6 @@ mod bindings {
     });
 }
 
-pub use wasvy_macros::{auto_host_components, component, guest_type_paths, method, methods};
+pub use wasvy_macros::{
+    auto_host_components, component, guest_bindings, guest_type_paths, method, methods,
+};

@@ -31,6 +31,16 @@ pub fn guest_type_paths(input: TokenStream) -> TokenStream {
     }
 }
 
+#[proc_macro]
+pub fn guest_bindings(input: TokenStream) -> TokenStream {
+    let input_tokens = proc_macro2::TokenStream::from(input.clone());
+    let args = syn::parse_macro_input!(input as GuestBindingsArgs);
+    match expand_guest_bindings(args, input_tokens) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
 #[proc_macro_attribute]
 pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as Item);
@@ -40,13 +50,26 @@ pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
         Item::Struct(item) => expand_component_struct(item, &wasvy_path),
         Item::Enum(item) => {
             let ident = &item.ident;
+            let fn_ident = format_ident!("__wasvy_component_type_path_{}", ident);
             quote! {
                 #item
 
                 impl #wasvy_path::authoring::WasvyComponent for #ident {}
 
+                #[allow(non_snake_case)]
+                fn #fn_ident() -> &'static str {
+                    const RAW: &str = concat!(module_path!(), "::", stringify!(#ident));
+                    const PREFIX: &str = "build_script_build::";
+                    if let Some(rest) = RAW.strip_prefix(PREFIX) {
+                        let fixed = format!("{}::{}", env!("CARGO_PKG_NAME"), rest);
+                        Box::leak(fixed.into_boxed_str())
+                    } else {
+                        RAW
+                    }
+                }
+
                 #wasvy_path::__wasvy_submit_component!(#wasvy_path::witgen::WitComponentInfo {
-                    type_path: concat!(module_path!(), "::", stringify!(#ident)),
+                    type_path: #fn_ident,
                     name: stringify!(#ident),
                 });
             }
@@ -119,13 +142,26 @@ pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 fn expand_component_struct(item: ItemStruct, wasvy_path: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     let ident = &item.ident;
+    let fn_ident = format_ident!("__wasvy_component_type_path_{}", ident);
     quote! {
         #item
 
         impl #wasvy_path::authoring::WasvyComponent for #ident {}
 
+        #[allow(non_snake_case)]
+        fn #fn_ident() -> &'static str {
+            const RAW: &str = concat!(module_path!(), "::", stringify!(#ident));
+            const PREFIX: &str = "build_script_build::";
+            if let Some(rest) = RAW.strip_prefix(PREFIX) {
+                let fixed = format!("{}::{}", env!("CARGO_PKG_NAME"), rest);
+                Box::leak(fixed.into_boxed_str())
+            } else {
+                RAW
+            }
+        }
+
         #wasvy_path::__wasvy_submit_component!(#wasvy_path::witgen::WitComponentInfo {
-            type_path: concat!(module_path!(), "::", stringify!(#ident)),
+            type_path: #fn_ident,
             name: stringify!(#ident),
         });
     }
@@ -182,14 +218,27 @@ fn expand_method(
         syn::ReturnType::Type(_, ty) => quote!(stringify!(#ty)),
     };
 
+    let type_fn_ident = format_ident!("__wasvy_method_type_path_{}_{}", type_ident, method_ident);
     let registration = if is_mut {
         quote! {
             registry.register_method_mut(#method_name, |target: &mut #type_ident, #args_pattern: #args_tuple| {
                 target.#method_ident(#(#arg_idents),*)
             });
 
+            #[allow(non_snake_case)]
+            fn #type_fn_ident() -> &'static str {
+                const RAW: &str = concat!(module_path!(), "::", stringify!(#type_ident));
+                const PREFIX: &str = "build_script_build::";
+                if let Some(rest) = RAW.strip_prefix(PREFIX) {
+                    let fixed = format!("{}::{}", env!("CARGO_PKG_NAME"), rest);
+                    Box::leak(fixed.into_boxed_str())
+                } else {
+                    RAW
+                }
+            }
+
             #wasvy_path::__wasvy_submit_method!(#wasvy_path::witgen::WitMethodInfo {
-                type_path: concat!(module_path!(), "::", stringify!(#type_ident)),
+                type_path: #type_fn_ident,
                 name: #method_name,
                 arg_names: &[#(#arg_name_tokens),*],
                 arg_types: &[#(#arg_type_tokens),*],
@@ -203,8 +252,20 @@ fn expand_method(
                 target.#method_ident(#(#arg_idents),*)
             });
 
+            #[allow(non_snake_case)]
+            fn #type_fn_ident() -> &'static str {
+                const RAW: &str = concat!(module_path!(), "::", stringify!(#type_ident));
+                const PREFIX: &str = "build_script_build::";
+                if let Some(rest) = RAW.strip_prefix(PREFIX) {
+                    let fixed = format!("{}::{}", env!("CARGO_PKG_NAME"), rest);
+                    Box::leak(fixed.into_boxed_str())
+                } else {
+                    RAW
+                }
+            }
+
             #wasvy_path::__wasvy_submit_method!(#wasvy_path::witgen::WitMethodInfo {
-                type_path: concat!(module_path!(), "::", stringify!(#type_ident)),
+                type_path: #type_fn_ident,
                 name: #method_name,
                 arg_names: &[#(#arg_name_tokens),*],
                 arg_types: &[#(#arg_type_tokens),*],
@@ -297,6 +358,10 @@ struct GuestTypePathsArgs {
     module: syn::Path,
 }
 
+struct GuestBindingsArgs {
+    paths: Vec<syn::LitStr>,
+}
+
 impl syn::parse::Parse for AutoHostArgs {
     fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
         let mut path = None;
@@ -357,6 +422,14 @@ impl syn::parse::Parse for GuestTypePathsArgs {
             interface: interface.ok_or_else(|| input.error("missing `interface`"))?,
             module: module.ok_or_else(|| input.error("missing `module`"))?,
         })
+    }
+}
+
+impl syn::parse::Parse for GuestBindingsArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let tokens: proc_macro2::TokenStream = input.parse()?;
+        let paths = extract_paths_from_stream(tokens)?;
+        Ok(Self { paths })
     }
 }
 
@@ -580,6 +653,62 @@ fn expand_guest_type_paths(args: GuestTypePathsArgs) -> syn::Result<proc_macro2:
     })
 }
 
+fn expand_guest_bindings(
+    args: GuestBindingsArgs,
+    input_tokens: proc_macro2::TokenStream,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let mut resolve = Resolve::default();
+    for path in &args.paths {
+        let resolved = resolve_wit_path(path);
+        resolve
+            .push_path(&resolved)
+            .map_err(|err| syn::Error::new(path.span(), err.to_string()))?;
+    }
+
+    let mut impls = Vec::new();
+
+    for (_id, interface) in resolve.interfaces.iter() {
+        let Some(package_id) = interface.package else {
+            continue;
+        };
+        let package = &resolve.packages[package_id];
+        let namespace = rust_ident(&package.name.namespace);
+        let name = rust_ident(&package.name.name);
+        let interface_name = rust_ident(interface.name.as_deref().unwrap_or("components"));
+        let module = quote!(self::#namespace::#name::#interface_name);
+
+        for (resource_name, type_id) in interface.types.iter() {
+            let type_def = &resolve.types[*type_id];
+            if !matches!(type_def.kind, TypeDefKind::Resource) {
+                continue;
+            }
+            let Some(type_path) = extract_wit_type_path(&type_def.docs) else {
+                continue;
+            };
+            let type_ident = format_ident!("{}", upper_camel(resource_name));
+            let type_path_lit = syn::LitStr::new(&type_path, proc_macro2::Span::call_site());
+            impls.push(quote! {
+                impl #module::#type_ident {
+                    pub const TYPE_PATH: &'static str = #type_path_lit;
+
+                    pub fn type_path() -> String {
+                        Self::TYPE_PATH.to_string()
+                    }
+
+                    pub fn type_path_str() -> &'static str {
+                        Self::TYPE_PATH
+                    }
+                }
+            });
+        }
+    }
+
+    Ok(quote! {
+        wit_bindgen::generate!(#input_tokens);
+        #(#impls)*
+    })
+}
+
 fn render_params(
     resolve: &Resolve,
     params: &[(String, wit_parser::Type)],
@@ -743,6 +872,86 @@ fn extract_wit_type_path(docs: &wit_parser::Docs) -> Option<String> {
         }
     }
     None
+}
+
+fn extract_paths_from_stream(stream: proc_macro2::TokenStream) -> syn::Result<Vec<syn::LitStr>> {
+    let mut paths = Vec::new();
+    collect_paths(stream, &mut paths)?;
+    if paths.is_empty() {
+        return Err(syn::Error::new(
+            proc_macro2::Span::call_site(),
+            "missing `path`",
+        ));
+    }
+    Ok(paths)
+}
+
+fn collect_paths(
+    stream: proc_macro2::TokenStream,
+    paths: &mut Vec<syn::LitStr>,
+) -> syn::Result<()> {
+    let mut iter = stream.into_iter().peekable();
+    while let Some(tt) = iter.next() {
+        match tt {
+            proc_macro2::TokenTree::Group(group) => {
+                collect_paths(group.stream(), paths)?;
+            }
+            proc_macro2::TokenTree::Ident(ident) if ident == "path" => {
+                // Skip any punctuation until ':'
+                while let Some(proc_macro2::TokenTree::Punct(p)) = iter.peek() {
+                    if p.as_char() == ':' {
+                        iter.next();
+                        break;
+                    }
+                    iter.next();
+                }
+
+                let Some(next) = iter.next() else {
+                    continue;
+                };
+                match next {
+                    proc_macro2::TokenTree::Literal(lit) => {
+                        if let Some(value) = lit_to_litstr(&lit) {
+                            paths.push(value);
+                        } else {
+                            return Err(syn::Error::new(
+                                lit.span(),
+                                "path must be a string literal or array of string literals",
+                            ));
+                        }
+                    }
+                    proc_macro2::TokenTree::Group(group)
+                        if group.delimiter() == proc_macro2::Delimiter::Bracket =>
+                    {
+                        for elem in group.stream() {
+                            if let proc_macro2::TokenTree::Literal(lit) = elem {
+                                if let Some(value) = lit_to_litstr(&lit) {
+                                    paths.push(value);
+                                } else {
+                                    return Err(syn::Error::new(
+                                        lit.span(),
+                                        "path array entries must be string literals",
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    other => {
+                        return Err(syn::Error::new(
+                            other.span(),
+                            "path must be a string literal or array of string literals",
+                        ))
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn lit_to_litstr(lit: &proc_macro2::Literal) -> Option<syn::LitStr> {
+    syn::parse_str::<syn::LitStr>(&lit.to_string()).ok()
 }
 
 fn resolve_wit_path(path: &syn::LitStr) -> String {

@@ -3,7 +3,7 @@ package game:components;
 interface components {
   use wasvy:ecs/app.{component};
 
-  /// wasvy:type-path=build_script_build::components::Health
+  /// wasvy:type-path=host_wit_example::components::Health
   resource health {
     constructor(component: component);
     pct: func() -> f32;

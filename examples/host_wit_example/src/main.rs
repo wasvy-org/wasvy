@@ -20,7 +20,11 @@ fn main() {
     asset_plugin.processed_file_path = format!("{}/assets/processed", env!("CARGO_MANIFEST_DIR"));
 
     App::new()
-        .add_plugins((TaskPoolPlugin::default(), LogPlugin::default(), asset_plugin))
+        .add_plugins((
+            TaskPoolPlugin::default(),
+            LogPlugin::default(),
+            asset_plugin,
+        ))
         .add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)))
         .add_plugins(ModloaderPlugin::default().add_functionality(add_components_to_linker))
         .add_plugins(WasvyComponentPlugin::<Health>::default())

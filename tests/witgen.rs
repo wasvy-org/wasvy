@@ -2,14 +2,14 @@ use wasvy::witgen::{self, WitComponentInfo, WitGeneratorSettings, WitMethodInfo}
 
 wasvy::witgen::inventory::submit! {
     WitComponentInfo {
-        type_path: "game::Health",
+        type_path: health_type_path,
         name: "Health",
     }
 }
 
 wasvy::witgen::inventory::submit! {
     WitMethodInfo {
-        type_path: "game::Health",
+        type_path: health_type_path,
         name: "heal",
         arg_names: &["amount"],
         arg_types: &["f32"],
@@ -20,13 +20,17 @@ wasvy::witgen::inventory::submit! {
 
 wasvy::witgen::inventory::submit! {
     WitMethodInfo {
-        type_path: "game::Health",
+        type_path: health_type_path,
         name: "pct",
         arg_names: &[],
         arg_types: &[],
         ret: "f32",
         mutable: false,
     }
+}
+
+fn health_type_path() -> &'static str {
+    "game::Health"
 }
 
 #[test]

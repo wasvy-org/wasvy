@@ -6678,6 +6678,7 @@ dependencies = [
  "wasmtime",
  "wasmtime-wasi",
  "wasvy_macros",
+ "wit-bindgen 0.50.0",
 ]
 
 [[package]]

@@ -69,6 +69,9 @@ wasmtime-wasi.workspace = true
 inventory.workspace = true
 wasvy_macros = { path = "crates/wasvy_macros" }
 
+[dev-dependencies]
+wit-bindgen.workspace = true
+
 # These lints may be important signals about code quality, but normal Bevy code
 # commonly triggers them and the CI workflow treats them as errors, so we've
 # chosen to allow them in this template.

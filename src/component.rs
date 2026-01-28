@@ -1,3 +1,8 @@
+//! Component serialization and dynamic component storage.
+//!
+//! This module handles registration and access of both native Bevy components
+//! and guest-defined components that are represented as JSON.
+
 use std::{alloc::Layout, any::TypeId};
 
 use anyhow::{Result, anyhow};
@@ -15,6 +20,7 @@ use bevy_reflect::{
 };
 use serde::de::DeserializeSeed;
 
+/// Fully-qualified type path used to identify a component type.
 pub type TypePath = String;
 
 /// Registry for storing the components that are registered from WASM assets.

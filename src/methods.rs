@@ -1,3 +1,8 @@
+//! Dynamic registration and invocation for reflected component methods.
+//!
+//! This powers the `component.invoke` WIT call by dispatching a method name +
+//! JSON arguments onto a reflected host component.
+
 use anyhow::{Result, bail};
 use bevy_ecs::resource::Resource;
 use bevy_platform::collections::HashMap;
@@ -5,6 +10,24 @@ use bevy_reflect::{Reflect, TypePath};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
+/// Registry of reflected methods keyed by component type path + method name.
+///
+/// # Example
+/// ```ignore
+/// use bevy_reflect::Reflect;
+/// use wasvy::methods::{MethodRegistry, MethodTarget};
+///
+/// #[derive(Reflect)]
+/// struct Health {
+///     current: f32,
+///     max: f32,
+/// }
+///
+/// let mut registry = MethodRegistry::default();
+/// registry.register_method_ref("pct", |health: &Health, (): ()| {
+///     health.current / health.max
+/// });
+/// ```
 #[derive(Default, Resource)]
 pub struct MethodRegistry {
     methods: HashMap<MethodKey, MethodCall>,
@@ -16,6 +39,7 @@ struct MethodKey {
     method: String,
 }
 
+/// Required access for a registered method.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MethodAccess {
     Read,
@@ -27,12 +51,17 @@ enum MethodCall {
     Write(Box<dyn Fn(&mut dyn Reflect, Value) -> Result<Value> + Send + Sync>),
 }
 
+/// Target used when invoking a method.
 pub enum MethodTarget<'a> {
     Read(&'a dyn Reflect),
     Write(&'a mut dyn Reflect),
 }
 
 impl MethodRegistry {
+    /// Register a mutable method for a component type.
+    ///
+    /// Arguments are deserialized from JSON and passed to the closure. The
+    /// return value is serialized back to JSON.
     pub fn register_method_mut<T, Args, Ret, F>(&mut self, method: impl Into<String>, f: F)
     where
         T: Reflect + TypePath + 'static,
@@ -58,6 +87,10 @@ impl MethodRegistry {
         self.methods.insert(key, MethodCall::Write(Box::new(handler)));
     }
 
+    /// Register an immutable method for a component type.
+    ///
+    /// Arguments are deserialized from JSON and passed to the closure. The
+    /// return value is serialized back to JSON.
     pub fn register_method_ref<T, Args, Ret, F>(&mut self, method: impl Into<String>, f: F)
     where
         T: Reflect + TypePath + 'static,
@@ -83,6 +116,9 @@ impl MethodRegistry {
         self.methods.insert(key, MethodCall::Read(Box::new(handler)));
     }
 
+    /// Invoke a registered method using JSON-encoded arguments.
+    ///
+    /// Returns the JSON-encoded result (or `"null"` for unit).
     pub fn invoke(
         &self,
         type_path: &str,
@@ -116,6 +152,7 @@ impl MethodRegistry {
         Ok(serde_json::to_string(&result)?)
     }
 
+    /// Return the access level required by a registered method.
     pub fn access(&self, type_path: &str, method: &str) -> Option<MethodAccess> {
         self.methods.get(&MethodKey {
             type_path: type_path.to_string(),

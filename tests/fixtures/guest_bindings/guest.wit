@@ -1,0 +1,5 @@
+package test:guest;
+
+world example {
+  import game:components/components;
+}

@@ -1,3 +1,5 @@
+//! Procedural macros for Wasvy component authoring and bindings.
+
 use proc_macro::TokenStream;
 use std::path::PathBuf;
 use proc_macro_crate::{FoundCrate, crate_name};
@@ -8,11 +10,38 @@ use syn::{
 };
 use wit_parser::{Resolve, WorldItem, FunctionKind, TypeDefKind};
 
+/// Marker attribute for methods exported by `#[wasvy::methods]`.
+///
+/// Methods without this attribute are ignored by Wasvy.
+///
+/// # Example
+/// ```ignore
+/// #[wasvy::methods]
+/// impl Health {
+///     #[wasvy::method]
+///     pub fn pct(&self) -> f32 {
+///         self.current / self.max
+///     }
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn method(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
 }
 
+/// Generate host-side bindings for the WIT components interface.
+///
+/// This expands to `wasmtime::component::bindgen!`, implements host traits
+/// for `WasmHost`, and exposes an `add_components_to_linker` helper.
+///
+/// # Example
+/// ```ignore
+/// wasvy::auto_host_components! {
+///     path = "wit",
+///     world = "host",
+///     module = components_bindings,
+/// }
+/// ```
 #[proc_macro]
 pub fn auto_host_components(input: TokenStream) -> TokenStream {
     let args = syn::parse_macro_input!(input as AutoHostArgs);
@@ -22,6 +51,20 @@ pub fn auto_host_components(input: TokenStream) -> TokenStream {
     }
 }
 
+/// Generate `type_path` helpers for guest bindings.
+///
+/// This reads `wasvy:type-path=` doc tags from resources and adds
+/// `TYPE_PATH`, `type_path()`, and `type_path_str()` helpers.
+///
+/// # Example
+/// ```ignore
+/// wasvy::guest_type_paths! {
+///     path = "wit",
+///     package = "game:components",
+///     interface = "components",
+///     module = crate::bindings,
+/// }
+/// ```
 #[proc_macro]
 pub fn guest_type_paths(input: TokenStream) -> TokenStream {
     let args = syn::parse_macro_input!(input as GuestTypePathsArgs);
@@ -31,6 +74,17 @@ pub fn guest_type_paths(input: TokenStream) -> TokenStream {
     }
 }
 
+/// Wrapper around `wit_bindgen::generate!` that also adds type-path helpers.
+///
+/// This is intended for mods so they only need to call this macro.
+///
+/// # Example
+/// ```ignore
+/// wasvy::guest_bindings!({
+///     path: "wit",
+///     world: "guest",
+/// });
+/// ```
 #[proc_macro]
 pub fn guest_bindings(input: TokenStream) -> TokenStream {
     let input_tokens = proc_macro2::TokenStream::from(input.clone());
@@ -41,6 +95,17 @@ pub fn guest_bindings(input: TokenStream) -> TokenStream {
     }
 }
 
+/// Include all Rust modules under a path that contain Wasvy macros.
+///
+/// This is primarily used in `build.rs` to ensure `inventory` sees all
+/// components/methods when generating WIT.
+///
+/// # Example
+/// ```ignore
+/// fn main() {
+///     wasvy::include_wasvy_components!("src");
+/// }
+/// ```
 #[proc_macro]
 pub fn include_wasvy_components(input: TokenStream) -> TokenStream {
     let args = syn::parse_macro_input!(input as IncludeComponentsArgs);
@@ -50,6 +115,19 @@ pub fn include_wasvy_components(input: TokenStream) -> TokenStream {
     }
 }
 
+/// Mark a type as a Wasvy component and register it for WIT generation.
+///
+/// This implements `WasvyComponent` and submits metadata to `inventory`.
+///
+/// # Example
+/// ```ignore
+/// #[wasvy::component]
+/// #[derive(Reflect)]
+/// pub struct Health {
+///     pub current: f32,
+///     pub max: f32,
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as Item);
@@ -106,6 +184,20 @@ pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Export methods from an `impl` block for Wasvy.
+///
+/// Methods tagged with `#[wasvy::method]` are registered for dynamic invoke.
+///
+/// # Example
+/// ```ignore
+/// #[wasvy::methods]
+/// impl Health {
+///     #[wasvy::method]
+///     pub fn heal(&mut self, amount: f32) {
+///         self.current = (self.current + amount).min(self.max);
+///     }
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as ItemImpl);

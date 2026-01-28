@@ -5,7 +5,7 @@ A WASM component that queries `host_wit_example::Health` and calls methods on th
 Build:
 
 ```bash
-RUSTUP_SKIP_SELF_UPDATE=1 cargo build --manifest-path examples/guest_wit_example/Cargo.toml --target wasm32-wasip2 --release
+cargo build --manifest-path examples/guest_wit_example/Cargo.toml --target wasm32-wasip2 --release
 ```
 
 Copy the output to:

@@ -3,11 +3,10 @@ package game:components;
 interface components {
   use wasvy:ecs/app.{component};
 
-  /// wasvy:type-path=host_wit_example::components::Health
+  /// wasvy:type-path=tests::fixtures::components::Health
   resource health {
     constructor(component: component);
     pct: func() -> f32;
-    heal: func(amount: f32);
   }
 }
 

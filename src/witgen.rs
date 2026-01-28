@@ -1,3 +1,9 @@
+//! WIT generation for exported Wasvy components and methods.
+//!
+//! This module gathers inventory submissions from `#[wasvy::component]` and
+//! `#[wasvy::methods]` and produces a `components.wit` description for guest
+//! bindings.
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
@@ -7,19 +13,29 @@ use std::{
 use bevy_app::{App, Plugin, Startup};
 use bevy_ecs::prelude::*;
 
+/// Inventory record for a component that should be emitted as a WIT resource.
 #[derive(Clone, Debug)]
 pub struct WitComponentInfo {
+    /// Fully-qualified Rust type path for the component.
     pub type_path: fn() -> &'static str,
+    /// Display name for the resource in WIT (falls back to the type name).
     pub name: &'static str,
 }
 
+/// Inventory record for a method that should be emitted on a WIT resource.
 #[derive(Clone, Debug)]
 pub struct WitMethodInfo {
+    /// Fully-qualified Rust type path for the component that owns the method.
     pub type_path: fn() -> &'static str,
+    /// Method name as it should appear in WIT.
     pub name: &'static str,
+    /// Rust argument identifiers (ordered).
     pub arg_names: &'static [&'static str],
+    /// Rust argument type names (ordered).
     pub arg_types: &'static [&'static str],
+    /// Rust return type name.
     pub ret: &'static str,
+    /// Whether the method requires mutable access.
     pub mutable: bool,
 }
 
@@ -42,14 +58,32 @@ macro_rules! __wasvy_submit_method {
     };
 }
 
+/// Re-exported inventory crate for proc-macro submissions.
 pub use inventory;
 
 #[derive(Resource, Clone, Debug)]
+/// Settings controlling how `components.wit` is generated.
+///
+/// # Example
+/// ```ignore
+/// use wasvy::witgen::WitGeneratorSettings;
+///
+/// let settings = WitGeneratorSettings {
+///     package: "game:components".to_string(),
+///     output_path: "target/wasvy/components.wit".into(),
+///     ..Default::default()
+/// };
+/// ```
 pub struct WitGeneratorSettings {
+    /// WIT package name (e.g. `game:components`).
     pub package: String,
+    /// Interface name that contains the component resources.
     pub interface: String,
+    /// World name that imports the interface.
     pub world: String,
+    /// Package containing the `wasvy:ecs` types.
     pub wasvy_package: String,
+    /// File path where the generated WIT should be written.
     pub output_path: PathBuf,
 }
 
@@ -65,6 +99,16 @@ impl Default for WitGeneratorSettings {
     }
 }
 
+/// Plugin that writes the generated WIT to disk at startup.
+///
+/// # Example
+/// ```ignore
+/// use bevy_app::App;
+/// use wasvy::witgen::WitGeneratorPlugin;
+///
+/// let mut app = App::new();
+/// app.add_plugins(WitGeneratorPlugin::default());
+/// ```
 pub struct WitGeneratorPlugin {
     settings: WitGeneratorSettings,
 }
@@ -78,6 +122,7 @@ impl Default for WitGeneratorPlugin {
 }
 
 impl WitGeneratorPlugin {
+    /// Create a plugin with the provided settings.
     pub fn new(settings: WitGeneratorSettings) -> Self {
         Self { settings }
     }
@@ -119,6 +164,7 @@ struct MethodEntry {
     ret: String,
 }
 
+/// Build a WIT document for all registered components and methods.
 pub fn generate_wit(settings: &WitGeneratorSettings) -> String {
     let mut components: BTreeMap<String, ComponentEntry> = BTreeMap::new();
 

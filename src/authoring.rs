@@ -1,3 +1,9 @@
+//! Component and method registration helpers for Wasvy authoring.
+//!
+//! These traits, plugins, and inventory records are used by the
+//! `#[wasvy::component]` and `#[wasvy::methods]` macros to register components
+//! and exported methods without extra boilerplate.
+
 use std::marker::PhantomData;
 
 use bevy_app::Plugin;
@@ -7,13 +13,17 @@ use bevy_reflect::{GetTypeRegistration, Reflect, TypePath};
 
 use crate::methods::MethodRegistry;
 
+/// Inventory entry that registers a component with a Bevy app.
 #[derive(Clone, Copy)]
 pub struct WasvyComponentRegistration {
+    /// Function invoked to register the component (typically registers reflect).
     pub register: fn(&mut App),
 }
 
+/// Inventory entry that registers exported methods for a component.
 #[derive(Clone, Copy)]
 pub struct WasvyMethodsRegistration {
+    /// Function invoked to register the methods in the method registry.
     pub register: fn(&mut MethodRegistry),
 }
 
@@ -36,9 +46,12 @@ macro_rules! __wasvy_submit_methods_registration {
     };
 }
 
+/// Re-exported inventory crate for proc-macro submissions.
 pub use inventory;
 
+/// Trait implemented by components that are exported to mods.
 pub trait WasvyComponent: Component + Reflect + TypePath + GetTypeRegistration {
+    /// Register the component's reflect data with the app.
     fn register(app: &mut App)
     where
         Self: Sized,
@@ -48,10 +61,13 @@ pub trait WasvyComponent: Component + Reflect + TypePath + GetTypeRegistration {
 
 }
 
+/// Trait implemented by components that export methods to mods.
 pub trait WasvyMethods: Reflect + TypePath {
+    /// Register all exported methods for this type.
     fn register_methods(registry: &mut MethodRegistry);
 }
 
+/// Plugin that registers a single component type.
 pub struct WasvyComponentPlugin<T>(PhantomData<T>);
 
 impl<T> Default for WasvyComponentPlugin<T> {
@@ -66,6 +82,7 @@ impl<T: WasvyComponent> Plugin for WasvyComponentPlugin<T> {
     }
 }
 
+/// Plugin that registers a single component's exported methods.
 pub struct WasvyMethodsPlugin<T>(PhantomData<T>);
 
 impl<T> Default for WasvyMethodsPlugin<T> {
@@ -85,6 +102,7 @@ impl<T: WasvyMethods> Plugin for WasvyMethodsPlugin<T> {
     }
 }
 
+/// Plugin that registers all components and methods submitted to inventory.
 pub struct WasvyAutoRegistrationPlugin;
 
 impl Plugin for WasvyAutoRegistrationPlugin {
@@ -93,6 +111,7 @@ impl Plugin for WasvyAutoRegistrationPlugin {
     }
 }
 
+/// Register all components and methods submitted via inventory.
 pub fn register_all(app: &mut App) {
     for registration in inventory::iter::<WasvyComponentRegistration> {
         (registration.register)(app);

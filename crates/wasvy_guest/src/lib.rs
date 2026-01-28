@@ -20,6 +20,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 
+/// Errors returned when invoking methods with JSON serialization.
 #[derive(Debug, Error)]
 pub enum InvokeError {
     #[error("failed to serialize args: {0}")]
@@ -28,10 +29,12 @@ pub enum InvokeError {
     Deserialize(serde_json::Error),
 }
 
+/// Minimal invocation surface expected from generated WIT bindings.
 pub trait ComponentInvokeRaw {
     fn invoke_raw(&self, method: &str, params: &str) -> String;
 }
 
+/// JSON-based invocation helper built on top of `ComponentInvokeRaw`.
 pub trait ComponentInvokeJson: ComponentInvokeRaw {
     fn invoke_json<Args, Ret>(&self, method: &str, args: Args) -> Result<Ret, InvokeError>
     where
@@ -48,6 +51,7 @@ pub trait ComponentInvokeJson: ComponentInvokeRaw {
 
 impl<T: ComponentInvokeRaw> ComponentInvokeJson for T {}
 
+/// Typed invocation helper (alias of the JSON helper with a clearer name).
 pub trait ComponentInvokeTyped {
     fn invoke_typed<Args, Ret>(&self, method: &str, args: Args) -> Result<Ret, InvokeError>
     where
@@ -65,6 +69,9 @@ impl<T: ComponentInvokeRaw> ComponentInvokeTyped for T {
     }
 }
 
+/// Implement `ComponentInvokeRaw` for a generated WIT resource.
+///
+/// This forwards to the resource's `invoke` method.
 #[macro_export]
 macro_rules! impl_component_invoke_raw {
     ($ty:path) => {
@@ -76,6 +83,17 @@ macro_rules! impl_component_invoke_raw {
     };
 }
 
+/// Generate a small wrapper type with typed methods that call `invoke`.
+///
+/// # Example
+/// ```ignore
+/// component_wrapper! {
+///     pub struct HealthExt(Health);
+///     impl HealthExt {
+///         fn pct() -> f32;
+///     }
+/// }
+/// ```
 #[macro_export]
 macro_rules! component_wrapper {
     (

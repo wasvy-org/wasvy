@@ -11,6 +11,10 @@ use crate::{
     runner::State,
 };
 
+/// Host-side handle for a WIT `component` resource.
+///
+/// This stores the query index + entity so dynamic method dispatch can resolve
+/// the underlying Bevy component.
 pub struct WasmComponent {
     index: ComponentIndex,
     id: QueryId,
@@ -90,6 +94,9 @@ impl HostComponent for WasmHost {
     }
 }
 
+/// Invoke a reflected component method using JSON-encoded arguments.
+///
+/// This is used by the auto-generated host bindings to implement WIT methods.
 pub fn invoke_component_method(
     host: &mut WasmHost,
     component: Resource<WasmComponent>,

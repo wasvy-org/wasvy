@@ -1,3 +1,4 @@
+pub use crate::WasvyComponent;
 pub use crate::access::ModAccess;
 pub use crate::asset::ModAsset;
 pub use crate::authoring::{

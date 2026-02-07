@@ -378,9 +378,10 @@ fn normalize_type_path(path: &str) -> String {
     };
 
     if let Some(rest) = stripped.strip_prefix("build_script_build::")
-        && let Ok(pkg) = std::env::var("CARGO_PKG_NAME") {
-            return format!("{pkg}::{rest}");
-        }
+        && let Ok(pkg) = std::env::var("CARGO_PKG_NAME")
+    {
+        return format!("{pkg}::{rest}");
+    }
 
     stripped.to_string()
 }

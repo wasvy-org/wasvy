@@ -69,7 +69,6 @@ pub struct WitGeneratorPlugin {
     settings: WitGeneratorSettings,
 }
 
-
 impl WitGeneratorPlugin {
     /// Create a plugin with the provided settings.
     pub fn new(settings: WitGeneratorSettings) -> Self {
@@ -91,10 +90,11 @@ fn write_wit(
 ) {
     let output = generate_wit(&settings, &type_registry, &function_registry);
     if let Some(parent) = settings.output_path.parent()
-        && let Err(err) = fs::create_dir_all(parent) {
-            bevy_log::error!("Failed to create WIT output dir: {err}");
-            return;
-        }
+        && let Err(err) = fs::create_dir_all(parent)
+    {
+        bevy_log::error!("Failed to create WIT output dir: {err}");
+        return;
+    }
 
     if let Err(err) = fs::write(&settings.output_path, output) {
         bevy_log::error!("Failed to write WIT file: {err}");
@@ -129,9 +129,7 @@ pub fn generate_wit(
     let mut components: BTreeMap<String, ComponentEntry> = BTreeMap::new();
 
     for type_path in index.components() {
-        let entry = components
-            .entry(type_path.to_string())
-            .or_default();
+        let entry = components.entry(type_path.to_string()).or_default();
         entry.type_path = type_path.to_string();
         if entry.name.is_empty() {
             entry.name = type_path_to_name(type_path);
@@ -140,9 +138,7 @@ pub fn generate_wit(
 
     for type_path in index.components() {
         for method in index.methods_for(type_path) {
-            let entry = components
-                .entry(type_path.to_string())
-                .or_default();
+            let entry = components.entry(type_path.to_string()).or_default();
             entry.methods.push(MethodEntry {
                 name: method.method.clone(),
                 arg_names: method.args.iter().map(|arg| arg.name.clone()).collect(),

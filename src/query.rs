@@ -76,7 +76,11 @@ impl QueryResolver {
         )
     }
 
-    fn query_for(&self, id: QueryId, index: ComponentIndex) -> Result<&QueryForComponent> {
+    pub(crate) fn query_for(
+        &self,
+        id: QueryId,
+        index: ComponentIndex,
+    ) -> Result<&QueryForComponent> {
         let id = id.0;
         self.0
             .get(id)
@@ -100,6 +104,12 @@ impl QueryIdGenerator {
 /// An index in the ParamSet of all queries for the system
 #[derive(Clone, Copy)]
 pub(crate) struct QueryId(usize);
+
+impl QueryId {
+    pub(crate) fn index(self) -> usize {
+        self.0
+    }
+}
 
 /// A cursor so we can resume iterating the query from the last position.
 #[derive(Default, Clone, Copy)]
@@ -128,7 +138,7 @@ impl QueryCursor {
 ///
 /// Note: Ignores query filters (with and without) since these are not relevant
 #[derive(Clone)]
-struct QueryForComponent {
+pub(crate) struct QueryForComponent {
     component: ComponentRef,
     mutable: bool,
 }
@@ -147,6 +157,14 @@ impl QueryForComponent {
             QueryFor::With(_) => None,
             QueryFor::Without(_) => None,
         })
+    }
+
+    pub(crate) fn component(&self) -> &ComponentRef {
+        &self.component
+    }
+
+    pub(crate) fn mutable(&self) -> bool {
+        self.mutable
     }
 }
 

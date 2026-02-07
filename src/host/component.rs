@@ -4,11 +4,17 @@ use wasmtime::component::Resource;
 
 use crate::{
     bindings::wasvy::ecs::app::{ComponentIndex, HostComponent, SerializedComponent},
+    component::{with_component_mut, with_component_ref},
     host::WasmHost,
+    methods::MethodTarget,
     query::QueryId,
     runner::State,
 };
 
+/// Host-side handle for a WIT `component` resource.
+///
+/// This stores the query index + entity so dynamic method dispatch can resolve
+/// the underlying Bevy component.
 pub struct WasmComponent {
     index: ComponentIndex,
     id: QueryId,
@@ -77,4 +83,66 @@ impl HostComponent for WasmHost {
 
         Ok(())
     }
+
+    fn invoke(
+        &mut self,
+        component: Resource<WasmComponent>,
+        method: String,
+        params: SerializedComponent,
+    ) -> Result<SerializedComponent> {
+        invoke_component_method(self, component, &method, &params)
+    }
+}
+
+/// Invoke a reflected component method using JSON-encoded arguments.
+///
+/// This is used by the auto-generated host bindings to implement WIT methods.
+pub fn invoke_component_method(
+    host: &mut WasmHost,
+    component: Resource<WasmComponent>,
+    method: &str,
+    params: &str,
+) -> Result<SerializedComponent> {
+    let State::RunSystem {
+        table,
+        queries,
+        query_resolver,
+        type_registry,
+        function_index,
+        ..
+    } = host.access()
+    else {
+        bail!("Component can only be accessed in systems")
+    };
+
+    let component = table.get(&component)?;
+    let query_for = query_resolver.query_for(component.id, component.index)?;
+    let component_ref = query_for.component();
+
+    let mut query = queries.get_mut(component.id.index());
+    let output = if query_for.mutable() {
+        let mut entity = query.get_mut(component.entity)?;
+        with_component_mut(&mut entity, component_ref, type_registry, |reflect| {
+            function_index.invoke(
+                component_ref.type_path(),
+                method,
+                MethodTarget::Write(reflect),
+                params,
+                type_registry,
+            )
+        })?
+    } else {
+        let entity = query.get(component.entity)?;
+        with_component_ref(&entity, component_ref, type_registry, |reflect| {
+            function_index.invoke(
+                component_ref.type_path(),
+                method,
+                MethodTarget::Read(reflect),
+                params,
+                type_registry,
+            )
+        })?
+    };
+
+    Ok(output)
 }

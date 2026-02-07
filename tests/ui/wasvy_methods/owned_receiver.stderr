@@ -1,0 +1,5 @@
+error: #[wasvy::methods] only supports &self or &mut self receivers; add #[wasvy::skip] or move this method to another impl
+  --> tests/ui/wasvy_methods/owned_receiver.rs:10:5
+   |
+10 |     fn consume(self) {}
+   |     ^^^^^^^^^^^^^^^^

@@ -1,0 +1,11 @@
+package component:guest-wit;
+
+world example {
+    use wasvy:ecs/app.{query, schedule, system, query-for};
+    use game:components/components.{health};
+
+    export heal-system: func(query: query);
+    export pct-system: func(query: query);
+
+    include wasvy:ecs/guest;
+}

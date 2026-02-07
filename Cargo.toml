@@ -13,7 +13,12 @@ readme.workspace = true
 publish = true
 
 [workspace]
-members = ["examples/host_example", "examples/simple"]
+members = [
+    "crates/*",
+    "examples/host_example",
+    "examples/simple",
+    "examples/guest_wit_example",
+]
 resolver = "2"
 
 [workspace.package]
@@ -31,25 +36,27 @@ readme = "README.md"
 [workspace.dependencies]
 anyhow = "1.0.99"
 bevy_asset = "0.18.0"
-bevy_app = "0.18.0"
+bevy_app = { version = "0.18.0", features = ["reflect_functions"] }
 bevy_derive = "0.18.0"
-bevy_ecs = "0.18.0"
+bevy_ecs = { version = "0.18.0", features = ["reflect_functions"] }
 bevy_log = "0.18.0"
 bevy_math = { version = "0.18.0", features = [
     "std",
     "serialize",
 ], default-features = false }
 bevy_platform = "0.18.0"
-bevy_reflect = "0.18.0"
+bevy_reflect = { version = "0.18.0", features = ["functions"] }
 bevy_transform = { version = "0.18.0", features = [
     "serialize",
 ], default-features = false }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
 thiserror = "2.0.16"
+inventory = "0.3.15"
 wasmtime = { version = "40.0.1", features = ["component-model"] }
 wasmtime-wasi = "40.0.1"
 wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
+wasvy_macros = { path = "crates/wasvy_macros" }
 
 [dependencies]
 anyhow.workspace = true
@@ -65,6 +72,12 @@ serde_json.workspace = true
 thiserror.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
+inventory.workspace = true
+wasvy_macros = { path = "crates/wasvy_macros" }
+
+[dev-dependencies]
+wit-bindgen.workspace = true
+trybuild = "1.0.111"
 
 # These lints may be important signals about code quality, but normal Bevy code
 # commonly triggers them and the CI workflow treats them as errors, so we've

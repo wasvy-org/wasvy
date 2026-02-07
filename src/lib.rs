@@ -4,13 +4,17 @@
     html_favicon_url = "https://github.com/wasvy-org/wasvy/raw/main/assets/logo.png"
 )]
 
+extern crate self as wasvy;
+
 pub mod access;
 pub mod asset;
+pub mod authoring;
 pub(crate) mod cleanup;
 pub mod component;
 pub mod engine;
 pub(crate) mod entity;
 pub mod host;
+pub mod methods;
 pub mod mods;
 pub mod plugin;
 pub mod prelude;
@@ -21,6 +25,7 @@ pub mod schedule;
 pub mod send_sync_ptr;
 pub(crate) mod setup;
 pub(crate) mod system;
+pub mod witgen;
 
 mod bindings {
     wasmtime::component::bindgen!({
@@ -41,3 +46,8 @@ mod bindings {
         },
     });
 }
+
+pub use wasvy_macros::{
+    WasvyComponent, auto_host_components, component, guest_bindings, guest_type_paths,
+    include_wasvy_components, methods, skip,
+};

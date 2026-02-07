@@ -6,17 +6,13 @@ use bevy_ecs::{
 use bevy_log::prelude::*;
 use bevy_platform::collections::HashSet;
 
-use crate::{
-    access::ModAccess,
-    asset::{AssetNotFound, ModAsset},
-    mods::Mod,
-    schedule::ModStartup,
-};
+use crate::{access::ModAccess, asset::ModAsset, mods::Mod, schedule::ModStartup};
 
 /// Group all the system params we neeed to allow shared access from one &mut world
 #[derive(SystemParam)]
 pub(crate) struct Setup<'w, 's> {
     events: MessageReader<'w, 's, AssetEvent<ModAsset>>,
+    assets: Res<'w, Assets<ModAsset>>,
     mods: Query<'w, 's, (Entity, Ref<'static, Mod>, Option<&'static Name>)>,
 }
 
@@ -31,7 +27,11 @@ pub(crate) fn run_setup(
     param: &mut SystemState<Setup>,
     mut ran_with: Local<HashSet<RanWith>>,
 ) {
-    let Setup { mut events, mods } = param.get_mut(world);
+    let Setup {
+        mut events,
+        assets,
+        mods,
+    } = param.get_mut(world);
 
     // Mod ids who's asset has been loaded (or hot-reloaded)
     let mut loaded_mods = Vec::new();
@@ -72,6 +72,12 @@ pub(crate) fn run_setup(
     }) {
         let asset_id = mod_component.asset().id();
 
+        // If the asset is not found it's okay, we will run the setup once it is.
+        // So no need to log an error
+        if assets.get(asset_id).is_none() {
+            continue;
+        }
+
         let name = name
             .map(|name| name.as_str())
             .unwrap_or("unknown")
@@ -99,17 +105,11 @@ pub(crate) fn run_setup(
     // Initiate mods with exclusive world access (runs the mod setup)
     let mut run_startup_schedule = false;
     for (asset_id, mod_id, name, accesses) in setup {
-        let Err(err) = ModAsset::initiate(world, &asset_id, mod_id, &name, &accesses[..]) else {
+        if ModAsset::initiate(world, &asset_id, mod_id, &name, &accesses[..]).is_ok() {
             info!("Successfully initialized mod \"{name}\"");
             run_startup_schedule = true;
             continue;
         };
-
-        // If the asset is not found it's okay, we will run the setup once it is.
-        // So no need to log an error
-        if !err.is::<AssetNotFound>() {
-            error!("Error initializing mod \"{name}\":\n{err:?}")
-        }
     }
 
     if run_startup_schedule {

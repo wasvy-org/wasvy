@@ -138,11 +138,7 @@ impl ModAsset {
 #[derive(Debug)]
 pub(crate) struct AssetNotFound;
 
-impl From<AssetNotFound> for anyhow::Error {
-    fn from(_: AssetNotFound) -> Self {
-        anyhow::anyhow!("Asset not found. Maybe it hasn't loaded yet.")
-    }
-}
+impl std::error::Error for AssetNotFound {}
 
 impl fmt::Display for AssetNotFound {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

@@ -1,0 +1,5 @@
+error: #[wasvy::methods] requires a self receiver; add #[wasvy::skip] or move this method to another impl
+  --> tests/ui/wasvy_methods/no_receiver.rs:10:5
+   |
+10 |     fn static_fn(amount: f32) {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^

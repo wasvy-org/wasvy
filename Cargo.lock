@@ -3407,7 +3407,7 @@ checksum = "f9e2d4c0a8296178d8802098410ca05d86b17a10bb5ab559b3fb404c1f948220"
 
 [[package]]
 name = "guest_wit_example"
-version = "0.0.0"
+version = "0.0.6"
 dependencies = [
  "serde",
  "serde_json",
@@ -3528,6 +3528,20 @@ dependencies = [
  "bevy",
  "bevy-inspector-egui",
  "bevy_egui",
+ "wasvy",
+]
+
+[[package]]
+name = "host_wit_example"
+version = "0.0.6"
+dependencies = [
+ "bevy_app",
+ "bevy_asset",
+ "bevy_ecs",
+ "bevy_log",
+ "bevy_reflect",
+ "serde_json",
+ "wasmtime",
  "wasvy",
 ]
 

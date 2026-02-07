@@ -2,16 +2,18 @@ use std::sync::Mutex;
 
 use bevy_app::prelude::*;
 use bevy_asset::prelude::*;
+use bevy_ecs::reflect::AppFunctionRegistry;
+use bevy_ecs::reflect::AppTypeRegistry;
 use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
 use bevy_log::prelude::*;
 
 use crate::{
-    authoring::register_all,
     asset::{ModAsset, ModAssetLoader},
+    authoring::register_all,
     cleanup::{DespawnModEntities, DisableSystemSet, disable_mod_system_sets},
     component::WasmComponentRegistry,
     engine::{Engine, Linker, create_linker},
-    methods::MethodRegistry,
+    methods::FunctionIndex,
     mods::{Mod, ModDespawnBehaviour},
     sandbox::Sandboxed,
     schedule::{ModSchedule, ModSchedules, ModStartup},
@@ -195,13 +197,27 @@ impl Plugin for ModloaderPlugin {
             .insert_resource(engine)
             .insert_resource(despawn_behaviour)
             .init_resource::<WasmComponentRegistry>()
-            .init_resource::<MethodRegistry>()
+            .init_resource::<AppTypeRegistry>()
+            .init_resource::<AppFunctionRegistry>()
             .insert_resource(schedules)
             .add_schedule(ModStartup::new_schedule())
             .add_message::<DisableSystemSet>()
             .add_systems(setup_schedule, (run_setup, disable_mod_system_sets));
 
         register_all(app);
+
+        let function_index = {
+            let type_registry = app
+                .world()
+                .get_resource::<AppTypeRegistry>()
+                .expect("AppTypeRegistry to be initialized");
+            let function_registry = app
+                .world()
+                .get_resource::<AppFunctionRegistry>()
+                .expect("AppFunctionRegistry to be initialized");
+            FunctionIndex::build(type_registry, function_registry)
+        };
+        app.insert_resource(function_index);
 
         app.world_mut().register_component::<Sandboxed>();
 

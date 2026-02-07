@@ -6,7 +6,7 @@ use crate::{
     bindings::wasvy::ecs::app::{ComponentIndex, HostComponent, SerializedComponent},
     component::{with_component_mut, with_component_ref},
     host::WasmHost,
-    methods::{MethodTarget},
+    methods::MethodTarget,
     query::QueryId,
     runner::State,
 };
@@ -108,7 +108,7 @@ pub fn invoke_component_method(
         queries,
         query_resolver,
         type_registry,
-        method_registry,
+        function_index,
         ..
     } = host.access()
     else {
@@ -123,21 +123,23 @@ pub fn invoke_component_method(
     let output = if query_for.mutable() {
         let mut entity = query.get_mut(component.entity)?;
         with_component_mut(&mut entity, component_ref, type_registry, |reflect| {
-            method_registry.invoke(
+            function_index.invoke(
                 component_ref.type_path(),
                 method,
                 MethodTarget::Write(reflect),
                 params,
+                type_registry,
             )
         })?
     } else {
         let entity = query.get(component.entity)?;
         with_component_ref(&entity, component_ref, type_registry, |reflect| {
-            method_registry.invoke(
+            function_index.invoke(
                 component_ref.type_path(),
                 method,
                 MethodTarget::Read(reflect),
                 params,
+                type_registry,
             )
         })?
     };

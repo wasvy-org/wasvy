@@ -1,8 +1,8 @@
 //! WIT generation for exported Wasvy components and methods.
 //!
-//! This module gathers inventory submissions from `#[wasvy::component]` and
-//! `#[wasvy::methods]` and produces a `components.wit` description for guest
-//! bindings.
+//! This module inspects the Bevy `TypeRegistry` + `FunctionRegistry` at runtime
+//! and produces a `components.wit` description for guest bindings.
+//! Argument names are sourced from `#[wasvy::methods]` metadata when available.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -12,54 +12,9 @@ use std::{
 
 use bevy_app::{App, Plugin, Startup};
 use bevy_ecs::prelude::*;
+use bevy_ecs::reflect::AppFunctionRegistry;
 
-/// Inventory record for a component that should be emitted as a WIT resource.
-#[derive(Clone, Debug)]
-pub struct WitComponentInfo {
-    /// Fully-qualified Rust type path for the component.
-    pub type_path: fn() -> &'static str,
-    /// Display name for the resource in WIT (falls back to the type name).
-    pub name: &'static str,
-}
-
-/// Inventory record for a method that should be emitted on a WIT resource.
-#[derive(Clone, Debug)]
-pub struct WitMethodInfo {
-    /// Fully-qualified Rust type path for the component that owns the method.
-    pub type_path: fn() -> &'static str,
-    /// Method name as it should appear in WIT.
-    pub name: &'static str,
-    /// Rust argument identifiers (ordered).
-    pub arg_names: &'static [&'static str],
-    /// Rust argument type names (ordered).
-    pub arg_types: &'static [&'static str],
-    /// Rust return type name.
-    pub ret: &'static str,
-    /// Whether the method requires mutable access.
-    pub mutable: bool,
-}
-
-inventory::collect!(WitComponentInfo);
-inventory::collect!(WitMethodInfo);
-
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __wasvy_submit_component {
-    ($info:expr) => {
-        $crate::witgen::inventory::submit! { $info }
-    };
-}
-
-#[doc(hidden)]
-#[macro_export]
-macro_rules! __wasvy_submit_method {
-    ($info:expr) => {
-        $crate::witgen::inventory::submit! { $info }
-    };
-}
-
-/// Re-exported inventory crate for proc-macro submissions.
-pub use inventory;
+use crate::methods::FunctionIndex;
 
 #[derive(Resource, Clone, Debug)]
 /// Settings controlling how `components.wit` is generated.
@@ -135,8 +90,12 @@ impl Plugin for WitGeneratorPlugin {
     }
 }
 
-fn write_wit(settings: Res<WitGeneratorSettings>) {
-    let output = generate_wit(&settings);
+fn write_wit(
+    settings: Res<WitGeneratorSettings>,
+    type_registry: Res<AppTypeRegistry>,
+    function_registry: Res<AppFunctionRegistry>,
+) {
+    let output = generate_wit(&settings, &type_registry, &function_registry);
     if let Some(parent) = settings.output_path.parent() {
         if let Err(err) = fs::create_dir_all(parent) {
             bevy_log::error!("Failed to create WIT output dir: {err}");
@@ -164,35 +123,53 @@ struct MethodEntry {
     ret: String,
 }
 
-/// Build a WIT document for all registered components and methods.
-pub fn generate_wit(settings: &WitGeneratorSettings) -> String {
+/// Build a WIT document for all exported components and methods.
+///
+/// Argument names are taken from `#[wasvy::methods]` metadata when available
+/// and otherwise default to `argN`.
+pub fn generate_wit(
+    settings: &WitGeneratorSettings,
+    type_registry: &AppTypeRegistry,
+    function_registry: &AppFunctionRegistry,
+) -> String {
+    let index = FunctionIndex::build(type_registry, function_registry);
     let mut components: BTreeMap<String, ComponentEntry> = BTreeMap::new();
 
-    for info in inventory::iter::<WitComponentInfo> {
-        let type_path = (info.type_path)();
+    for type_path in index.components() {
         let entry = components
             .entry(type_path.to_string())
             .or_insert_with(ComponentEntry::default);
-        entry.name = info.name.to_string();
         entry.type_path = type_path.to_string();
-    }
-
-    for info in inventory::iter::<WitMethodInfo> {
-        let type_path = (info.type_path)();
-        let entry = components
-            .entry(type_path.to_string())
-            .or_insert_with(ComponentEntry::default);
-        if entry.type_path.is_empty() {
-            entry.type_path = type_path.to_string();
+        if entry.name.is_empty() {
+            entry.name = type_path_to_name(type_path);
         }
-        entry.methods.push(MethodEntry {
-            name: info.name.to_string(),
-            arg_names: info.arg_names.iter().map(|s| s.to_string()).collect(),
-            arg_types: info.arg_types.iter().map(|s| s.to_string()).collect(),
-            ret: info.ret.to_string(),
-        });
     }
 
+    for type_path in index.components() {
+        for method in index.methods_for(type_path) {
+            let entry = components
+                .entry(type_path.to_string())
+                .or_insert_with(ComponentEntry::default);
+            entry.methods.push(MethodEntry {
+                name: method.method.clone(),
+                arg_names: method.args.iter().map(|arg| arg.name.clone()).collect(),
+                arg_types: method
+                    .args
+                    .iter()
+                    .map(|arg| arg.type_path.clone())
+                    .collect(),
+                ret: method.ret.clone(),
+            });
+        }
+    }
+
+    render_wit(settings, components)
+}
+
+fn render_wit(
+    settings: &WitGeneratorSettings,
+    components: BTreeMap<String, ComponentEntry>,
+) -> String {
     let mut out = String::new();
     out.push_str(&format!("package {};\n\n", settings.package));
     out.push_str(&format!("interface {} {{\n", settings.interface));
@@ -321,13 +298,7 @@ fn map_type(ty: &str) -> String {
         "f32" => "f32".to_string(),
         "f64" => "f64".to_string(),
         "String" | "str" => "string".to_string(),
-        other => {
-            if other.ends_with("String") {
-                "string".to_string()
-            } else {
-                "string".to_string()
-            }
-        }
+        other => unimplemented!("Type '{other}' has no known representation in wit"),
     }
 }
 
@@ -351,51 +322,52 @@ fn strip_generic<'a>(ty: &'a str, name: &str) -> Option<&'a str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy_app::App;
+    use bevy_ecs::component::Component;
+    use bevy_reflect::Reflect;
 
-    inventory::submit! {
-        WitComponentInfo {
-            type_path: health_type_path,
-            name: "Health",
-        }
+    #[derive(Component, Reflect, Default)]
+    struct Health {
+        current: f32,
+        max: f32,
     }
 
-    inventory::submit! {
-        WitMethodInfo {
-            type_path: health_type_path,
-            name: "heal",
-            arg_names: &["amount"],
-            arg_types: &["f32"],
-            ret: "()",
-            mutable: true,
+    impl Health {
+        fn heal(&mut self, amount: f32) {
+            self.current = (self.current + amount).min(self.max);
         }
-    }
 
-    inventory::submit! {
-        WitMethodInfo {
-            type_path: health_type_path,
-            name: "pct",
-            arg_names: &[],
-            arg_types: &[],
-            ret: "f32",
-            mutable: false,
+        fn pct(&self) -> f32 {
+            self.current / self.max
         }
-    }
-
-    fn health_type_path() -> &'static str {
-        "game::Health"
     }
 
     #[test]
     fn generates_wit() {
+        let mut app = App::new();
+        app.register_type::<Health>();
+        app.register_type_data::<Health, crate::authoring::WasvyExport>();
+        app.register_function(Health::heal);
+        app.register_function(Health::pct);
+
         let settings = WitGeneratorSettings::default();
-        let output = generate_wit(&settings);
+        let type_registry = app
+            .world()
+            .get_resource::<AppTypeRegistry>()
+            .expect("AppTypeRegistry");
+        let function_registry = app
+            .world()
+            .get_resource::<AppFunctionRegistry>()
+            .expect("AppFunctionRegistry");
+
+        let output = generate_wit(&settings, type_registry, function_registry);
         let wasvy_use = "use wasvy:ecs/app.{component}";
 
         assert!(output.contains(wasvy_use));
         assert!(output.contains("resource health"));
-        assert!(output.contains("wasvy:type-path=game::Health"));
+        assert!(output.contains("wasvy:type-path="));
         assert!(output.contains("constructor(component: component)"));
-        assert!(output.contains("heal: func(amount: f32)"));
+        assert!(output.contains("heal: func(arg0: f32)"));
         assert!(output.contains("pct: func() -> f32"));
         assert!(output.contains("world host"));
     }

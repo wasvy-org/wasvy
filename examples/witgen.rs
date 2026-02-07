@@ -3,11 +3,11 @@ use bevy_ecs::component::Component;
 use bevy_ecs::prelude::ReflectComponent;
 use bevy_reflect::Reflect;
 
+use wasvy::WasvyComponent;
 use wasvy::prelude::*;
 
-#[derive(Component, Reflect, Default)]
+#[derive(Component, Reflect, Default, WasvyComponent)]
 #[reflect(Component)]
-#[wasvy::component]
 struct Health {
     current: f32,
     max: f32,
@@ -15,12 +15,10 @@ struct Health {
 
 #[wasvy::methods]
 impl Health {
-    #[wasvy::method]
     fn heal(&mut self, amount: f32) {
         self.current = (self.current + amount).min(self.max);
     }
 
-    #[wasvy::method]
     fn pct(&self) -> f32 {
         self.current / self.max
     }
@@ -28,8 +26,7 @@ impl Health {
 
 fn main() {
     let mut app = App::new();
-    app.add_plugins(WasvyComponentPlugin::<Health>::default());
-    app.add_plugins(WasvyMethodsPlugin::<Health>::default());
+    app.add_plugins(WasvyAutoRegistrationPlugin);
     app.add_plugins(WitGeneratorPlugin::default());
 
     app.update();

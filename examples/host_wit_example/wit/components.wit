@@ -6,8 +6,8 @@ interface components {
   /// wasvy:type-path=host_wit_example::components::Health
   resource health {
     constructor(component: component);
-    pct: func() -> f32;
     heal: func(amount: f32);
+    pct: func() -> f32;
   }
 }
 

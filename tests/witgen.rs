@@ -1,42 +1,45 @@
-use wasvy::witgen::{self, WitComponentInfo, WitGeneratorSettings, WitMethodInfo};
+use bevy_app::App;
+use bevy_ecs::component::Component;
+use bevy_ecs::prelude::{AppFunctionRegistry, AppTypeRegistry, ReflectComponent};
+use bevy_reflect::Reflect;
 
-wasvy::witgen::inventory::submit! {
-    WitComponentInfo {
-        type_path: health_type_path,
-        name: "Health",
-    }
+use wasvy::WasvyComponent;
+use wasvy::authoring::register_all;
+use wasvy::witgen::{self, WitGeneratorSettings};
+
+#[derive(Component, Reflect, Default, WasvyComponent)]
+#[reflect(Component)]
+struct Health {
+    current: f32,
+    max: f32,
 }
 
-wasvy::witgen::inventory::submit! {
-    WitMethodInfo {
-        type_path: health_type_path,
-        name: "heal",
-        arg_names: &["amount"],
-        arg_types: &["f32"],
-        ret: "()",
-        mutable: true,
+#[wasvy::methods]
+impl Health {
+    fn heal(&mut self, amount: f32) {
+        self.current = (self.current + amount).min(self.max);
     }
-}
 
-wasvy::witgen::inventory::submit! {
-    WitMethodInfo {
-        type_path: health_type_path,
-        name: "pct",
-        arg_names: &[],
-        arg_types: &[],
-        ret: "f32",
-        mutable: false,
+    fn pct(&self) -> f32 {
+        self.current / self.max
     }
-}
-
-fn health_type_path() -> &'static str {
-    "game::Health"
 }
 
 #[test]
 fn generates_wit_resources() {
+    let mut app = App::new();
+    register_all(&mut app);
+
     let settings = WitGeneratorSettings::default();
-    let output = witgen::generate_wit(&settings);
+    let type_registry = app
+        .world()
+        .get_resource::<AppTypeRegistry>()
+        .expect("AppTypeRegistry");
+    let function_registry = app
+        .world()
+        .get_resource::<AppFunctionRegistry>()
+        .expect("AppFunctionRegistry");
+    let output = witgen::generate_wit(&settings, type_registry, function_registry);
 
     let wasvy_use = "use wasvy:ecs/app.{component}";
 
@@ -44,7 +47,7 @@ fn generates_wit_resources() {
     assert!(output.contains("interface components"));
     assert!(output.contains(wasvy_use));
     assert!(output.contains("resource health"));
-    assert!(output.contains("wasvy:type-path=game::Health"));
+    assert!(output.contains("wasvy:type-path="));
     assert!(output.contains("constructor(component: component)"));
     assert!(output.contains("heal: func(amount: f32)"));
     assert!(output.contains("pct: func() -> f32"));

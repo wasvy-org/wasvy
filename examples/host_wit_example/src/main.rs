@@ -19,7 +19,8 @@ fn main() {
     asset_plugin.file_path = format!("{}/assets", env!("CARGO_MANIFEST_DIR"));
     asset_plugin.processed_file_path = format!("{}/assets/processed", env!("CARGO_MANIFEST_DIR"));
 
-    App::new()
+    let mut app = App::new();
+    app
         .add_plugins((
             TaskPoolPlugin::default(),
             LogPlugin::default(),

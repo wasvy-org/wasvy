@@ -6682,17 +6682,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "wasvy_guest"
-version = "0.0.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror 2.0.17",
-]
-
-[[package]]
 name = "wasvy_macros"
-version = "0.0.0"
+version = "0.0.6"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",

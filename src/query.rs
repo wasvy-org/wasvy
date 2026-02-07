@@ -76,7 +76,11 @@ impl QueryResolver {
         )
     }
 
-    pub(crate) fn query_for(&self, id: QueryId, index: ComponentIndex) -> Result<&QueryForComponent> {
+    pub(crate) fn query_for(
+        &self,
+        id: QueryId,
+        index: ComponentIndex,
+    ) -> Result<&QueryForComponent> {
         let id = id.0;
         self.0
             .get(id)

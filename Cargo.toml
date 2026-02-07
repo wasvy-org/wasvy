@@ -13,7 +13,7 @@ readme.workspace = true
 publish = true
 
 [workspace]
-members = ["crates/wasvy_guest", "crates/wasvy_macros", "examples/host_example", "examples/simple"]
+members = ["crates/*", "examples/host_example", "examples/simple"]
 resolver = "2"
 
 [workspace.package]
@@ -31,16 +31,16 @@ readme = "README.md"
 [workspace.dependencies]
 anyhow = "1.0.99"
 bevy_asset = "0.18.0"
-bevy_app = "0.18.0"
+bevy_app = { version = "0.18.0", features = ["reflect_functions"] }
 bevy_derive = "0.18.0"
-bevy_ecs = "0.18.0"
+bevy_ecs = { version = "0.18.0", features = ["reflect_functions"] }
 bevy_log = "0.18.0"
 bevy_math = { version = "0.18.0", features = [
     "std",
     "serialize",
 ], default-features = false }
 bevy_platform = "0.18.0"
-bevy_reflect = "0.18.0"
+bevy_reflect = { version = "0.18.0", features = ["functions"] }
 bevy_transform = { version = "0.18.0", features = [
     "serialize",
 ], default-features = false }

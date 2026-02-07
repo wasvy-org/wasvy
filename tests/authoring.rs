@@ -1,14 +1,16 @@
 use bevy_app::App;
 use bevy_ecs::component::Component;
 use bevy_ecs::prelude::{AppTypeRegistry, ReflectComponent};
+use bevy_ecs::reflect::AppFunctionRegistry;
 use bevy_reflect::{Reflect, TypePath};
 
+use wasvy::WasvyComponent;
+use wasvy::authoring::register_all;
 use wasvy::methods::MethodTarget;
 use wasvy::prelude::*;
 
-#[derive(Component, Reflect, Default)]
+#[derive(Component, Reflect, Default, WasvyComponent)]
 #[reflect(Component)]
-#[wasvy::component]
 struct Health {
     current: f32,
     max: f32,
@@ -16,45 +18,61 @@ struct Health {
 
 #[wasvy::methods]
 impl Health {
-    #[wasvy::method]
     fn heal(&mut self, amount: f32) {
         self.current = (self.current + amount).min(self.max);
     }
 
-    #[wasvy::method]
     fn pct(&self) -> f32 {
+        self.current / self.max
+    }
+
+    #[wasvy::skip]
+    #[allow(dead_code)]
+    fn internal_ratio(&self) -> f32 {
         self.current / self.max
     }
 }
 
 #[test]
 fn methods_macro_registers() {
-    let mut registry = MethodRegistry::default();
-    Health::register_methods(&mut registry);
+    let mut app = App::new();
+    app.init_resource::<AppFunctionRegistry>();
+    register_all(&mut app);
 
     let mut health = Health {
         current: 2.0,
         max: 10.0,
     };
 
-    let out = registry
+    let type_registry = app
+        .world()
+        .get_resource::<AppTypeRegistry>()
+        .expect("AppTypeRegistry to exist");
+    let function_registry = app
+        .world()
+        .get_resource::<AppFunctionRegistry>()
+        .expect("AppFunctionRegistry to exist");
+    let index = FunctionIndex::build(type_registry, function_registry);
+    let out = index
         .invoke(
             Health::type_path(),
             "heal",
             MethodTarget::Write(&mut health),
             "[5.0]",
+            type_registry,
         )
         .unwrap();
 
     assert_eq!(out, "null");
     assert_eq!(health.current, 7.0);
 
-    let pct = registry
+    let pct = index
         .invoke(
             Health::type_path(),
             "pct",
             MethodTarget::Read(&health),
             "null",
+            type_registry,
         )
         .unwrap();
 
@@ -74,6 +92,14 @@ fn component_plugin_registers_type() {
     let registry = registry.read();
 
     assert!(registry.get_with_type_path(Health::type_path()).is_some());
+    let registration = registry
+        .get_with_type_path(Health::type_path())
+        .expect("type registration");
+    assert!(
+        registration
+            .data::<wasvy::authoring::WasvyExport>()
+            .is_some()
+    );
 }
 
 #[test]
@@ -90,22 +116,83 @@ fn auto_registration_plugin_registers_all() {
         assert!(registry.get_with_type_path(Health::type_path()).is_some());
     }
 
-    let methods = app
-        .world_mut()
-        .get_resource_mut::<MethodRegistry>()
-        .expect("MethodRegistry to exist");
+    let type_registry = app
+        .world()
+        .get_resource::<AppTypeRegistry>()
+        .expect("AppTypeRegistry to exist");
+    let function_registry = app
+        .world()
+        .get_resource::<AppFunctionRegistry>()
+        .expect("AppFunctionRegistry to exist");
+    let index = FunctionIndex::build(type_registry, function_registry);
     let mut health = Health {
         current: 2.0,
         max: 10.0,
     };
-    let out = methods
+    let out = index
         .invoke(
             Health::type_path(),
             "heal",
             MethodTarget::Write(&mut health),
             "[1.0]",
+            type_registry,
         )
         .unwrap();
     assert_eq!(out, "null");
     assert!((health.current - 3.0).abs() < f32::EPSILON);
+}
+
+#[test]
+fn skip_attribute_excludes_method() {
+    let mut app = App::new();
+    register_all(&mut app);
+
+    let type_registry = app
+        .world()
+        .get_resource::<AppTypeRegistry>()
+        .expect("AppTypeRegistry to exist");
+    let function_registry = app
+        .world()
+        .get_resource::<AppFunctionRegistry>()
+        .expect("AppFunctionRegistry to exist");
+    let index = FunctionIndex::build(type_registry, function_registry);
+
+    let health = Health {
+        current: 2.0,
+        max: 10.0,
+    };
+
+    let err = index
+        .invoke(
+            Health::type_path(),
+            "internal_ratio",
+            MethodTarget::Read(&health),
+            "null",
+            type_registry,
+        )
+        .unwrap_err();
+
+    assert!(
+        err.to_string().contains("internal_ratio"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn wit_uses_arg_names() {
+    let mut app = App::new();
+    register_all(&mut app);
+
+    let type_registry = app
+        .world()
+        .get_resource::<AppTypeRegistry>()
+        .expect("AppTypeRegistry to exist");
+    let function_registry = app
+        .world()
+        .get_resource::<AppFunctionRegistry>()
+        .expect("AppFunctionRegistry to exist");
+    let settings = wasvy::witgen::WitGeneratorSettings::default();
+    let output = wasvy::witgen::generate_wit(&settings, type_registry, function_registry);
+
+    assert!(output.contains("heal: func(amount: f32)"), "{output}");
 }

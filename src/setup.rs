@@ -6,12 +6,7 @@ use bevy_ecs::{
 use bevy_log::prelude::*;
 use bevy_platform::collections::HashSet;
 
-use crate::{
-    access::ModAccess,
-    asset::{AssetNotFound, ModAsset},
-    mods::Mod,
-    schedule::ModStartup,
-};
+use crate::{access::ModAccess, asset::ModAsset, mods::Mod, schedule::ModStartup};
 
 /// Group all the system params we neeed to allow shared access from one &mut world
 #[derive(SystemParam)]
@@ -76,6 +71,9 @@ pub(crate) fn run_setup(
         mod_component.is_changed() || loaded_mods.contains(mod_id)
     }) {
         let asset_id = mod_component.asset().id();
+
+        // If the asset is not found it's okay, we will run the setup once it is.
+        // So no need to log an error
         if assets.get(asset_id).is_none() {
             continue;
         }
@@ -107,17 +105,11 @@ pub(crate) fn run_setup(
     // Initiate mods with exclusive world access (runs the mod setup)
     let mut run_startup_schedule = false;
     for (asset_id, mod_id, name, accesses) in setup {
-        let Err(err) = ModAsset::initiate(world, &asset_id, mod_id, &name, &accesses[..]) else {
+        if ModAsset::initiate(world, &asset_id, mod_id, &name, &accesses[..]).is_ok() {
             info!("Successfully initialized mod \"{name}\"");
             run_startup_schedule = true;
             continue;
         };
-
-        // If the asset is not found it's okay, we will run the setup once it is.
-        // So no need to log an error
-        if !err.is::<AssetNotFound>() {
-            error!("Error initializing mod \"{name}\":\n{err:?}")
-        }
     }
 
     if run_startup_schedule {

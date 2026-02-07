@@ -4,9 +4,11 @@
     html_favicon_url = "https://github.com/wasvy-org/wasvy/raw/main/assets/logo.png"
 )]
 
+extern crate self as wasvy;
+
 pub mod access;
-pub mod authoring;
 pub mod asset;
+pub mod authoring;
 pub(crate) mod cleanup;
 pub mod component;
 pub mod engine;
@@ -46,6 +48,6 @@ mod bindings {
 }
 
 pub use wasvy_macros::{
-    auto_host_components, component, guest_bindings, guest_type_paths, include_wasvy_components,
-    method, methods,
+    WasvyComponent, auto_host_components, component, guest_bindings, guest_type_paths,
+    include_wasvy_components, methods, skip,
 };

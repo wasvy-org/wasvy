@@ -1,32 +1,43 @@
 //! Procedural macros for Wasvy component authoring and bindings.
 
 use proc_macro::TokenStream;
-use std::path::PathBuf;
 use proc_macro_crate::{FoundCrate, crate_name};
 use quote::{format_ident, quote};
-use syn::{
-    Attribute, FnArg, Ident, ImplItem, ImplItemFn, Item, ItemImpl, ItemStruct, Pat, PatIdent,
-    Type, TypePath,
-};
-use wit_parser::{Resolve, WorldItem, FunctionKind, TypeDefKind};
+use std::path::PathBuf;
+use syn::{Attribute, DeriveInput, Ident, ImplItem, Item, ItemImpl, ItemStruct, Type, TypePath};
+use wit_parser::{FunctionKind, Resolve, TypeDefKind, WorldItem};
 
-/// Marker attribute for methods exported by `#[wasvy::methods]`.
-///
-/// Methods without this attribute are ignored by Wasvy.
-///
-/// # Example
-/// ```ignore
-/// #[wasvy::methods]
-/// impl Health {
-///     #[wasvy::method]
-///     pub fn pct(&self) -> f32 {
-///         self.current / self.max
-///     }
-/// }
-/// ```
+/// Attribute used to skip exporting a method in a `#[wasvy::methods]` impl.
 #[proc_macro_attribute]
-pub fn method(_attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn skip(_attr: TokenStream, item: TokenStream) -> TokenStream {
     item
+}
+
+/// Derive macro to mark a type as a Wasvy-exported component.
+///
+/// This is required even for components without methods so they can be exported
+/// to mods and appear in generated WIT.
+#[proc_macro_derive(WasvyComponent)]
+pub fn derive_wasvy_component(input: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(input as DeriveInput);
+    let wasvy_path = wasvy_path();
+    let ident = &input.ident;
+    let register_ident = format_ident!("__wasvy_register_component_{}", ident);
+
+    let expanded = quote! {
+        impl #wasvy_path::authoring::WasvyComponent for #ident {}
+
+        #[allow(non_snake_case)]
+        fn #register_ident(app: &mut #wasvy_path::authoring::App) {
+            <#ident as #wasvy_path::authoring::WasvyComponent>::register(app);
+        }
+
+        #wasvy_path::__wasvy_submit_component_registration!(
+            #wasvy_path::authoring::WasvyComponentRegistration { register: #register_ident }
+        );
+    };
+
+    expanded.into()
 }
 
 /// Generate host-side bindings for the WIT components interface.
@@ -128,6 +139,7 @@ pub fn include_wasvy_components(input: TokenStream) -> TokenStream {
 ///     pub max: f32,
 /// }
 /// ```
+#[deprecated(note = "Use #[derive(WasvyComponent)] instead")]
 #[proc_macro_attribute]
 pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as Item);
@@ -137,29 +149,11 @@ pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
         Item::Struct(item) => expand_component_struct(item, &wasvy_path),
         Item::Enum(item) => {
             let ident = &item.ident;
-            let fn_ident = format_ident!("__wasvy_component_type_path_{}", ident);
             let register_ident = format_ident!("__wasvy_register_component_{}", ident);
             quote! {
                 #item
 
                 impl #wasvy_path::authoring::WasvyComponent for #ident {}
-
-                #[allow(non_snake_case)]
-                fn #fn_ident() -> &'static str {
-                    const RAW: &str = concat!(module_path!(), "::", stringify!(#ident));
-                    const PREFIX: &str = "build_script_build::";
-                    if let Some(rest) = RAW.strip_prefix(PREFIX) {
-                        let fixed = format!("{}::{}", env!("CARGO_PKG_NAME"), rest);
-                        Box::leak(fixed.into_boxed_str())
-                    } else {
-                        RAW
-                    }
-                }
-
-                #wasvy_path::__wasvy_submit_component!(#wasvy_path::witgen::WitComponentInfo {
-                    type_path: #fn_ident,
-                    name: stringify!(#ident),
-                });
 
                 #[allow(non_snake_case)]
                 fn #register_ident(app: &mut #wasvy_path::authoring::App) {
@@ -186,13 +180,14 @@ pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Export methods from an `impl` block for Wasvy.
 ///
-/// Methods tagged with `#[wasvy::method]` are registered for dynamic invoke.
+/// All `&self` / `&mut self` methods are registered for dynamic invoke, and
+/// argument names are captured for WIT generation. Use `#[wasvy::skip]` to
+/// exclude a method from export.
 ///
 /// # Example
 /// ```ignore
 /// #[wasvy::methods]
 /// impl Health {
-///     #[wasvy::method]
 ///     pub fn heal(&mut self, amount: f32) {
 ///         self.current = (self.current + amount).min(self.max);
 ///     }
@@ -218,25 +213,116 @@ pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
         .last()
         .map(|seg| seg.ident.clone())
         .unwrap();
-    let mut registrations = Vec::new();
+    let mut method_idents = Vec::new();
     let mut items = Vec::new();
+    let mut metadata_submits = Vec::new();
+    let mut errors: Option<syn::Error> = None;
 
     for item in input.items.into_iter() {
         match item {
-            ImplItem::Fn(func) if has_wasvy_method_attr(&func.attrs) => {
-                let (mut func, registration) = expand_method(func, &wasvy_path, &type_ident);
-                func.attrs.retain(|attr| !is_wasvy_method_attr(attr));
-                registrations.push(registration);
+            ImplItem::Fn(mut func) => {
+                let skip = has_wasvy_skip_attr(&func.attrs);
+                func.attrs.retain(|attr| !is_wasvy_skip_attr(attr));
+
+                if skip {
+                    items.push(ImplItem::Fn(func));
+                    continue;
+                }
+
+                match func.sig.receiver() {
+                    Some(receiver) => {
+                        if receiver.reference.is_none() {
+                            let err = syn::Error::new_spanned(
+                                &func.sig,
+                                "#[wasvy::methods] only supports &self or &mut self receivers; add #[wasvy::skip] or move this method to another impl",
+                            );
+                            if let Some(errors) = errors.as_mut() {
+                                errors.combine(err);
+                            } else {
+                                errors = Some(err);
+                            }
+                        }
+                    }
+                    None => {
+                        let err = syn::Error::new_spanned(
+                            &func.sig,
+                            "#[wasvy::methods] requires a self receiver; add #[wasvy::skip] or move this method to another impl",
+                        );
+                        if let Some(errors) = errors.as_mut() {
+                            errors.combine(err);
+                        } else {
+                            errors = Some(err);
+                        }
+                    }
+                }
+
+                if !func.sig.generics.params.is_empty() {
+                    let err = syn::Error::new_spanned(
+                        &func.sig.generics,
+                        "#[wasvy::methods] does not support generic methods; add #[wasvy::skip] or move this method to another impl",
+                    );
+                    if let Some(errors) = errors.as_mut() {
+                        errors.combine(err);
+                    } else {
+                        errors = Some(err);
+                    }
+                }
+
+                let method_ident = func.sig.ident.clone();
+                let type_path_expr = quote!(concat!(module_path!(), "::", stringify!(#type_ident)));
+                let method_lit =
+                    syn::LitStr::new(&method_ident.to_string(), proc_macro2::Span::call_site());
+                let mut arg_names = Vec::new();
+                for (idx, arg) in func.sig.inputs.iter().skip(1).enumerate() {
+                    match arg {
+                        syn::FnArg::Typed(pat) => match pat.pat.as_ref() {
+                            syn::Pat::Ident(ident) => {
+                                arg_names.push(ident.ident.to_string());
+                            }
+                            _ => {
+                                let err = syn::Error::new_spanned(
+                                    pat.pat.as_ref(),
+                                    format!(
+                                        "#[wasvy::methods] only supports identifier arguments; add #[wasvy::skip] or rename parameter {} to an identifier",
+                                        idx
+                                    ),
+                                );
+                                if let Some(errors) = errors.as_mut() {
+                                    errors.combine(err);
+                                } else {
+                                    errors = Some(err);
+                                }
+                            }
+                        },
+                        _ => {}
+                    }
+                }
+                let arg_name_lits: Vec<syn::LitStr> = arg_names
+                    .iter()
+                    .map(|name| syn::LitStr::new(name, proc_macro2::Span::call_site()))
+                    .collect();
+                let metadata_ident = format_ident!("__wasvy_args_{}_{}", type_ident, method_ident);
+
+                metadata_submits.push(quote! {
+                    #[allow(non_upper_case_globals)]
+                    const #metadata_ident: &[&str] = &[#(#arg_name_lits),*];
+                    #wasvy_path::__wasvy_submit_method_metadata!(
+                        #wasvy_path::authoring::WasvyMethodMetadata {
+                            type_path: #type_path_expr,
+                            method: #method_lit,
+                            arg_names: #metadata_ident,
+                        }
+                    );
+                });
+
+                method_idents.push(method_ident);
                 items.push(ImplItem::Fn(func));
             }
             other => items.push(other),
         }
     }
 
-    let impl_block = ItemImpl {
-        items,
-        ..input
-    };
+    let impl_block = ItemImpl { items, ..input };
 
     let register_ident = format_ident!("__wasvy_register_methods_{}", type_ident);
 
@@ -244,49 +330,42 @@ pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
         #impl_block
 
         impl #wasvy_path::authoring::WasvyMethods for #type_ident {
-            fn register_methods(registry: &mut #wasvy_path::methods::MethodRegistry) {
-                #(#registrations)*
+            fn register_methods(app: &mut #wasvy_path::authoring::App) {
+                #(
+                    app.register_function(#type_ident::#method_idents);
+                )*
             }
         }
 
         #[allow(non_snake_case)]
-        fn #register_ident(registry: &mut #wasvy_path::methods::MethodRegistry) {
-            <#type_ident as #wasvy_path::authoring::WasvyMethods>::register_methods(registry);
+        fn #register_ident(app: &mut #wasvy_path::authoring::App) {
+            <#type_ident as #wasvy_path::authoring::WasvyMethods>::register_methods(app);
         }
+
+        #(#metadata_submits)*
 
         #wasvy_path::__wasvy_submit_methods_registration!(
             #wasvy_path::authoring::WasvyMethodsRegistration { register: #register_ident }
         );
     };
 
-    expanded.into()
+    if let Some(err) = errors {
+        err.to_compile_error().into()
+    } else {
+        expanded.into()
+    }
 }
 
-fn expand_component_struct(item: ItemStruct, wasvy_path: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+fn expand_component_struct(
+    item: ItemStruct,
+    wasvy_path: &proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
     let ident = &item.ident;
-    let fn_ident = format_ident!("__wasvy_component_type_path_{}", ident);
     let register_ident = format_ident!("__wasvy_register_component_{}", ident);
     quote! {
         #item
 
         impl #wasvy_path::authoring::WasvyComponent for #ident {}
-
-        #[allow(non_snake_case)]
-        fn #fn_ident() -> &'static str {
-            const RAW: &str = concat!(module_path!(), "::", stringify!(#ident));
-            const PREFIX: &str = "build_script_build::";
-            if let Some(rest) = RAW.strip_prefix(PREFIX) {
-                let fixed = format!("{}::{}", env!("CARGO_PKG_NAME"), rest);
-                Box::leak(fixed.into_boxed_str())
-            } else {
-                RAW
-            }
-        }
-
-        #wasvy_path::__wasvy_submit_component!(#wasvy_path::witgen::WitComponentInfo {
-            type_path: #fn_ident,
-            name: stringify!(#ident),
-        });
 
         #[allow(non_snake_case)]
         fn #register_ident(app: &mut #wasvy_path::authoring::App) {
@@ -299,166 +378,15 @@ fn expand_component_struct(item: ItemStruct, wasvy_path: &proc_macro2::TokenStre
     }
 }
 
-fn expand_method(
-    func: ImplItemFn,
-    wasvy_path: &proc_macro2::TokenStream,
-    type_ident: &Ident,
-) -> (ImplItemFn, proc_macro2::TokenStream) {
-    let sig = func.sig.clone();
-    let method_ident = &sig.ident;
-
-    let mut inputs = sig.inputs.iter();
-    let receiver = inputs.next();
-
-    let receiver = match receiver {
-        Some(FnArg::Receiver(receiver)) => receiver,
-        _ => {
-            return (
-                func,
-                syn::Error::new_spanned(
-                    sig,
-                    "#[wasvy::method] requires a self receiver",
-                )
-                .to_compile_error(),
-            );
-        }
-    };
-
-    let is_mut = receiver.mutability.is_some();
-    if receiver.reference.is_none() {
-        return (
-            func,
-            syn::Error::new_spanned(
-                receiver,
-                "#[wasvy::method] requires &self or &mut self",
-            )
-            .to_compile_error(),
-        );
-    }
-
-    let (arg_idents, arg_types) = collect_args(inputs);
-    let args_tuple = tuple_type(&arg_types);
-    let args_pattern = tuple_pattern(&arg_idents);
-
-    let method_name = method_ident.to_string();
-    let arg_name_tokens = arg_idents
-        .iter()
-        .map(|ident| quote!(stringify!(#ident)));
-    let arg_type_tokens = arg_types.iter().map(|ty| quote!(stringify!(#ty)));
-    let ret_type_tokens = match &sig.output {
-        syn::ReturnType::Default => quote!("()"),
-        syn::ReturnType::Type(_, ty) => quote!(stringify!(#ty)),
-    };
-
-    let type_fn_ident = format_ident!("__wasvy_method_type_path_{}_{}", type_ident, method_ident);
-    let registration = if is_mut {
-        quote! {
-            registry.register_method_mut(#method_name, |target: &mut #type_ident, #args_pattern: #args_tuple| {
-                target.#method_ident(#(#arg_idents),*)
-            });
-
-            #[allow(non_snake_case)]
-            fn #type_fn_ident() -> &'static str {
-                const RAW: &str = concat!(module_path!(), "::", stringify!(#type_ident));
-                const PREFIX: &str = "build_script_build::";
-                if let Some(rest) = RAW.strip_prefix(PREFIX) {
-                    let fixed = format!("{}::{}", env!("CARGO_PKG_NAME"), rest);
-                    Box::leak(fixed.into_boxed_str())
-                } else {
-                    RAW
-                }
-            }
-
-            #wasvy_path::__wasvy_submit_method!(#wasvy_path::witgen::WitMethodInfo {
-                type_path: #type_fn_ident,
-                name: #method_name,
-                arg_names: &[#(#arg_name_tokens),*],
-                arg_types: &[#(#arg_type_tokens),*],
-                ret: #ret_type_tokens,
-                mutable: true,
-            });
-        }
-    } else {
-        quote! {
-            registry.register_method_ref(#method_name, |target: &#type_ident, #args_pattern: #args_tuple| {
-                target.#method_ident(#(#arg_idents),*)
-            });
-
-            #[allow(non_snake_case)]
-            fn #type_fn_ident() -> &'static str {
-                const RAW: &str = concat!(module_path!(), "::", stringify!(#type_ident));
-                const PREFIX: &str = "build_script_build::";
-                if let Some(rest) = RAW.strip_prefix(PREFIX) {
-                    let fixed = format!("{}::{}", env!("CARGO_PKG_NAME"), rest);
-                    Box::leak(fixed.into_boxed_str())
-                } else {
-                    RAW
-                }
-            }
-
-            #wasvy_path::__wasvy_submit_method!(#wasvy_path::witgen::WitMethodInfo {
-                type_path: #type_fn_ident,
-                name: #method_name,
-                arg_names: &[#(#arg_name_tokens),*],
-                arg_types: &[#(#arg_type_tokens),*],
-                ret: #ret_type_tokens,
-                mutable: false,
-            });
-        }
-    };
-
-    (func, registration)
+fn has_wasvy_skip_attr(attrs: &[Attribute]) -> bool {
+    attrs.iter().any(is_wasvy_skip_attr)
 }
 
-fn collect_args<'a>(inputs: impl Iterator<Item = &'a FnArg>) -> (Vec<Ident>, Vec<Type>) {
-    let mut arg_idents = Vec::new();
-    let mut arg_types = Vec::new();
-
-    for (idx, arg) in inputs.enumerate() {
-        let FnArg::Typed(pat_type) = arg else {
-            continue;
-        };
-
-        let ident = match &*pat_type.pat {
-            Pat::Ident(PatIdent { ident, .. }) => ident.clone(),
-            _ => format_ident!("arg{idx}"),
-        };
-
-        arg_idents.push(ident);
-        arg_types.push((*pat_type.ty).clone());
-    }
-
-    (arg_idents, arg_types)
-}
-
-fn tuple_type(types: &[Type]) -> Type {
-    if types.is_empty() {
-        syn::parse_quote!(())
-    } else if types.len() == 1 {
-        let ty = &types[0];
-        syn::parse_quote!((#ty,))
-    } else {
-        syn::parse_quote!((#(#types),*))
-    }
-}
-
-fn tuple_pattern(idents: &[Ident]) -> Pat {
-    if idents.is_empty() {
-        syn::parse_quote!(())
-    } else if idents.len() == 1 {
-        let ident = &idents[0];
-        syn::parse_quote!((#ident,))
-    } else {
-        syn::parse_quote!((#(#idents),*))
-    }
-}
-
-fn has_wasvy_method_attr(attrs: &[Attribute]) -> bool {
-    attrs.iter().any(is_wasvy_method_attr)
-}
-
-fn is_wasvy_method_attr(attr: &Attribute) -> bool {
-    attr.path().segments.last().is_some_and(|seg| seg.ident == "method")
+fn is_wasvy_skip_attr(attr: &Attribute) -> bool {
+    attr.path()
+        .segments
+        .last()
+        .is_some_and(|seg| seg.ident == "skip")
 }
 
 fn extract_type_path(ty: &Type) -> Option<&TypePath> {
@@ -512,7 +440,10 @@ impl syn::parse::Parse for AutoHostArgs {
                 "world" => world = Some(input.parse()?),
                 "module" => module = Some(input.parse()?),
                 other => {
-                    return Err(syn::Error::new(key.span(), format!("unknown key `{other}`")));
+                    return Err(syn::Error::new(
+                        key.span(),
+                        format!("unknown key `{other}`"),
+                    ));
                 }
             }
 
@@ -524,7 +455,9 @@ impl syn::parse::Parse for AutoHostArgs {
         Ok(Self {
             path: path.ok_or_else(|| input.error("missing `path`"))?,
             world: world.ok_or_else(|| input.error("missing `world`"))?,
-            module: module.unwrap_or_else(|| Ident::new("components_bindings", proc_macro2::Span::call_site())),
+            module: module.unwrap_or_else(|| {
+                Ident::new("components_bindings", proc_macro2::Span::call_site())
+            }),
         })
     }
 }
@@ -609,9 +542,13 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
             }
             _ => None,
         })
-        .ok_or_else(|| syn::Error::new(args.world.span(), "missing `components` interface import"))?;
+        .ok_or_else(|| {
+            syn::Error::new(args.world.span(), "missing `components` interface import")
+        })?;
     let interface = &resolve.interfaces[interface_id];
-    let package_id = interface.package.ok_or_else(|| syn::Error::new(args.world.span(), "interface has no package"))?;
+    let package_id = interface
+        .package
+        .ok_or_else(|| syn::Error::new(args.world.span(), "interface has no package"))?;
     let package = &resolve.packages[package_id];
 
     let pkg_namespace = rust_ident(&package.name.namespace.to_string());
@@ -637,7 +574,8 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
         with_entries.push(quote!(#lit: #wasvy_path::host::WasmComponent));
     }
 
-    let wasvy_component = syn::LitStr::new("wasvy:ecs/app.component", proc_macro2::Span::call_site());
+    let wasvy_component =
+        syn::LitStr::new("wasvy:ecs/app.component", proc_macro2::Span::call_site());
     with_entries.push(quote!(#wasvy_component: #wasvy_path::host::WasmComponent));
 
     let mut impls = Vec::new();
@@ -654,7 +592,8 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
             match function.kind {
                 FunctionKind::Constructor(id) if id == *type_id => {
                     let params = render_params(&resolve, &function.params, &wasvy_path, true);
-                    let ret_tokens = quote!(::wasmtime::component::Resource<#wasvy_path::host::WasmComponent>);
+                    let ret_tokens =
+                        quote!(::wasmtime::component::Resource<#wasvy_path::host::WasmComponent>);
                     let body = quote!(component);
                     methods.push(quote! {
                         fn new(&mut self, #params) -> #ret_tokens {
@@ -667,7 +606,12 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
                     let method_ident = rust_ident(&method_name);
                     let params = render_params(&resolve, &function.params, &wasvy_path, false);
                     let ret = render_return(&resolve, function.result.as_ref(), &wasvy_path);
-                    let invoke = render_invoke_body(&method_name, &function.params, function.result.as_ref(), &wasvy_path);
+                    let invoke = render_invoke_body(
+                        &method_name,
+                        &function.params,
+                        function.result.as_ref(),
+                        &wasvy_path,
+                    );
                     methods.push(quote! {
                         fn #method_ident(&mut self, #params) #ret {
                             #invoke
@@ -685,7 +629,8 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
             }
         });
 
-        let trait_path = quote!(#module_ident::#pkg_namespace::#pkg_name::#interface_name::#trait_ident);
+        let trait_path =
+            quote!(#module_ident::#pkg_namespace::#pkg_name::#interface_name::#trait_ident);
         impls.push(quote! {
             impl #trait_path for #wasvy_path::host::WasmHost {
                 #(#methods)*
@@ -694,7 +639,8 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
     }
 
     let trait_host_path = quote!(#module_ident::#pkg_namespace::#pkg_name::#interface_name::Host);
-    let add_to_linker_path = quote!(#module_ident::#pkg_namespace::#pkg_name::#interface_name::add_to_linker);
+    let add_to_linker_path =
+        quote!(#module_ident::#pkg_namespace::#pkg_name::#interface_name::add_to_linker);
 
     let expanded = quote! {
         mod #module_ident {
@@ -867,8 +813,8 @@ fn expand_include_components(args: IncludeComponentsArgs) -> syn::Result<proc_ma
         if !contains_wasvy_attr(&contents) {
             continue;
         }
-        let segments = module_segments(&base, path)
-            .map_err(|err| syn::Error::new(args.path.span(), err))?;
+        let segments =
+            module_segments(&base, path).map_err(|err| syn::Error::new(args.path.span(), err))?;
         root.insert(&segments, path.clone());
     }
 
@@ -884,7 +830,9 @@ fn render_params(
 ) -> proc_macro2::TokenStream {
     let mut out = Vec::new();
     if !is_constructor {
-        out.push(quote!(component: ::wasmtime::component::Resource<#wasvy_path::host::WasmComponent>));
+        out.push(
+            quote!(component: ::wasmtime::component::Resource<#wasvy_path::host::WasmComponent>),
+        );
     }
     for (name, ty) in params.iter().filter(|(name, _)| name != "self") {
         let ident = rust_ident(name);
@@ -1107,7 +1055,7 @@ fn collect_paths(
                         return Err(syn::Error::new(
                             other.span(),
                             "path must be a string literal or array of string literals",
-                        ))
+                        ));
                     }
                 }
             }
@@ -1141,7 +1089,9 @@ fn collect_rs_files(dir: &PathBuf, out: &mut Vec<PathBuf>) -> std::io::Result<()
 }
 
 fn contains_wasvy_attr(contents: &str) -> bool {
-    contents.contains("wasvy::component") || contents.contains("wasvy::methods")
+    contents.contains("wasvy::component")
+        || contents.contains("wasvy::methods")
+        || contents.contains("WasvyComponent")
 }
 
 #[derive(Default)]
@@ -1198,9 +1148,10 @@ fn module_segments(base: &PathBuf, file: &PathBuf) -> Result<Vec<String>, String
     let rel = file
         .strip_prefix(base)
         .map_err(|_| "file is not under base path".to_string())?;
-    let file_name = rel.file_name().and_then(|s| s.to_str()).ok_or_else(|| {
-        format!("invalid utf-8 path: {}", file.to_string_lossy())
-    })?;
+    let file_name = rel
+        .file_name()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| format!("invalid utf-8 path: {}", file.to_string_lossy()))?;
 
     let mut segments: Vec<String> = rel
         .parent()

@@ -1,10 +1,9 @@
 <div align="center">
-
-<img src="assets/logo.png" alt="@wasvy logo" height="320px"/>
-
+<img src="assets/banner.png" alt="Wasvy banner art"/>
 </div>
+<p align="right">Thanks <a href="https://pencartstudio.carrd.co">AreKayHen</a> for the lovely banner art!</p>
 
-# Wasvy - WASI Integration for [Bevy](https://bevy.org/) (Just hatched! 🪺)
+# Wasvy - WASI Modding for [Bevy](https://bevy.org/) (Just hatched! 🪺)
 
 [![License](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](https://github.com/wasvy-org/wasvy#license)
 [![Crates.io](https://img.shields.io/crates/v/wasvy.svg)](https://crates.io/crates/wasvy)
@@ -305,10 +304,12 @@ Please make sure to:
 
 ## License
 
-This project is dual-licensed under either:
+This project (all code and files, excluding the assets directory) is dual-licensed under either:
 
 - MIT License ([LICENSE-MIT](LICENSE-MIT))
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+
+The banner is by [AreKayHen, Copyright 2026](https://pencartstudio.carrd.co).
 
 ## Your contributions
 

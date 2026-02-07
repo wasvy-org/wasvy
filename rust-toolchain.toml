@@ -1,4 +1,12 @@
 [toolchain]
 channel = "1.89.0"
-components = ["cargo", "llvm-tools", "rustc", "rust-src", "rustfmt", "clippy"]
+components = [
+    "cargo",
+    "llvm-tools",
+    "rustc",
+    "rust-src",
+    "rustfmt",
+    "clippy",
+    "rust-analyzer",
+]
 targets = ["wasm32-wasip2"]

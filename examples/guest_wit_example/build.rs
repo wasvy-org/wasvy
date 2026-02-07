@@ -28,9 +28,7 @@ fn main() {
                 println!("cargo:warning=failed to copy generated WIT: {err}");
             }
         } else {
-            println!(
-                "cargo:warning=generated WIT missing wasvy:type-path, using checked-in copy"
-            );
+            println!("cargo:warning=generated WIT missing wasvy:type-path, using checked-in copy");
         }
     } else {
         println!(

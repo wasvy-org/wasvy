@@ -20,17 +20,16 @@ fn main() {
     asset_plugin.processed_file_path = format!("{}/assets/processed", env!("CARGO_MANIFEST_DIR"));
 
     let mut app = App::new();
-    app
-        .add_plugins((
-            TaskPoolPlugin::default(),
-            LogPlugin::default(),
-            asset_plugin,
-        ))
-        .add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)))
-        .add_plugins(ModloaderPlugin::default().add_functionality(add_components_to_linker))
-        .add_plugins(WitGeneratorPlugin::default())
-        .add_systems(Startup, (spawn_entities, load_mods))
-        .run();
+    app.add_plugins((
+        TaskPoolPlugin::default(),
+        LogPlugin::default(),
+        asset_plugin,
+    ))
+    .add_plugins(ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)))
+    .add_plugins(ModloaderPlugin::default().add_functionality(add_components_to_linker))
+    .add_plugins(WitGeneratorPlugin::default())
+    .add_systems(Startup, (spawn_entities, load_mods))
+    .run();
 }
 
 fn spawn_entities(mut commands: Commands) {

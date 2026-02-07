@@ -57,7 +57,7 @@ inventory = "0.3.15"
 wasmtime = { version = "40.0.1", features = ["component-model"] }
 wasmtime-wasi = "40.0.1"
 wasvy = { path = "./" }
-wasvy_macros = { version = "*", path = "crates/wasvy_macros" }
+wasvy_macros = { version = "0.0.7", path = "crates/wasvy_macros" }
 wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
 
 [dependencies]

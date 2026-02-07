@@ -196,3 +196,139 @@ fn wit_uses_arg_names() {
 
     assert!(output.contains("heal: func(amount: f32)"), "{output}");
 }
+
+#[test]
+fn invoke_errors_on_missing_method() {
+    let mut app = App::new();
+    register_all(&mut app);
+
+    let mut health = Health {
+        current: 1.0,
+        max: 2.0,
+    };
+
+    let type_registry = app
+        .world()
+        .get_resource::<AppTypeRegistry>()
+        .expect("AppTypeRegistry to exist");
+    let function_registry = app
+        .world()
+        .get_resource::<AppFunctionRegistry>()
+        .expect("AppFunctionRegistry to exist");
+    let index = FunctionIndex::build(type_registry, function_registry);
+
+    let err = index
+        .invoke(
+            Health::type_path(),
+            "missing",
+            MethodTarget::Write(&mut health),
+            "[]",
+            type_registry,
+        )
+        .unwrap_err();
+
+    assert!(err.to_string().contains("Unknown method"));
+}
+
+#[test]
+fn invoke_errors_on_wrong_access() {
+    let mut app = App::new();
+    register_all(&mut app);
+
+    let health = Health {
+        current: 1.0,
+        max: 2.0,
+    };
+
+    let type_registry = app
+        .world()
+        .get_resource::<AppTypeRegistry>()
+        .expect("AppTypeRegistry to exist");
+    let function_registry = app
+        .world()
+        .get_resource::<AppFunctionRegistry>()
+        .expect("AppFunctionRegistry to exist");
+    let index = FunctionIndex::build(type_registry, function_registry);
+
+    let err = index
+        .invoke(
+            Health::type_path(),
+            "heal",
+            MethodTarget::Read(&health),
+            "[1.0]",
+            type_registry,
+        )
+        .unwrap_err();
+
+    assert!(err.to_string().contains("requires mutable access"));
+}
+
+#[test]
+fn invoke_errors_on_arg_count_mismatch() {
+    let mut app = App::new();
+    register_all(&mut app);
+
+    let mut health = Health {
+        current: 1.0,
+        max: 2.0,
+    };
+
+    let type_registry = app
+        .world()
+        .get_resource::<AppTypeRegistry>()
+        .expect("AppTypeRegistry to exist");
+    let function_registry = app
+        .world()
+        .get_resource::<AppFunctionRegistry>()
+        .expect("AppFunctionRegistry to exist");
+    let index = FunctionIndex::build(type_registry, function_registry);
+
+    let err = index
+        .invoke(
+            Health::type_path(),
+            "heal",
+            MethodTarget::Write(&mut health),
+            "[]",
+            type_registry,
+        )
+        .unwrap_err();
+
+    assert!(err.to_string().contains("expects"));
+}
+
+#[test]
+fn invoke_errors_on_bad_json() {
+    let mut app = App::new();
+    register_all(&mut app);
+
+    let mut health = Health {
+        current: 1.0,
+        max: 2.0,
+    };
+
+    let type_registry = app
+        .world()
+        .get_resource::<AppTypeRegistry>()
+        .expect("AppTypeRegistry to exist");
+    let function_registry = app
+        .world()
+        .get_resource::<AppFunctionRegistry>()
+        .expect("AppFunctionRegistry to exist");
+    let index = FunctionIndex::build(type_registry, function_registry);
+
+    let err = index
+        .invoke(
+            Health::type_path(),
+            "heal",
+            MethodTarget::Write(&mut health),
+            "[",
+            type_registry,
+        )
+        .unwrap_err();
+
+    let message = err.to_string().to_lowercase();
+    assert!(
+        message.contains("parse") || message.contains("eof") || message.contains("json"),
+        "unexpected error: {err}"
+    );
+}

@@ -431,6 +431,36 @@ mod tests {
         }
     }
 
+    #[derive(Component, Reflect, Default, WasvyComponent)]
+    #[reflect(Component)]
+    struct FallbackHealth {
+        current: f32,
+        max: f32,
+    }
+
+    impl FallbackHealth {
+        fn heal(&mut self, amount: f32) {
+            self.current = (self.current + amount).min(self.max);
+        }
+    }
+
+    #[derive(Component, Reflect, Default, WasvyComponent)]
+    #[reflect(Component)]
+    struct OverloadedHealth {
+        current: f32,
+        max: f32,
+    }
+
+    impl OverloadedHealth {
+        fn heal_i32(&mut self, amount: i32) {
+            self.current = (self.current + amount as f32).min(self.max);
+        }
+
+        fn heal_f32(&mut self, amount: f32) {
+            self.current = (self.current + amount).min(self.max);
+        }
+    }
+
     inventory::submit! {
         WasvyMethodMetadata {
             type_path: "build_script_build::methods::tests::BuildScriptHealth",
@@ -506,5 +536,79 @@ mod tests {
             .expect("heal entry");
 
         assert_eq!(entry.args[0].name, "amount");
+    }
+
+    #[test]
+    fn build_skips_non_exported_components() {
+        let mut app = App::new();
+        app.init_resource::<AppFunctionRegistry>();
+        app.register_type::<BuildScriptHealth>();
+        app.register_function(BuildScriptHealth::heal);
+
+        let type_registry = app
+            .world()
+            .get_resource::<AppTypeRegistry>()
+            .expect("AppTypeRegistry");
+        let function_registry = app
+            .world()
+            .get_resource::<AppFunctionRegistry>()
+            .expect("AppFunctionRegistry");
+        let index = FunctionIndex::build(type_registry, function_registry);
+
+        assert!(index.get(BuildScriptHealth::type_path(), "heal").is_none());
+    }
+
+    #[test]
+    fn arg_names_fallback_to_arg_index() {
+        let mut app = App::new();
+        register_all(&mut app);
+        app.register_function(FallbackHealth::heal);
+
+        let type_registry = app
+            .world()
+            .get_resource::<AppTypeRegistry>()
+            .expect("AppTypeRegistry");
+        let function_registry = app
+            .world()
+            .get_resource::<AppFunctionRegistry>()
+            .expect("AppFunctionRegistry");
+        let index = FunctionIndex::build(type_registry, function_registry);
+
+        let entry = index
+            .get(FallbackHealth::type_path(), "heal")
+            .expect("heal entry");
+
+        assert_eq!(entry.args[0].name, "arg0");
+    }
+
+    #[test]
+    fn build_skips_overloaded_functions() {
+        use bevy_reflect::func::IntoFunction;
+
+        let mut app = App::new();
+        register_all(&mut app);
+
+        let function_registry = app
+            .world()
+            .get_resource::<AppFunctionRegistry>()
+            .expect("AppFunctionRegistry");
+
+        let mut func = OverloadedHealth::heal_i32
+            .into_function()
+            .with_name("OverloadedHealth::heal");
+        func = func.with_overload(OverloadedHealth::heal_f32);
+
+        function_registry
+            .write()
+            .register(func)
+            .expect("register overload");
+
+        let type_registry = app
+            .world()
+            .get_resource::<AppTypeRegistry>()
+            .expect("AppTypeRegistry");
+        let index = FunctionIndex::build(type_registry, function_registry);
+
+        assert!(index.get(OverloadedHealth::type_path(), "heal").is_none());
     }
 }

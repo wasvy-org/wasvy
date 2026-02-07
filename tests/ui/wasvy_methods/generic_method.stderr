@@ -1,0 +1,5 @@
+error: #[wasvy::methods] does not support generic methods; add #[wasvy::skip] or move this method to another impl
+  --> tests/ui/wasvy_methods/generic_method.rs:10:15
+   |
+10 |     fn generic<T>(&self, _value: T) {}
+   |               ^^^

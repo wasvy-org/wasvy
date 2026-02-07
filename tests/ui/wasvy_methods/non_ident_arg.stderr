@@ -1,0 +1,5 @@
+error: #[wasvy::methods] only supports identifier arguments; add #[wasvy::skip] or rename parameter 0 to an identifier
+  --> tests/ui/wasvy_methods/non_ident_arg.rs:10:25
+   |
+10 |     fn tuple_arg(&self, (_x, _y): (i32, i32)) {}
+   |                         ^^^^^^^^

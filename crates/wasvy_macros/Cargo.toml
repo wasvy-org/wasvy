@@ -1,8 +1,15 @@
 [package]
 name = "wasvy_macros"
-version = "0.0.6"
-edition = "2024"
-publish = false
+authors.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
 
 [lib]
 proc-macro = true

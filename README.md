@@ -160,7 +160,7 @@ world example {
 
 > Warning: Due to [#40](https://github.com/wasvy-org/wasvy/issues/40) `wkg wit fetch` will pull the old version 0.0.5.
 >
-> For the latest version (v0.0.6) download and add the [wit/ecs/ecs.wit](https://docs.rs/crate/wasvy/0.0.6/source/wit/ecs/ecs.wit) file inside your wit folder manually like so (any file in this `deps` folder should be picked up during compile-time).
+> For the latest version (v0.0.7) download and add the [wit/ecs/ecs.wit](https://docs.rs/crate/wasvy/0.0.7/source/wit/ecs/ecs.wit) file inside your wit folder manually like so (any file in this `deps` folder should be picked up during compile-time).
 >
 > <img width="306" height="172" alt="Image" src="https://github.com/user-attachments/assets/9e238e43-01da-4653-af44-26462c33be24" />
 

@@ -1,7 +1,15 @@
 [package]
 name = "guest_wit_example"
-version = "0.0.0"
-edition = "2024"
+authors.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme = "README.md"
 publish = false
 build = "build.rs"
 
@@ -9,7 +17,7 @@ build = "build.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
-serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.143"
+wit-bindgen.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 wasvy_macros.workspace = true

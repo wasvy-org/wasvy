@@ -15,9 +15,10 @@ publish = true
 [workspace]
 members = [
     "crates/*",
-    "examples/host_example",
-    "examples/simple",
     "examples/guest_wit_example",
+    "examples/host_example",
+    "examples/host_wit_example",
+    "examples/simple",
 ]
 resolver = "2"
 
@@ -55,8 +56,9 @@ thiserror = "2.0.16"
 inventory = "0.3.15"
 wasmtime = { version = "40.0.1", features = ["component-model"] }
 wasmtime-wasi = "40.0.1"
-wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
+wasvy = { path = "./" }
 wasvy_macros = { path = "crates/wasvy_macros" }
+wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
 
 [dependencies]
 anyhow.workspace = true
@@ -73,7 +75,7 @@ thiserror.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
 inventory.workspace = true
-wasvy_macros = { path = "crates/wasvy_macros" }
+wasvy_macros.workspace = true
 
 [dev-dependencies]
 wit-bindgen.workspace = true

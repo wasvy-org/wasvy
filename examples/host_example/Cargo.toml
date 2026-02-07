@@ -13,7 +13,7 @@ readme.workspace = true
 
 [dependencies]
 # Replace in your own project:
-wasvy = { path = "../../" } # wasvy = "0.0"
+wasvy.workspace = true # wasvy = "0.0"
 
 bevy = { version = "0.18.0", features = [
     "wayland",

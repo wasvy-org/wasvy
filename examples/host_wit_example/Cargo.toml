@@ -1,24 +1,32 @@
 [package]
 name = "host_wit_example"
-version = "0.0.0"
-edition = "2024"
+authors.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme = "README.md"
 publish = false
 build = "build.rs"
 
 [dependencies]
-wasvy = { path = "../../" }
-bevy_app = { version = "0.18.0", features = ["reflect_functions"] }
-bevy_asset = "0.18.0"
-bevy_ecs = { version = "0.18.0", features = ["reflect_functions"] }
-bevy_log = "0.18.0"
-bevy_reflect = { version = "0.18.0", features = ["functions"] }
-serde_json = "1.0.143"
-wasmtime = { version = "40.0.1", features = ["component-model"] }
+# Replace in your own project:
+wasvy.workspace = true # wasvy = "0.0"
+
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_ecs.workspace = true
+bevy_log.workspace = true
+bevy_reflect.workspace = true
+serde_json.workspace = true
+wasmtime.workspace = true
 
 [build-dependencies]
-wasvy = { path = "../../" }
-bevy_app = { version = "0.18.0", features = ["reflect_functions"] }
-bevy_ecs = { version = "0.18.0", features = ["reflect_functions"] }
-bevy_reflect = { version = "0.18.0", features = ["functions"] }
-
-[workspace]
+wasvy.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_reflect.workspace = true

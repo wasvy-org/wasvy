@@ -3406,6 +3406,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9e2d4c0a8296178d8802098410ca05d86b17a10bb5ab559b3fb404c1f948220"
 
 [[package]]
+name = "guest_wit_example"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "wasvy_macros",
+ "wit-bindgen 0.50.0",
+]
+
+[[package]]
 name = "guillotiere"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

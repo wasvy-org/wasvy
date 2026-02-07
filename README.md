@@ -156,13 +156,20 @@ world example {
 }
 ```
 
-4. Fetch the Wasvy WIT files from the registry:
+4. Fetch the Wasvy WIT files:
+
+> Warning: Due to [#40](https://github.com/wasvy-org/wasvy/issues/40) `wkg wit fetch` will pull the old version 0.0.5.
+>
+> For the latest version (v0.0.6) download and add the [wit/ecs/ecs.wit](https://docs.rs/crate/wasvy/0.0.6/source/wit/ecs/ecs.wit) file inside your wit folder manually like so (any file in this `deps` folder should be picked up during compile-time).
+>
+> <img width="306" height="172" alt="Image" src="https://github.com/user-attachments/assets/9e238e43-01da-4653-af44-26462c33be24" />
 
 ```bash
+# Will fetch version 0.0.5
 wkg wit fetch
 ```
 
-This will automatically fetch the latest version of `wasvy:ecs` from [wa.dev](https://wa.dev/wasvy:ecs) and add it to your `wit` folder. You can also copy them directly from the [source](/wit/ecs/ecs.wit).
+This will automatically fetch the ~~latest version~~ of `wasvy:ecs` from [wa.dev](https://wa.dev/wasvy:ecs) and add it to your `wit` folder. You can also copy them directly from the [source](/wit/ecs/ecs.wit).
 
 5. Modify `my-mod/src/lib.rs` as shown:
 
@@ -224,6 +231,8 @@ Check out the examples directory for more detailed usage:
 - [`examples/host_example`](examples/host_example): Basic example on how to use the [`ModloaderPlugin`](https://docs.rs/wasvy/latest/wasvy/plugin/struct.ModloaderPlugin.html) to enable modding with bevy.
 - [`examples/simple`](examples/simple): Basic WASM component in Rust.
 - [`examples/python_example`](examples/python_example): Basic WASM component in Python.
+- [`examples/host_wit_example`](examples/guest_wit_example): A Bevy app that exposes bindings to invoke methods on components (such as `Health`) defined in game via automatically generated wit
+- [`examples/guest_wit_example`](examples/guest_wit_example): A more complex WASM component in Rust with automatically generated bindings to invoke methods defined in the game on a component
 
 ## Contributing
 

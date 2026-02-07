@@ -261,11 +261,8 @@ impl FunctionIndex {
             .get(type_path, method)
             .ok_or_else(|| anyhow::anyhow!("Unknown method {type_path}::{method}"))?;
 
-        match (entry.access, &target) {
-            (FunctionAccess::Write, MethodTarget::Read(_)) => {
-                bail!("Method {type_path}::{method} requires mutable access")
-            }
-            _ => {}
+        if let (FunctionAccess::Write, MethodTarget::Read(_)) = (entry.access, &target) {
+            bail!("Method {type_path}::{method} requires mutable access")
         }
 
         let args = parse_params(params_json)?;
@@ -380,11 +377,10 @@ fn normalize_type_path(path: &str) -> String {
         trimmed
     };
 
-    if let Some(rest) = stripped.strip_prefix("build_script_build::") {
-        if let Ok(pkg) = std::env::var("CARGO_PKG_NAME") {
+    if let Some(rest) = stripped.strip_prefix("build_script_build::")
+        && let Ok(pkg) = std::env::var("CARGO_PKG_NAME") {
             return format!("{pkg}::{rest}");
         }
-    }
 
     stripped.to_string()
 }

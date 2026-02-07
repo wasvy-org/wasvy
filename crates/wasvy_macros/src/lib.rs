@@ -3,7 +3,7 @@
 use proc_macro::TokenStream;
 use proc_macro_crate::{FoundCrate, crate_name};
 use quote::{format_ident, quote};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use syn::{Attribute, DeriveInput, Ident, ImplItem, Item, ItemImpl, ItemStruct, Type, TypePath};
 use wit_parser::{FunctionKind, Resolve, TypeDefKind, WorldItem};
 
@@ -274,8 +274,8 @@ pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
                     syn::LitStr::new(&method_ident.to_string(), proc_macro2::Span::call_site());
                 let mut arg_names = Vec::new();
                 for (idx, arg) in func.sig.inputs.iter().skip(1).enumerate() {
-                    match arg {
-                        syn::FnArg::Typed(pat) => match pat.pat.as_ref() {
+                    if let syn::FnArg::Typed(pat) = arg {
+                        match pat.pat.as_ref() {
                             syn::Pat::Ident(ident) => {
                                 arg_names.push(ident.ident.to_string());
                             }
@@ -293,8 +293,7 @@ pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
                                     errors = Some(err);
                                 }
                             }
-                        },
-                        _ => {}
+                        }
                     }
                 }
                 let arg_name_lits: Vec<syn::LitStr> = arg_names
@@ -1144,7 +1143,7 @@ fn render_module_node(name: Option<&str>, node: &ModuleNode) -> proc_macro2::Tok
     }
 }
 
-fn module_segments(base: &PathBuf, file: &PathBuf) -> Result<Vec<String>, String> {
+fn module_segments(base: &Path, file: &Path) -> Result<Vec<String>, String> {
     let rel = file
         .strip_prefix(base)
         .map_err(|_| "file is not under base path".to_string())?;

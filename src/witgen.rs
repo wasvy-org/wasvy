@@ -64,17 +64,11 @@ impl Default for WitGeneratorSettings {
 /// let mut app = App::new();
 /// app.add_plugins(WitGeneratorPlugin::default());
 /// ```
+#[derive(Default)]
 pub struct WitGeneratorPlugin {
     settings: WitGeneratorSettings,
 }
 
-impl Default for WitGeneratorPlugin {
-    fn default() -> Self {
-        Self {
-            settings: WitGeneratorSettings::default(),
-        }
-    }
-}
 
 impl WitGeneratorPlugin {
     /// Create a plugin with the provided settings.
@@ -96,12 +90,11 @@ fn write_wit(
     function_registry: Res<AppFunctionRegistry>,
 ) {
     let output = generate_wit(&settings, &type_registry, &function_registry);
-    if let Some(parent) = settings.output_path.parent() {
-        if let Err(err) = fs::create_dir_all(parent) {
+    if let Some(parent) = settings.output_path.parent()
+        && let Err(err) = fs::create_dir_all(parent) {
             bevy_log::error!("Failed to create WIT output dir: {err}");
             return;
         }
-    }
 
     if let Err(err) = fs::write(&settings.output_path, output) {
         bevy_log::error!("Failed to write WIT file: {err}");
@@ -138,7 +131,7 @@ pub fn generate_wit(
     for type_path in index.components() {
         let entry = components
             .entry(type_path.to_string())
-            .or_insert_with(ComponentEntry::default);
+            .or_default();
         entry.type_path = type_path.to_string();
         if entry.name.is_empty() {
             entry.name = type_path_to_name(type_path);
@@ -149,7 +142,7 @@ pub fn generate_wit(
         for method in index.methods_for(type_path) {
             let entry = components
                 .entry(type_path.to_string())
-                .or_insert_with(ComponentEntry::default);
+                .or_default();
             entry.methods.push(MethodEntry {
                 name: method.method.clone(),
                 arg_names: method.args.iter().map(|arg| arg.name.clone()).collect(),

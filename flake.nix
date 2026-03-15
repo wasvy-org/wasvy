@@ -42,7 +42,8 @@
           # Dev tools
           just
           wkg
-          nixfmt
+          nixd
+          nil
 
           poetry
           python3

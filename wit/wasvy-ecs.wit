@@ -1,5 +1,5 @@
 /// Wasvy: Wasi interface for the Bevy ecs
-package wasvy:ecs;
+package wasvy:ecs@0.0.7;
 
 /// This is the world that the Bevy host (the game/app) implements
 /// to give ECS functionality to the WASM guest (the mod).

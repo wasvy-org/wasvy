@@ -1,0 +1,18 @@
+[package]
+name = "wasvy_build"
+authors.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+semver.workspace = true
+wit-parser.workspace = true
+glob.workspace = true

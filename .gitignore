@@ -189,7 +189,7 @@ debug/
 
 # WASM
 *.wasm
-**/wit/deps/*
+**/wit/deps/game/*
 
 # direnv
 .direnv

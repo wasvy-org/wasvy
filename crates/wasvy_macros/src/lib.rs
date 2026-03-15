@@ -573,8 +573,10 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
         with_entries.push(quote!(#lit: #wasvy_path::host::WasmComponent));
     }
 
-    let wasvy_component =
-        syn::LitStr::new("wasvy:ecs/app.component", proc_macro2::Span::call_site());
+    let wasvy_component = syn::LitStr::new(
+        "wasvy:ecs/app@0.0.7.{component}",
+        proc_macro2::Span::call_site(),
+    );
     with_entries.push(quote!(#wasvy_component: #wasvy_path::host::WasmComponent));
 
     let mut impls = Vec::new();

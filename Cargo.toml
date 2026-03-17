@@ -53,7 +53,6 @@ bevy_transform = { version = "0.18.0", features = [
     "serialize",
 ], default-features = false }
 glob = "0.3.3"
-itertools = "0.14.0"
 proc-macro2 = "1.0.89"
 proc-macro-crate = "3.1.0"
 quote = "1.0.36"

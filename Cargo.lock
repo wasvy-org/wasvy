@@ -6921,8 +6921,6 @@ dependencies = [
 name = "wasvy_macros"
 version = "0.0.7"
 dependencies = [
- "glob",
- "itertools 0.14.0",
  "proc-macro-crate",
  "proc-macro2",
  "quote",

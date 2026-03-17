@@ -825,7 +825,7 @@ fn expand_include_components(args: IncludeComponentsArgs) -> syn::Result<proc_ma
 
 fn render_params(
     resolve: &Resolve,
-    params: &[(String, wit_parser::Type)],
+    params: &[wit_parser::Param],
     wasvy_path: &proc_macro2::TokenStream,
     is_constructor: bool,
 ) -> proc_macro2::TokenStream {
@@ -835,9 +835,9 @@ fn render_params(
             quote!(component: ::wasmtime::component::Resource<#wasvy_path::host::WasmComponent>),
         );
     }
-    for (name, ty) in params.iter().filter(|(name, _)| name != "self") {
-        let ident = rust_ident(name);
-        let ty_tokens = ty_to_tokens(resolve, ty, wasvy_path);
+    for param in params.iter().filter(|param| param.name != "self") {
+        let ident = rust_ident(&param.name);
+        let ty_tokens = ty_to_tokens(resolve, &param.ty, wasvy_path);
         out.push(quote!(#ident: #ty_tokens));
     }
     quote!(#(#out),*)
@@ -859,14 +859,14 @@ fn render_return(
 
 fn render_invoke_body(
     method: &str,
-    params: &[(String, wit_parser::Type)],
+    params: &[wit_parser::Param],
     result: Option<&wit_parser::Type>,
     wasvy_path: &proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
     let arg_idents: Vec<Ident> = params
         .iter()
-        .filter(|(name, _)| name != "self")
-        .map(|(name, _)| rust_ident(name))
+        .filter(|param| param.name != "self")
+        .map(|param| rust_ident(&param.name))
         .collect();
     let args_expr = if arg_idents.is_empty() {
         quote!(())

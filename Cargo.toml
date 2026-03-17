@@ -48,19 +48,25 @@ bevy_math = { version = "0.18.0", features = [
 ], default-features = false }
 bevy_platform = "0.18.0"
 bevy_reflect = { version = "0.18.0", features = ["functions"] }
+bevy_remote = "0.18.0"
 bevy_transform = { version = "0.18.0", features = [
     "serialize",
 ], default-features = false }
 glob = "0.3.3"
+itertools = "0.14.0"
+proc-macro2 = "1.0.89"
+proc-macro-crate = "3.1.0"
+quote = "1.0.36"
 semver = "1.0.27"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
+syn = { version = "2.0.87", features = ["full", "extra-traits"] }
 thiserror = "2.0.16"
 inventory = "0.3.15"
 wasmtime = { version = "40.0.1", features = ["component-model"] }
 wasmtime-wasi = "40.0.1"
 wasvy = { path = "./" }
-wasvy_build = { path = "./crates/wasvy_build" }
+wasvy_cli = { path = "./crates/wasvy_cli" }
 wasvy_macros = { version = "0.0.7", path = "crates/wasvy_macros" }
 wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
 wit-parser = "0.245.1"
@@ -74,6 +80,7 @@ bevy_ecs.workspace = true
 bevy_log.workspace = true
 bevy_platform.workspace = true
 bevy_reflect.workspace = true
+bevy_remote.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

@@ -1,5 +1,5 @@
 [package]
-name = "wasvy_build"
+name = "wasvy_cli"
 authors.workspace = true
 categories.workspace = true
 rust-version.workspace = true
@@ -13,6 +13,8 @@ readme.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+askama.workspace = true
 semver.workspace = true
 wit-parser.workspace = true
 glob.workspace = true
+wasvy_macros.workspace = true

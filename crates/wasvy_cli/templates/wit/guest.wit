@@ -1,0 +1,16 @@
+package {{ namespace }}:{{ name }};
+
+/// An example world for the component to target.
+world guest {
+    use wasvy:ecs/app@0.0.7.{commands, query};
+
+    /// An example system that runs on ModSetup
+    export spawn-entities: func(commands: commands);
+
+    /// Another example system that runs every Update
+    export spin-cube: func(query: query);
+
+    /// This is important.
+    /// This makes it so the WASM module must implement the guest required functions by the Bevy host.
+    include wasvy:ecs/guest@0.0.7;
+}

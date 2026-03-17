@@ -1,0 +1,14 @@
+[package]
+name = "{{ name }}"
+version = "0.0.0-alpha"
+description = "My custom wasvy mod"
+readme = "README.md"
+categories = ["wasvy"]
+rust-version = "{{ rust_version }}"
+
+[dependencies]
+bevy_transform = "{{ bevy_version }}"
+bevy_math = "{{ bevy_version }}"
+
+[lib]
+crate-type = ["cdylib"]

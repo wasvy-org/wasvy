@@ -1,11 +1,23 @@
-import example
-from example.imports.app import App, Schedule_ModStartup, System
+# filename: src/app.py
+import bindings
+from bindings.imports.app import App, Commands, Query, QueryFor_Mut, Schedule_ModStartup, Schedule_Update, System
 
-class Example(example.Example):
+@dataclass
+class Name:
+    value: str
+
+class Example(bindings.Example):
     def setup(self, app: App):
-        my_system = System("my-system")
+        app.add_systems(Schedule_ModStartup(), [System("start")])
+        app.add_systems(Schedule_Update(), [System("update")])
 
-        app.add_systems(Schedule_ModStartup(), [my_system])
+    def start(self, commands: Commands):
+        commands.spawn([
+            ## TODO
+            ("bevy::name", json.dumps(component_2)),
+        ])
 
-    def my_system(self):
         print(f"Hello from {{ name }}")
+
+    def update(self, query: Query):
+        # Do some cool stuff!

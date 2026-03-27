@@ -4,4 +4,4 @@ whitespace = "preserve"
 
 [[escaper]]
 path = "askama::filters::Text"
-extensions = ["toml", "wit"]
+extensions = ["toml", "wit", "py", "rs"]

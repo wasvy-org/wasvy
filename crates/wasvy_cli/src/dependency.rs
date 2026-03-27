@@ -12,34 +12,35 @@ pub struct Dependency {
     /// Package id in [Builder::resolve]
     pub package_id: PackageId,
 
-    /// TODO: document each
+    /// The name of the package
     pub name: String,
+
+    /// The namespace of the package
     pub namespace: String,
+
+    /// The version of the package
     pub version: Version,
+
+    /// The file name of the package
     pub file_name: PathBuf,
+
+    /// The file contents of the package
     pub file_contents: String,
 }
 
-impl fmt::Display for Dependency {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self {
-            namespace,
-            name,
-            version,
-            file_name,
-            ..
-        } = self;
-        write!(f, "{namespace}:{name}@{version} ({file_name:?})")
-    }
-}
-
 impl Dependency {
-    pub fn new(
+    pub fn new(file_name: impl AsRef<Path>, file_contents: impl AsRef<str>) -> Result<Self> {
+        let mut resolve = Resolve::default();
+        Self::new_with_resolve(&mut resolve, file_name, file_contents)
+    }
+
+    pub fn new_with_resolve(
         resolve: &mut Resolve,
         file_name: impl AsRef<Path>,
-        file_contents: String,
+        file_contents: impl AsRef<str>,
     ) -> Result<Self> {
         let file_name = file_name.as_ref().to_path_buf();
+        let file_contents = file_contents.as_ref().to_string();
         let package_id = resolve.push_str(&file_name, &file_contents)?;
         let package = &resolve.packages[package_id];
         let PackageName {
@@ -58,7 +59,12 @@ impl Dependency {
         })
     }
 
-    /// Writes the contents of the dependencyy to the path in the disk
+    pub fn resolve(&self, path: impl AsRef<Path>, resolve: &mut Resolve) -> Result<PackageId> {
+        let path = path.as_ref().join(&self.file_name);
+        resolve.push_str(path, &self.file_contents)
+    }
+
+    /// Writes the contents of the dependency to the path in the disk
     pub fn create(&self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref().join(&self.file_name);
         fs::write(path, &self.file_contents)?;
@@ -85,6 +91,19 @@ impl Dependency {
                 Comparison::Outdated(highest)
             }
         })
+    }
+}
+
+impl fmt::Display for Dependency {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            namespace,
+            name,
+            version,
+            file_name,
+            ..
+        } = self;
+        write!(f, "{namespace}:{name}@{version} ({file_name:?})")
     }
 }
 

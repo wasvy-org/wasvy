@@ -14,7 +14,8 @@ readme.workspace = true
 [dependencies]
 anyhow.workspace = true
 askama.workspace = true
-semver.workspace = true
-wit-parser.workspace = true
 glob.workspace = true
+semver.workspace = true
+toml.workspace = true
 wasvy_macros.workspace = true
+wit-parser.workspace = true

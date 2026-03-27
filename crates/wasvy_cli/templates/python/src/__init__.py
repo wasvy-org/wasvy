@@ -1,2 +1,2 @@
+# filename: src/__init__.py
 # This file is required by poetry
-# See app.py for logic

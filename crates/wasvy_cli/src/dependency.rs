@@ -9,7 +9,7 @@ use wit_parser::{PackageId, PackageName, Resolve};
 
 #[derive(Clone)]
 pub struct Dependency {
-    /// Package id in [Builder::resolve]
+    /// Package id guaranteed to be in [Dependency::resolve]
     pub package_id: PackageId,
 
     /// The name of the package

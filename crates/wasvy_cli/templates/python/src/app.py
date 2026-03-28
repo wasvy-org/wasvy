@@ -13,8 +13,7 @@ class Example(bindings.Example):
 
     def start(self, commands: Commands):
         commands.spawn([
-            ## TODO
-            ("bevy::name", json.dumps(component_2)),
+            ("bevy_ecs::name::Name", json.dumps(component_2)),
         ])
 
         print(f"Hello from {{ name }}")

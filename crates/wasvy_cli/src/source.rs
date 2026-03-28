@@ -337,7 +337,7 @@ mod tests {
         }
 
         fn name(&self, _source: &Source) -> Option<String> {
-            unreachable!()
+            None
         }
     }
 

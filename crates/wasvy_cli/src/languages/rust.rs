@@ -112,7 +112,25 @@ impl Language for Rust {
             bail!("missing Guest impl")
         };
         let impl_block = &contents[impl_start..];
-        let Some(impl_end) = impl_block.find('}') else {
+
+        // Find the end of the impl block by counting braces
+        let mut brace_count = 0;
+        let mut impl_end = None;
+        for (i, ch) in impl_block.chars().enumerate() {
+            match ch {
+                '{' => brace_count += 1,
+                '}' => {
+                    brace_count -= 1;
+                    if brace_count == 0 {
+                        impl_end = Some(i);
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        let Some(impl_end) = impl_end else {
             bail!("could not find end of Guest impl")
         };
         let impl_content = &impl_block[..=impl_end];

@@ -4,10 +4,10 @@ pub trait Named {
     /// Defaults to the shortname.
     ///
     /// ```
-    /// # use super::Named;
+    /// use wasvy_cli::named::Named;
     /// struct HelloWorld;
-    /// impl<T> Named for HelloWorld {}
-    /// assert!(HelloWorld.name(), "HelloWorld")
+    /// impl Named for HelloWorld {}
+    /// assert_eq!(HelloWorld.name(), "HelloWorld");
     /// ```
     fn name(&self) -> &str {
         let full_name = std::any::type_name_of_val(self);

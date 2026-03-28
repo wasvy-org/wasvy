@@ -231,6 +231,7 @@ Check out the examples directory for more detailed usage:
 - [`examples/host_example`](examples/host_example): Basic example on how to use the [`ModloaderPlugin`](https://docs.rs/wasvy/latest/wasvy/plugin/struct.ModloaderPlugin.html) to enable modding with bevy.
 - [`examples/simple`](examples/simple): Basic WASM component in Rust.
 - [`examples/python_example`](examples/python_example): Basic WASM component in Python.
+- [`examples/go_example`](examples/go_example): Basic WASM component in Go.
 - [`examples/host_wit_example`](examples/guest_wit_example): A Bevy app that exposes bindings to invoke methods on components (such as `Health`) defined in game via automatically generated wit
 - [`examples/guest_wit_example`](examples/guest_wit_example): A more complex WASM component in Rust with automatically generated bindings to invoke methods defined in the game on a component
 

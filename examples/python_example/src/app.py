@@ -3,10 +3,10 @@ import math
 from typing import List
 from dataclasses import dataclass, asdict
 
-import example
-from example.imports.app import App, Commands, Query, QueryFor_Mut, QueryFor_With, Schedule_Update, System
+import wit_world
+from wit_world.imports.app import App, Commands, Query, QueryFor_Mut, QueryFor_With, Schedule_Update, System
 
-class Example(example.Example):
+class WitWorld(wit_world.WitWorld):
     def setup(self, app: App):
         spin_cube = System("spin-cube")
         spin_cube.add_query([
@@ -28,11 +28,11 @@ class Example(example.Example):
     def spin_cube(self, query: Query):
         """Advance rotation about the x-axis for the single component returned per iter()."""
         while True:
-            components = query.iter()
-            if components is None:
+            query_result = query.iter()
+            if query_result is None:
                 break
 
-            component = components[0]
+            component = query_result.component(0)
 
             transform = json.loads(component.get())
 

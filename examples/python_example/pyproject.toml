@@ -2,10 +2,14 @@
 name = "python-example"
 version = "0.1.0"
 description = ""
-authors = [{ name = "EngoDev" }, { name = "MarcGuiselin" }]
+authors = [
+    { name = "EngoDev" },
+    { name = "MarcGuiselin" },
+    { name = "shishanyue" },
+]
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = ["componentize-py (>=0.16.0,<0.17.0)"]
+dependencies = ["componentize-py (>=0.21.0,<0.22.0)"]
 
 [tool.poetry]
 packages = [{ include = "example", from = "src" }]

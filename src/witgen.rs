@@ -48,7 +48,7 @@ impl Default for WitGeneratorSettings {
             package: "game:components".to_string(),
             interface: "components".to_string(),
             world: "host".to_string(),
-            wasvy_package: "wasvy:ecs".to_string(),
+            wasvy_package: "wasvy:ecs@0.0.7".to_string(),
             output_path: PathBuf::from("target/wasvy/components.wit"),
         }
     }
@@ -162,9 +162,14 @@ fn render_wit(
     let mut out = String::new();
     out.push_str(&format!("package {};\n\n", settings.package));
     out.push_str(&format!("interface {} {{\n", settings.interface));
+
+    let (package, version) = settings
+        .wasvy_package
+        .split_once("@")
+        .unwrap_or((&settings.wasvy_package, ""));
+    let version_separator = if version.is_empty() { "" } else { "@" };
     out.push_str(&format!(
-        "  use {}/app.{{component}};\n\n",
-        settings.wasvy_package
+        "  use {package}/app{version_separator}{version}.{{component}};\n\n"
     ));
 
     let mut used_names = BTreeSet::new();
@@ -350,7 +355,7 @@ mod tests {
             .expect("AppFunctionRegistry");
 
         let output = generate_wit(&settings, type_registry, function_registry);
-        let wasvy_use = "use wasvy:ecs/app.{component}";
+        let wasvy_use = "use wasvy:ecs/app@0.0.7.{component}";
 
         assert!(output.contains(wasvy_use));
         assert!(output.contains("resource health"));

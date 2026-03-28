@@ -14,6 +14,12 @@ build-example-python:
 example-bindings-python:
 	cd examples/python_example && rm -rf ./src/example && poetry run componentize-py --wit-path wit/ --world example bindings src
 
+build-example-go:
+	cd examples/go_example/src && GOARCH="wasm" GOOS="wasip1" go build -o core.wasm -buildmode=c-shared -ldflags=-checklinkname=0 && wasm-tools component embed -w example ../wit/ core.wasm -o core-with-wit.wasm && wasm-tools component new --adapt ../wasi_snapshot_preview1.reactor.wasm core-with-wit.wasm -o go.wasm
+
+example-bindings-go:
+	cd examples/go_example/src && wit-bindgen go -w example ../wit/
+
 # For the fetching to take effect you must delete the deps folder manually
 example-fetch-deps example:
 	cd examples/{{example}} && wkg wit fetch

@@ -193,5 +193,3 @@ debug/
 
 # direnv
 .direnv
-#rust
-Cargo.lock

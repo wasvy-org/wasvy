@@ -47,7 +47,10 @@ bevy_math = { version = "0.18.0", features = [
     "serialize",
 ], default-features = false }
 bevy_platform = "0.18.0"
-bevy_reflect = { version = "0.18.0", features = ["functions"] }
+bevy_reflect = { version = "0.18.0", features = [
+    "functions",
+    "reflect_documentation",
+] }
 bevy_remote = "0.18.0"
 bevy_transform = { version = "0.18.0", features = [
     "serialize",

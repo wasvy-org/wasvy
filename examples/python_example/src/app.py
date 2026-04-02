@@ -1,4 +1,5 @@
 import json
+import msgpack
 import math
 from typing import List
 from dataclasses import dataclass, asdict
@@ -34,7 +35,9 @@ class WitWorld(wit_world.WitWorld):
 
             component = query_result.component(0)
 
-            transform = json.loads(component.get())
+            #transform = json.loads(component.get())
+            #print("Got transform component in spin-cube system:", msgpack.loads(component.get()))
+            transform = msgpack.loads(component.get())
 
             rotation = transform["rotation"]
             q = q_normalize([float(rotation[0]), float(rotation[1]), float(rotation[2]), float(rotation[3])])
@@ -44,7 +47,8 @@ class WitWorld(wit_world.WitWorld):
             q_next = q_normalize(q_mul(q, dq))
 
             transform["rotation"] = q_next
-            component.set(json.dumps(transform))
+            component.set(msgpack.dumps(transform))
+            #component.set(json.dumps(transform).encode('utf-8'))
     
     def my_system(self, commands: Commands, query: Query):
         # Count how many entities we've spawned
@@ -73,10 +77,15 @@ class WitWorld(wit_world.WitWorld):
             "rotation":    [1.0, 0.0, 0.0, 0.0],
             "scale":       [1.0, 1.0, 1.0],
         }
-
+        '''
         commands.spawn([
-            ("python::MyComponent", json.dumps(component_1)),
-            ("bevy_transform::components::transform::Transform", json.dumps(component_2)),
+            ("python::MyComponent", json.dumps(component_1).encode('utf-8')),
+            ("bevy_transform::components::transform::Transform", json.dumps(component_2).encode('utf-8')),
+        ])
+        '''
+        commands.spawn([
+            ("python::MyComponent", msgpack.dumps(component_1)),
+            ("bevy_transform::components::transform::Transform", msgpack.dumps(component_2)),
         ])
 
 def q_normalize(q: List[float]) -> List[float]:

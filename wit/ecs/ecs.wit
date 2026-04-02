@@ -159,7 +159,7 @@ interface app {
 	/// So for every instance of `component` make sure you deserialize it yourself to the struct that it actually is.
 	///
 	/// Note: for components returned by query::optional this is an option<t>
-	type serialized-component = string;
+	type serialized-component = list<u8>;
 
 	/// Just a simple list of tuples composed of the type-path and the serialized component string
 	type bundle = list<tuple<type-path, serialized-component>>;

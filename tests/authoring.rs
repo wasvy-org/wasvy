@@ -8,6 +8,7 @@ use wasvy::WasvyComponent;
 use wasvy::authoring::register_all;
 use wasvy::methods::MethodTarget;
 use wasvy::prelude::*;
+use wasvy::serialize::{WasvyCodec, WasvyCodecImpl};
 
 #[derive(Component, Reflect, Default, WasvyComponent)]
 #[reflect(Component)]
@@ -58,12 +59,12 @@ fn methods_macro_registers() {
             Health::type_path(),
             "heal",
             MethodTarget::Write(&mut health),
-            "[5.0]",
+            b"[5.0]",
             type_registry,
         )
         .unwrap();
 
-    assert_eq!(out, "null");
+    assert_eq!(out, b"null");
     assert_eq!(health.current, 7.0);
 
     let pct = index
@@ -71,12 +72,12 @@ fn methods_macro_registers() {
             Health::type_path(),
             "pct",
             MethodTarget::Read(&health),
-            "null",
+            b"null",
             type_registry,
         )
         .unwrap();
 
-    let pct_val: f32 = serde_json::from_str(&pct).unwrap();
+    let pct_val: f32 = WasvyCodec::decode(&pct).unwrap();
     assert!((pct_val - 0.7).abs() < 1e-6);
 }
 
@@ -134,11 +135,11 @@ fn auto_registration_plugin_registers_all() {
             Health::type_path(),
             "heal",
             MethodTarget::Write(&mut health),
-            "[1.0]",
+            b"[1.0]",
             type_registry,
         )
         .unwrap();
-    assert_eq!(out, "null");
+    assert_eq!(out, b"null");
     assert!((health.current - 3.0).abs() < f32::EPSILON);
 }
 
@@ -167,7 +168,7 @@ fn skip_attribute_excludes_method() {
             Health::type_path(),
             "internal_ratio",
             MethodTarget::Read(&health),
-            "null",
+            b"null",
             type_registry,
         )
         .unwrap_err();
@@ -222,7 +223,7 @@ fn invoke_errors_on_missing_method() {
             Health::type_path(),
             "missing",
             MethodTarget::Write(&mut health),
-            "[]",
+            b"[]",
             type_registry,
         )
         .unwrap_err();
@@ -255,7 +256,7 @@ fn invoke_errors_on_wrong_access() {
             Health::type_path(),
             "heal",
             MethodTarget::Read(&health),
-            "[1.0]",
+            b"[1.0]",
             type_registry,
         )
         .unwrap_err();
@@ -288,7 +289,7 @@ fn invoke_errors_on_arg_count_mismatch() {
             Health::type_path(),
             "heal",
             MethodTarget::Write(&mut health),
-            "[]",
+            b"[]",
             type_registry,
         )
         .unwrap_err();
@@ -321,7 +322,7 @@ fn invoke_errors_on_bad_json() {
             Health::type_path(),
             "heal",
             MethodTarget::Write(&mut health),
-            "[",
+            b"[",
             type_registry,
         )
         .unwrap_err();

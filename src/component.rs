@@ -14,11 +14,9 @@ use bevy_ecs::{
     world::{FilteredEntityMut, FilteredEntityRef},
 };
 use bevy_platform::collections::HashMap;
-use bevy_reflect::{
-    PartialReflect, Reflect, ReflectFromPtr,
-    serde::{TypedReflectDeserializer, TypedReflectSerializer},
-};
-use serde::de::DeserializeSeed;
+use bevy_reflect::{Reflect, ReflectFromPtr};
+
+use crate::serialize::{WasvyCodec, WasvyCodecImpl};
 
 /// Fully-qualified type path used to identify a component type.
 pub type TypePath = String;
@@ -40,7 +38,7 @@ pub struct WasmComponentRegistry(HashMap<TypePath, ComponentId>);
 /// This approach makes it possible to register components that don't exist in Rust.
 #[derive(Component, Reflect)]
 pub struct WasmComponent {
-    pub serialized_value: String,
+    pub serialized_value: Vec<u8>,
 }
 
 /// A command that inserts a guest defined component into an entity
@@ -71,16 +69,13 @@ pub(crate) fn insert_component(
     type_registry: &AppTypeRegistry,
     entity: Entity,
     type_path: String,
-    serialized_value: String,
+    serialized_value: Vec<u8>,
 ) -> Result<()> {
     let type_registry = type_registry.read();
 
     // Insert types that are known by bevy (inserted as concrete types)
     if let Some(type_registration) = type_registry.get_with_type_path(&type_path) {
-        let mut de = serde_json::Deserializer::from_str(&serialized_value);
-        let reflect_deserializer = TypedReflectDeserializer::new(type_registration, &type_registry);
-        let output: Box<dyn PartialReflect> = reflect_deserializer.deserialize(&mut de)?;
-
+        let output = WasvyCodec::decode_reflect(&serialized_value, type_registration, &type_registry)?;
         commands.entity(entity).insert_reflect(output);
     }
     // Handle guest types (inserted as json strings)
@@ -218,7 +213,7 @@ pub(crate) fn get_component(
     entity: &FilteredEntityRef,
     component: &ComponentRef,
     type_registry: &AppTypeRegistry,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     let val = entity
         .get_by_id(component.component_id)
         .expect("to be able to find this component id on the entity");
@@ -235,8 +230,7 @@ pub(crate) fn get_component(
 
         // SAFETY: val is of the same type that reflect_from_ptr was constructed for
         let reflect = unsafe { reflect_from_ptr.as_reflect(val) };
-        let serializer = TypedReflectSerializer::new(reflect, &type_registry);
-        let value = serde_json::to_string(&serializer)?;
+        let value = WasvyCodec::encode_reflect(reflect, &type_registry)?;
 
         Ok(value)
     }
@@ -252,7 +246,7 @@ pub(crate) fn get_component(
 pub(crate) fn set_component(
     entity: &mut FilteredEntityMut,
     component_ref: &ComponentRef,
-    serialized_value: String,
+    serialized_value: Vec<u8>,
     type_registry: &AppTypeRegistry,
 ) -> Result<()> {
     let mut val = entity
@@ -270,9 +264,8 @@ pub(crate) fn set_component(
             .data::<ReflectFromPtr>()
             .expect("ReflectFromPtr to be registered");
 
-        let mut de = serde_json::Deserializer::from_str(&serialized_value);
-        let reflect_deserializer = TypedReflectDeserializer::new(type_registration, &type_registry);
-        let boxed_dyn_reflect = reflect_deserializer.deserialize(&mut de)?;
+        let boxed_dyn_reflect =
+            WasvyCodec::decode_reflect(&serialized_value, type_registration, &type_registry)?;
 
         // SAFETY: val is of the same type that ReflectFromPtr was constructed for
         let reflect = unsafe { reflect_from_ptr.as_reflect_mut(val.as_mut()) };

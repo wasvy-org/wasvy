@@ -42,7 +42,7 @@ impl QueryResolver {
         index: ComponentIndex,
         queries: &mut Queries<'_, '_>,
         type_registry: &AppTypeRegistry,
-    ) -> Result<String> {
+    ) -> Result<Vec<u8>> {
         let query_for = self.query_for(id, index)?;
 
         let query = queries.get_mut(id.0);
@@ -56,7 +56,7 @@ impl QueryResolver {
         id: QueryId,
         entity: Entity,
         index: ComponentIndex,
-        serialized_value: String,
+        serialized_value: Vec<u8>,
         queries: &mut Queries<'_, '_>,
         type_registry: &AppTypeRegistry,
     ) -> Result<()> {

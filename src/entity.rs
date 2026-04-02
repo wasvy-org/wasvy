@@ -94,7 +94,7 @@ where
     let entity = input.into();
     trace!("Insert components to ({entity})");
     for (type_path, serialized_component) in bundle {
-        trace!("- {type_path}: {serialized_component}");
+        trace!("- {type_path}: {:?}", serialized_component);
         insert_component(
             commands,
             type_registry,

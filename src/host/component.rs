@@ -101,7 +101,7 @@ pub fn invoke_component_method(
     host: &mut WasmHost,
     component: Resource<WasmComponent>,
     method: &str,
-    params: &str,
+    params: &[u8],
 ) -> Result<SerializedComponent> {
     let State::RunSystem {
         table,
@@ -118,7 +118,6 @@ pub fn invoke_component_method(
     let component = table.get(&component)?;
     let query_for = query_resolver.query_for(component.id, component.index)?;
     let component_ref = query_for.component();
-
     let mut query = queries.get_mut(component.id.index());
     let output = if query_for.mutable() {
         let mut entity = query.get_mut(component.entity)?;

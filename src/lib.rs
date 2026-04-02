@@ -10,6 +10,7 @@ pub mod access;
 pub mod asset;
 pub mod authoring;
 pub(crate) mod cleanup;
+pub mod serialize;
 pub mod component;
 pub mod engine;
 pub(crate) mod entity;

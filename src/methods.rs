@@ -17,12 +17,10 @@ use bevy_reflect::{
     PartialReflect, Reflect,
     func::args::Ownership,
     func::{ArgList, DynamicFunction},
-    serde::{TypedReflectDeserializer, TypedReflectSerializer},
 };
-use serde::de::DeserializeSeed;
-use serde_json::Value;
 
 use crate::authoring::{WasvyExport, WasvyMethodMetadata, inventory};
+use crate::serialize::{WasvyCodec, WasvyCodecImpl};
 
 /// Required access for a registered function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -254,9 +252,9 @@ impl FunctionIndex {
         type_path: &str,
         method: &str,
         target: MethodTarget<'_>,
-        params_json: &str,
+        params: &[u8],
         type_registry: &AppTypeRegistry,
-    ) -> Result<String> {
+    ) -> Result<Vec<u8>> {
         let entry = self
             .get(type_path, method)
             .ok_or_else(|| anyhow::anyhow!("Unknown method {type_path}::{method}"))?;
@@ -265,7 +263,7 @@ impl FunctionIndex {
             bail!("Method {type_path}::{method} requires mutable access")
         }
 
-        let args = parse_params(params_json)?;
+        let args = WasvyCodec::parse_params(params)?;
         if args.len() != entry.args.len() {
             bail!(
                 "Method {type_path}::{method} expects {} args but received {}",
@@ -283,7 +281,7 @@ impl FunctionIndex {
 
         let mut owned_args: Vec<Option<Box<dyn PartialReflect>>> = Vec::new();
         for (spec, value) in entry.args.iter().zip(args.into_iter()) {
-            let boxed = deserialize_arg(&registry, &spec.type_path, &value)?;
+            let boxed = WasvyCodec::deserialize_arg(&registry, &spec.type_path, &value)?;
             owned_args.push(Some(boxed));
         }
 
@@ -310,55 +308,19 @@ impl FunctionIndex {
     }
 }
 
-fn parse_params(params_json: &str) -> Result<Vec<Value>> {
-    let trimmed = params_json.trim();
-    if trimmed.is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let value: Value = serde_json::from_str(trimmed)?;
-    match value {
-        Value::Null => Ok(Vec::new()),
-        Value::Array(values) => Ok(values),
-        other => bail!("Expected JSON array for params, got {other}"),
-    }
-}
-
-fn deserialize_arg(
-    registry: &bevy_reflect::TypeRegistry,
-    type_path: &str,
-    value: &Value,
-) -> Result<Box<dyn PartialReflect>> {
-    let registration = registry
-        .get_with_type_path(type_path)
-        .ok_or_else(|| anyhow::anyhow!("Type {type_path} is not registered"))?;
-    let json = serde_json::to_string(value)?;
-    let mut de = serde_json::Deserializer::from_str(&json);
-    let reflect_de = TypedReflectDeserializer::new(registration, registry);
-    let output: Box<dyn PartialReflect> = reflect_de.deserialize(&mut de)?;
-    Ok(output)
-}
-
 fn serialize_return(
     result: bevy_reflect::func::Return<'_>,
     registry: &bevy_reflect::TypeRegistry,
-) -> Result<String> {
+) -> Result<Vec<u8>> {
     if result.is_unit() {
-        return Ok("null".to_string());
+        return Ok(b"null".to_vec());
     }
     match result {
         bevy_reflect::func::Return::Owned(value) => {
-            let serializer = TypedReflectSerializer::new(value.as_ref(), registry);
-            Ok(serde_json::to_string(&serializer)?)
+            Ok(WasvyCodec::encode_reflect(value.as_ref(), registry)?)
         }
-        bevy_reflect::func::Return::Ref(value) => {
-            let serializer = TypedReflectSerializer::new(value, registry);
-            Ok(serde_json::to_string(&serializer)?)
-        }
-        bevy_reflect::func::Return::Mut(value) => {
-            let serializer = TypedReflectSerializer::new(value, registry);
-            Ok(serde_json::to_string(&serializer)?)
-        }
+        bevy_reflect::func::Return::Ref(value) => Ok(WasvyCodec::encode_reflect(value, registry)?),
+        bevy_reflect::func::Return::Mut(value) => Ok(WasvyCodec::encode_reflect(value, registry)?),
     }
 }
 
@@ -491,11 +453,11 @@ mod tests {
                 Health::type_path(),
                 "heal",
                 MethodTarget::Write(&mut health),
-                "[5.0]",
+                b"[5.0]",
                 type_registry,
             )
             .unwrap();
-        assert_eq!(out, "null");
+        assert_eq!(out, b"null");
         assert_eq!(health.current, 7.0);
 
         let pct = index
@@ -503,11 +465,11 @@ mod tests {
                 Health::type_path(),
                 "pct",
                 MethodTarget::Read(&health),
-                "null",
+                b"null",
                 type_registry,
             )
             .unwrap();
-        let pct_val: f32 = serde_json::from_str(&pct).unwrap();
+        let pct_val: f32 = WasvyCodec::decode(&pct).unwrap();
         assert!((pct_val - 0.7).abs() < 1e-6);
     }
 

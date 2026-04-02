@@ -11,6 +11,7 @@ pub mod asset;
 pub mod authoring;
 pub(crate) mod cleanup;
 pub mod component;
+pub mod devtools;
 pub mod engine;
 pub(crate) mod entity;
 pub mod host;
@@ -29,7 +30,7 @@ pub mod witgen;
 
 mod bindings {
     wasmtime::component::bindgen!({
-        path: "wit/wasvy-ecs.wit",
+        path: "wit/wasvy.wit",
         world: "host",
         // Interactions with `ResourceTable` can possibly trap so enable the ability
         // to return traps from generated functions.

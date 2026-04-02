@@ -7,6 +7,7 @@ use bevy_ecs::reflect::AppTypeRegistry;
 use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
 use bevy_log::prelude::*;
 
+use crate::devtools;
 use crate::{
     asset::{ModAsset, ModAssetLoader},
     authoring::register_all,
@@ -85,6 +86,7 @@ struct Inner {
     schedules: ModSchedules,
     setup_schedule: Interned<dyn ScheduleLabel>,
     despawn_behaviour: ModDespawnBehaviour,
+    devtools_config: Option<devtools::Config>,
 }
 
 impl Default for ModloaderPlugin {
@@ -100,12 +102,22 @@ impl ModloaderPlugin {
         let linker = create_linker(&engine);
         let setup_schedule = First.intern();
         let despawn_behaviour = ModDespawnBehaviour::default();
+
+        // Devtools should be opt-out by default on dev builds, so no config is needed to use the cli.
+        // Opt out by disabling the feature completely.
+        let devtools_config = if cfg!(all(debug_assertions, feature = "devtools")) {
+            Some(Default::default())
+        } else {
+            None
+        };
+
         let inner = Inner {
             engine,
             linker,
             schedules,
             setup_schedule,
             despawn_behaviour,
+            devtools_config,
         };
         ModloaderPlugin(Mutex::new(Some(inner)))
     }
@@ -117,6 +129,33 @@ impl ModloaderPlugin {
     /// If you want wasvy to run on all schedules use `ModloaderPlugin::default()` or [ModloaderPlugin::new]
     pub fn unscheduled() -> Self {
         Self::new(ModSchedules::empty())
+    }
+
+    /// Enables the devtools. The devtools feature must be enabled in your Cargo.toml.
+    ///
+    /// By default it is enabled on debug (non-release) builds, so the cli works as expected.
+    /// Disable the "devtools" feature to disable it completely.
+    ///
+    /// ```
+    /// # let mut modloader = ModloaderPlugin::default()
+    /// // Enable and use a custom name
+    /// modloader.devtools("My Bevy app");
+    ///
+    /// // Get it automatically from you Cargo.toml
+    /// modloader.devtools(env!("CRATE_NAME"));
+    ///
+    /// // Host a custom wit interface:
+    /// modloader.devtools(Config{
+    ///     name: "Expose anything that you can dream of",
+    ///     interfaces: &[
+    ///         include_str!("./../wit/bevy.wit"),
+    ///     ],
+    /// });
+    /// ```
+    pub fn devtools(mut self, config: impl Into<devtools::Config>) -> Self {
+        let inner = self.inner();
+        inner.devtools_config = Some(config.into());
+        self
     }
 
     /// Sets the despawn behaviour for when mods are despawned (or reloaded).
@@ -180,6 +219,7 @@ impl Plugin for ModloaderPlugin {
             schedules,
             setup_schedule,
             despawn_behaviour,
+            devtools_config,
         } = self
             .0
             .lock()
@@ -205,6 +245,14 @@ impl Plugin for ModloaderPlugin {
             .add_systems(setup_schedule, (run_setup, disable_mod_system_sets));
 
         register_all(app);
+
+        if let Some(config) = devtools_config {
+            app.add_plugins(devtools::DevtoolsPlugin(config));
+        } else if cfg!(all(not(debug_assertions), feature = "devtools")) {
+            warn!(
+                "consider disabling the unused \"devtools\" feature of the wasvy crate to reduce build size"
+            );
+        }
 
         let function_index = {
             let type_registry = app

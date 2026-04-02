@@ -345,8 +345,8 @@ mod tests {
         let mut config = Config::default();
         config
             .add_dependency_str(
-                "wasvy-ecs.wit",
-                include_str!("../../../wit/wasvy-ecs.wit").to_string(),
+                "wasvy.wit",
+                include_str!("../../../wit/wasvy.wit").to_string(),
             )
             .expect("valid dep");
         config.add_language(lang);

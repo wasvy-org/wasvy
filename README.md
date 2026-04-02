@@ -62,15 +62,9 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         // Adding the [`ModloaderPlugin`] is all you need 😉
-        .add_plugins(ModloaderPlugin::default())
-        .add_systems(Startup, startup)
+        // Optionally, enable the devtools for CLI access ⚡
+        .add_plugins(ModloaderPlugin::default().devtools("My moddable Bevy app"))
         .run();
-}
-
-/// Access the modloader's api through the Mods interface 🪄
-fn startup(mut mods: Mods) {
-    // Load one (or several) mods at once from the asset directory!
-    mods.load("mods/my-mod.wasm");
 }
 ```
 

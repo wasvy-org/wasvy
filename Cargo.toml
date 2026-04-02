@@ -83,18 +83,23 @@ bevy_ecs.workspace = true
 bevy_log.workspace = true
 bevy_platform.workspace = true
 bevy_reflect.workspace = true
-bevy_remote.workspace = true
+bevy_remote = { workspace = true, optional = true }
+inventory.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
-inventory.workspace = true
 wasvy_macros.workspace = true
 
 [dev-dependencies]
 wit-bindgen.workspace = true
 trybuild = "1.0.111"
+
+[features]
+default = ["devtools"]
+
+devtools = ["bevy_remote"]
 
 # These lints may be important signals about code quality, but normal Bevy code
 # commonly triggers them and the CI workflow treats them as errors, so we've

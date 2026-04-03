@@ -23,6 +23,12 @@ world guest {
 }
 
 interface app {
+	resource serialize {
+		constructor();
+
+		get-type: func() -> string;
+	}
+
 	/// This is an interface (similar to bevy::App) through which mods may interact with the Bevy App.
 	///
 	/// To access this, make sure to import the 'guest' world and implement `setup`.

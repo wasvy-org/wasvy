@@ -10,6 +10,7 @@ use serde::{
 
 #[cfg(feature = "serde_json")]
 type WasvyValue = serde_json::Value;
+
 #[cfg(feature = "rmp")]
 type WasvyValue = rmpv::Value;
 
@@ -33,6 +34,7 @@ pub trait WasvyCodecImpl {
         type_path: &str,
         value: &WasvyValue,
     ) -> Result<Box<dyn PartialReflect>>;
+    fn get_type() -> String;
 }
 
 pub struct WasvyCodec;
@@ -97,6 +99,9 @@ impl WasvyCodecImpl for WasvyCodec {
         let output: Box<dyn PartialReflect> = reflect_de.deserialize(&mut de)?;
         Ok(output)
     }
+    fn get_type() -> String {
+        "json".to_string()
+    }
 }
 
 #[cfg(feature = "rmp")]
@@ -158,5 +163,9 @@ impl WasvyCodecImpl for WasvyCodec {
         let reflect_de = TypedReflectDeserializer::new(registration, registry);
         let output: Box<dyn PartialReflect> = reflect_de.deserialize(&mut de)?;
         Ok(output)
+    }
+    
+    fn get_type() -> String {
+        "msgpack".to_string()
     }
 }

@@ -10,6 +10,24 @@ import weakref
 from componentize_py_types import Result, Ok, Err, Some
 
 
+class Serialize:
+    
+    def __init__(self) -> None:
+        raise NotImplementedError
+
+    def get_type(self) -> str:
+        raise NotImplementedError
+    def __enter__(self) -> Self:
+        """Returns self"""
+        return self
+                                
+    def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None) -> bool | None:
+        """
+        Release this resource.
+        """
+        raise NotImplementedError
+
+
 
 @dataclass
 class Schedule_ModStartup:

@@ -8,13 +8,8 @@ use serde::{
     de::{self, DeserializeSeed},
 };
 
-#[cfg(feature = "serde_json")]
-type WasvyValue = serde_json::Value;
-
-#[cfg(feature = "rmp")]
-type WasvyValue = rmpv::Value;
-
 pub trait WasvyCodecImpl {
+    type WasvySerializeValue;
     fn encode<T>(value: &T) -> Result<Vec<u8>>
     where
         T: ?Sized + Serialize;
@@ -28,11 +23,11 @@ pub trait WasvyCodecImpl {
         registration: &TypeRegistration,
         registry: &TypeRegistry,
     ) -> Result<Box<dyn PartialReflect>>;
-    fn parse_params(params: &[u8]) -> Result<Vec<WasvyValue>>;
+    fn parse_params(params: &[u8]) -> Result<Vec<Self::WasvySerializeValue>>;
     fn deserialize_arg(
         registry: &bevy_reflect::TypeRegistry,
         type_path: &str,
-        value: &WasvyValue,
+        value: &Self::WasvySerializeValue,
     ) -> Result<Box<dyn PartialReflect>>;
     fn get_type() -> String;
 }
@@ -41,6 +36,7 @@ pub struct WasvyCodec;
 
 #[cfg(feature = "serde_json")]
 impl WasvyCodecImpl for WasvyCodec {
+    type WasvySerializeValue = serde_json::Value;
     fn encode_reflect(reflect: &dyn PartialReflect, registry: &TypeRegistry) -> Result<Vec<u8>> {
         let serializer = TypedReflectSerializer::new(reflect, registry);
         Ok(serde_json::to_vec(&serializer)?)
@@ -71,15 +67,15 @@ impl WasvyCodecImpl for WasvyCodec {
         serde_json::from_slice(v).map_err(anyhow::Error::from)
     }
 
-    fn parse_params(params: &[u8]) -> Result<Vec<WasvyValue>> {
+    fn parse_params(params: &[u8]) -> Result<Vec<Self::WasvySerializeValue>> {
         if params.is_empty() || params.iter().all(|b| b.is_ascii_whitespace()) {
             return Ok(Vec::new());
         }
 
-        let value: WasvyValue = serde_json::from_slice(params)?;
+        let value: Self::WasvySerializeValue = serde_json::from_slice(params)?;
         match value {
-            WasvyValue::Null => Ok(Vec::new()),
-            WasvyValue::Array(values) => Ok(values),
+            Self::WasvySerializeValue::Null => Ok(Vec::new()),
+            Self::WasvySerializeValue::Array(values) => Ok(values),
             other => bail!("Expected JSON array for params, got {other}"),
         }
     }
@@ -87,7 +83,7 @@ impl WasvyCodecImpl for WasvyCodec {
     fn deserialize_arg(
         registry: &bevy_reflect::TypeRegistry,
         type_path: &str,
-        value: &WasvyValue,
+        value: &Self::WasvySerializeValue,
     ) -> Result<Box<dyn PartialReflect>> {
         let registration = registry
             .get_with_type_path(type_path)
@@ -101,71 +97,5 @@ impl WasvyCodecImpl for WasvyCodec {
     }
     fn get_type() -> String {
         "json".to_string()
-    }
-}
-
-#[cfg(feature = "rmp")]
-impl WasvyCodecImpl for WasvyCodec {
-    fn encode<T>(value: &T) -> Result<Vec<u8>>
-    where
-        T: ?Sized + Serialize,
-    {
-        Ok(rmp_serde::to_vec_named(value)?)
-    }
-
-    fn decode<'a, T>(v: &'a [u8]) -> Result<T>
-    where
-        T: de::Deserialize<'a>,
-    {
-        rmp_serde::from_slice(v).map_err(anyhow::Error::from)
-    }
-
-    fn encode_reflect(reflect: &dyn PartialReflect, registry: &TypeRegistry) -> Result<Vec<u8>> {
-        let serializer = TypedReflectSerializer::new(reflect, registry);
-        Ok(rmp_serde::to_vec_named(&serializer)?)
-    }
-
-    fn decode_reflect(
-        bytes: &[u8],
-        registration: &TypeRegistration,
-        registry: &TypeRegistry,
-    ) -> Result<Box<dyn PartialReflect>> {
-        let mut de = rmp_serde::Deserializer::new(bytes);
-        let reflect_deserializer = TypedReflectDeserializer::new(registration, registry);
-        let boxed_dyn_reflect = reflect_deserializer.deserialize(&mut de)?;
-        Ok(boxed_dyn_reflect)
-    }
-
-    fn parse_params(params: &[u8]) -> Result<Vec<WasvyValue>> {
-        if params.is_empty() || params.iter().all(|b| b.is_ascii_whitespace()) {
-            return Ok(Vec::new());
-        }
-
-        let value: WasvyValue = rmp_serde::from_slice(params)?;
-        match value {
-            WasvyValue::Nil => Ok(Vec::new()),
-            WasvyValue::Array(values) => Ok(values),
-            other => bail!("Expected MessagePack array for params, got {other}"),
-        }
-    }
-
-    fn deserialize_arg(
-        registry: &bevy_reflect::TypeRegistry,
-        type_path: &str,
-        value: &WasvyValue,
-    ) -> Result<Box<dyn PartialReflect>> {
-        let registration = registry
-            .get_with_type_path(type_path)
-            .ok_or_else(|| anyhow::anyhow!("Type {type_path} is not registered"))?;
-
-        let bytes = rmp_serde::to_vec(value)?;
-        let mut de = rmp_serde::Deserializer::new(&*bytes);
-        let reflect_de = TypedReflectDeserializer::new(registration, registry);
-        let output: Box<dyn PartialReflect> = reflect_de.deserialize(&mut de)?;
-        Ok(output)
-    }
-    
-    fn get_type() -> String {
-        "msgpack".to_string()
     }
 }

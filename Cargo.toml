@@ -19,6 +19,7 @@ members = [
     "examples/host_example",
     "examples/host_wit_example",
     "examples/simple",
+    "examples/custom_codec",
 ]
 resolver = "2"
 
@@ -62,14 +63,9 @@ wasmtime-wasi = "40.0.1"
 wasvy = { path = "./" }
 wasvy_macros = { version = "0.0.7", path = "crates/wasvy_macros" }
 wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
-rmp = "0.8"
-rmpv = { version = "1.3.1", features = ["with-serde"] }
-rmp-serde = "1.3.1"
-
 [features]
-default = ["rmp"]
+default = ["serde_json"]
 serde_json = ["dep:serde_json"]
-rmp = ["dep:rmp", "dep:rmpv", "dep:rmp-serde"]
 
 [dependencies]
 anyhow.workspace = true
@@ -88,12 +84,6 @@ wasmtime.workspace = true
 wasmtime-wasi.workspace = true
 inventory.workspace = true
 wasvy_macros.workspace = true
-rmp.workspace = true
-rmp.optional = true
-rmpv.workspace = true
-rmpv.optional = true
-rmp-serde.workspace = true
-rmp-serde.optional = true
 
 [dev-dependencies]
 wit-bindgen.workspace = true

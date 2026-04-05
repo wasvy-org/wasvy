@@ -2574,6 +2574,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
+name = "custom_codec"
+version = "0.0.7"
+dependencies = [
+ "anyhow",
+ "bevy",
+ "bevy-inspector-egui",
+ "bevy_egui",
+ "rmp",
+ "rmp-serde",
+ "rmpv",
+ "serde",
+ "thiserror 2.0.18",
+ "wasvy",
+]
+
+[[package]]
 name = "dasp_sample"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6792,9 +6808,6 @@ dependencies = [
  "bevy_platform",
  "bevy_reflect",
  "inventory",
- "rmp",
- "rmp-serde",
- "rmpv",
  "serde",
  "serde_json",
  "thiserror 2.0.18",

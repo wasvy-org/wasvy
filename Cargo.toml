@@ -63,6 +63,7 @@ wasmtime-wasi = "40.0.1"
 wasvy = { path = "./" }
 wasvy_macros = { version = "0.0.7", path = "crates/wasvy_macros" }
 wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
+
 [features]
 default = ["serde_json"]
 serde_json = ["dep:serde_json"]

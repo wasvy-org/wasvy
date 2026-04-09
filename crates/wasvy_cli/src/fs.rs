@@ -29,7 +29,10 @@ where
             fs::create_dir_all(parent)?;
         }
 
-        fs::write(path, contents)?;
+        // Avoid updating files that have not changed
+        if fs::read_to_string(&path).ok().as_deref() != Some(contents) {
+            fs::write(&path, contents)?;
+        }
 
         Ok(())
     }

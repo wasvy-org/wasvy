@@ -31,3 +31,9 @@ impl fmt::Debug for Id {
         f.debug_tuple("Id").field(&self.name).finish()
     }
 }
+
+impl fmt::Display for Id {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.name)
+    }
+}

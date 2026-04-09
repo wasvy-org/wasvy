@@ -7141,7 +7141,11 @@ dependencies = [
  "askama",
  "glob",
  "semver",
+ "serde_json",
  "toml 1.1.0+spec-1.1.0",
+ "tracing",
+ "wasmtime",
+ "wasmtime-wasi",
  "wasvy_macros",
  "wit-parser 0.245.1",
 ]

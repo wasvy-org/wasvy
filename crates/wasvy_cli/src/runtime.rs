@@ -3,6 +3,7 @@ use std::{
     ffi::OsStr,
     fs,
     path::{Path, PathBuf},
+    process::Stdio,
     sync::Arc,
 };
 
@@ -166,8 +167,9 @@ impl Runtime {
         name: impl AsRef<str>,
         path: impl AsRef<Path>,
         language: Id,
+        stdio: Stdio,
     ) -> Result<Source> {
-        Source::new(name, path, &self, language)
+        Source::new(name, path, &self, language, stdio)
     }
 
     /// Populates the wit deps, overwriting those already there

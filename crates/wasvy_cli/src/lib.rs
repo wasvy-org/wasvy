@@ -9,4 +9,4 @@ pub mod named;
 pub mod remote;
 pub mod runtime;
 pub mod source;
-pub mod wit;
+pub mod witgen;

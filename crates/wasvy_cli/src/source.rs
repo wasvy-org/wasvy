@@ -1,21 +1,19 @@
 use std::{
-    collections::HashSet,
+    borrow::Cow,
     fmt::{self},
     fs,
+    mem::replace,
     path::{Path, PathBuf},
+    process::Stdio,
 };
 
-use crate::{
-    fs::WriteTo,
-    id::Id,
-    runtime::Runtime,
-    wit::{Exports, SystemImport},
-};
+use crate::{id::Id, runtime::Runtime};
 
 use anyhow::{Context, Result, anyhow, ensure};
 use wit_parser::{Package, PackageId, Resolve, UnresolvedPackageGroup, World};
 
 /// A source
+#[derive(Clone)]
 pub struct Source {
     name: Option<String>,
     path: PathBuf,
@@ -26,65 +24,36 @@ pub struct Source {
 }
 
 impl Source {
-    /// Creates a new source (project/build files) at the specified directory, using the language of choice
-    pub(crate) fn new(
-        name: impl AsRef<str>,
-        path: impl AsRef<Path>,
-        runtime: &Runtime,
-        language: Id,
-    ) -> Result<Self> {
-        assert!(runtime.languages().contains_key(&language));
-
-        let name = name.as_ref().to_string();
-        let path = path.as_ref().to_owned();
-
-        // Now create the source and generate it's contents
-        let mut source = Self {
-            name: Some(name),
-            path,
-            language: Some(language),
-            resolve: Resolve::default(),
-            package: invalid_package_id(),
-            runtime: runtime.clone(),
-        };
-        source.generate()?;
-
-        // Ensure package is no longer invalid
-        debug_assert!(source.resolve.packages.get(source.package).is_some());
-
-        Ok(source)
-    }
-
     /// Identifies a path as a compatible [Source] (build files) for a Mod
-    pub fn identify(path: impl AsRef<Path>, builder: &Runtime) -> Result<Self> {
+    pub fn identify(path: impl AsRef<Path>, runtime: &Runtime) -> Result<Self> {
         let path = path.as_ref();
         if path.is_file() && path.extension().unwrap_or_default() == "wasm" {
-            Self::identify_file(path, builder)
+            Self::identify_file(path, runtime)
         } else if path.is_dir() {
-            Self::identify_dir(path, builder)
+            Self::identify_dir(path, runtime)
         } else {
-            Err(anyhow!("path is neither a wasm file nor a directory"))
+            Err(anyhow!("path is neither a file nor a directory"))
         }
         .with_context(|| format!("path = {path:?}"))
     }
 
     /// Identifies a wasm file as a compatible [Source] for a Mod
-    pub fn identify_file(path: impl AsRef<Path>, builder: &Runtime) -> Result<Self> {
+    pub fn identify_file(path: impl AsRef<Path>, runtime: &Runtime) -> Result<Self> {
         let path = path.as_ref();
 
-        let mut resolve = builder.resolve().clone();
+        let mut resolve = runtime.resolve().clone();
         let package = resolve
             .push_file(path)
             .context("failed to resolve wasm file")?;
 
-        Self::new_raw(None, path, builder, None, resolve, package)
+        Self::new_raw(None, path, runtime, None, resolve, package)
     }
 
     /// Identifies a directory as a compatible [Source] (build files) for a Mod
-    pub fn identify_dir(path: impl AsRef<Path>, builder: &Runtime) -> Result<Self> {
+    pub fn identify_dir(path: impl AsRef<Path>, runtime: &Runtime) -> Result<Self> {
         let path = path.as_ref();
 
-        let mut resolve = builder.resolve().clone();
+        let mut resolve = runtime.resolve().clone();
 
         let wit_path = path.join("wit");
         let top_pkg = UnresolvedPackageGroup::parse_dir(&wit_path)
@@ -96,12 +65,12 @@ impl Source {
             .context("failed to resolve path")?;
 
         // Try validating different languages until one matches
-        if let Some((id, _)) = builder
+        if let Some((id, _)) = runtime
             .languages()
             .iter()
             .find(|(_, language)| language.identify(&path))
         {
-            return Source::new_raw(None, &path, builder, Some(id.clone()), resolve, package);
+            return Source::new_raw(None, &path, runtime, Some(id.clone()), resolve, package);
         }
         Err(anyhow!("path was not identified as any language"))
     }
@@ -145,84 +114,79 @@ impl Source {
             .canonicalized_id_of_name(self.package, &world.name)
     }
 
-    /// Populates the wit deps, overwriting those already there
-    pub fn populate_deps(&mut self) -> Result<()> {
-        let wit_path = self.path.join("wit");
-        let deps_path = wit_path.join("deps");
-
-        fs::create_dir_all(&deps_path)?;
-        for dependency in self.runtime.dependencies() {
-            dependency.create(&deps_path)?;
-        }
-
-        // The resolve is no longer valid, so update it
-        {
-            self.resolve = self.runtime.resolve().clone(); // Already includes dependencies above
-
-            let top_pkg = UnresolvedPackageGroup::parse_dir(&wit_path).with_context(|| {
-                format!("failed to parse packages: {:?}", wit_path.join("*.wit"))
-            })?;
-
-            let span_offset = self.resolve.push_source_map(top_pkg.source_map);
-            self.package = self
-                .resolve
-                .push(top_pkg.main, span_offset)
-                .context("failed to resolve path")?;
+    /// Refresh the wit deps from the filesystem
+    pub fn refresh(&mut self) -> Result<()> {
+        if self.language.is_some() {
+            let src = Self::identify_dir(self.path(), self.runtime())
+                .context("identifying exisitng source directory")?;
+            let _ = replace(self, src);
         }
 
         Ok(())
     }
 
-    /// Generates files for the source
-    /// - Performs wit codegen
-    /// - Generates language-specific files (will not overwite existing files)
-    pub fn generate(&mut self) -> Result<()> {
-        if let Some(language) = &self.language {
-            let path = &self.path;
-            let runtime = self.runtime.clone();
-            let namespace = runtime.namespace();
-            let name = self.name();
-            let language = &runtime.languages()[language];
-            let exports = &language.exports(self)?;
-            let imports = exports
-                .methods
-                .iter()
-                .flat_map(|a| a.args.iter())
-                .map(|a| &a.import)
-                .collect();
-            let wasvy_wit_version = &self
-                .runtime
-                .find_dependency("wasvy", "ecs")
-                .expect("wasvy:ecs is a dependecy of the runtime")
-                .version
-                .to_string();
+    /// Updates the wit deps, overwriting those already there
+    pub fn update_deps(&mut self) -> Result<()> {
+        if self.language.is_some() {
+            let wit_path = self.path.join("wit");
+            let deps_path = wit_path.join("deps");
 
-            #[derive(askama::Template)]
-            #[template(path = "./wit/guest.wit")]
-            struct GuestWit<'a> {
-                namespace: &'a str,
-                name: &'a str,
-                wasvy_wit_version: &'a str,
-                imports: HashSet<&'a SystemImport>,
-                exports: &'a Exports,
+            fs::create_dir_all(&deps_path)?;
+            for dependency in self.runtime.dependencies() {
+                dependency.create(&deps_path)?;
             }
-            GuestWit {
-                namespace,
-                name,
-                wasvy_wit_version,
-                imports,
-                exports,
-            }
-            .write(path)?;
 
-            self.populate_deps()?;
-
-            // Since this is an existing source, we expect errors for existing files
-            let _ = language.generate(&self);
-        } else {
-            // Nothing to do for pre-built sources
+            // The source is no longer valid, so refresh it
+            self.refresh()?;
         }
+
         Ok(())
+    }
+
+    /// Builds the source, producing a new Wasm source
+    pub fn build(&self, stdio: Stdio) -> Result<Cow<'_, Source>> {
+        if let Some(id) = self.language.clone() {
+            let runtime = self.runtime().clone();
+            let language = &runtime.languages()[&id];
+
+            let source = language
+                .build(self, stdio)
+                .with_context(|| format!("building with language {id}"))?;
+
+            Ok(Cow::Owned(source))
+        } else {
+            Ok(Cow::Borrowed(self))
+        }
+    }
+
+    /// Creates a new source (project/build files) at the specified directory, using the language of choice
+    pub(crate) fn new(
+        name: impl AsRef<str>,
+        path: impl AsRef<Path>,
+        runtime: &Runtime,
+        language: Id,
+        stdio: Stdio,
+    ) -> Result<Self> {
+        assert!(runtime.languages().contains_key(&language));
+
+        let name = name.as_ref().to_string();
+        let path = path.as_ref().to_owned();
+
+        // Now create the source and generate it's contents
+        let source = Self {
+            name: Some(name),
+            path,
+            language: Some(language),
+            resolve: Resolve::default(),
+            package: invalid_package_id(),
+            runtime: runtime.clone(),
+        };
+        source.build(stdio)?;
+
+        // Ensure package is no longer invalid
+        debug_assert!(source.resolve.packages.get(source.package).is_some());
+
+        Ok(source)
     }
 
     pub(crate) fn new_raw(
@@ -316,7 +280,7 @@ fn get_world(resolve: &Resolve, package: PackageId) -> Option<&World> {
 mod tests {
     use std::{env, fs, path::Path};
 
-    use crate::{language::Language, runtime::Config, wit::Exports};
+    use crate::{language::Language, runtime::Config};
 
     use super::*;
 
@@ -328,16 +292,12 @@ mod tests {
             self.identify
         }
 
-        fn exports(&self, _source: &Source) -> Result<Exports> {
-            unreachable!()
-        }
-
         fn generate(&self, _source: &Source) -> Result<()> {
             unreachable!()
         }
 
-        fn name(&self, _source: &Source) -> Option<String> {
-            None
+        fn build(&self, _source: &Source, _stdio: Stdio) -> Result<Source> {
+            unreachable!()
         }
     }
 

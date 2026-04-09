@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use crate::source::Source;
 
-pub trait Editor {
+pub trait Editor: Send + Sync {
     /// Checks that an editor is available
     fn available(&self) -> bool;
 

@@ -1,14 +1,16 @@
-use std::{env, fs, iter::once, path::Path, process::Command};
-
-use anyhow::{Context, Result, anyhow, bail};
-use semver::Version;
-
-use crate::{
-    fs::WriteTo,
-    language::Language,
-    source::Source,
-    wit::{Exports, Method, MethodArg, SystemImport},
+use std::{
+    env, fs,
+    iter::once,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+    thread,
 };
+
+use anyhow::{Context, Result, anyhow};
+use semver::Version;
+use tracing::warn;
+
+use crate::{fs::WriteTo, language::Language, source::Source, witgen::write_guest_wit};
 
 pub struct Rust {
     pub rust_version: Version,
@@ -100,94 +102,89 @@ impl Language for Rust {
         Ok(())
     }
 
-    fn exports(&self, source: &Source) -> Result<Exports> {
-        let path = source.path().join("src/lib.rs");
-        let contents = fs::read_to_string(&path)
-            .with_context(|| format!("{source:?} is missing src/lib.rs"))?;
+    fn build(&self, source: &Source, stdio: Stdio) -> Result<Source> {
+        let result = build(Full, source, stdio);
 
-        let mut systems = Vec::new();
-
-        // A very naive initial approach for parsing out exports
-        let Some(impl_start) = contents.find("impl Guest for") else {
-            bail!("missing Guest impl")
-        };
-        let impl_block = &contents[impl_start..];
-
-        // Find the end of the impl block by counting braces
-        let mut brace_count = 0;
-        let mut impl_end = None;
-        for (i, ch) in impl_block.chars().enumerate() {
-            match ch {
-                '{' => brace_count += 1,
-                '}' => {
-                    brace_count -= 1;
-                    if brace_count == 0 {
-                        impl_end = Some(i);
-                        break;
-                    }
-                }
-                _ => {}
-            }
+        // Since rust is strongly typed, compilation might fail if wit is outdated.
+        // Retry building setup only and generate wit from that if possible.
+        if let Err(_error) = result.as_ref()
+        // && error.to_string().contains("TODO")
+        {
+            let source = source.clone();
+            thread::spawn(move || {
+                retry_witgen(source)
+                    .err()
+                    .map(|err| warn!("Failed generating wit: {err:?}"))
+            });
         }
 
-        let Some(impl_end) = impl_end else {
-            bail!("could not find end of Guest impl")
-        };
-        let impl_content = &impl_block[..=impl_end];
-
-        // Find all function definitions within the impl block
-        let fn_matches: Vec<_> = impl_content.match_indices("fn ").map(|(i, _)| i).collect();
-
-        for &fn_start in &fn_matches {
-            let fn_content = &impl_content[fn_start + 3..]; // Skip "fn "
-            if let Some(fn_name_end) = fn_content.find('(') {
-                let fn_name = fn_content[..fn_name_end].trim();
-
-                // Skip the setup function
-                if fn_name == "setup" {
-                    continue;
-                }
-
-                // Extract parameters
-                let params_content = &fn_content[fn_name_end + 1..];
-                if let Some(params_end) = params_content.find(')') {
-                    let params_str = &params_content[..params_end];
-
-                    // Parse parameter names and types
-                    let mut args = Vec::new();
-                    for param in params_str.split(',') {
-                        let param = param.trim();
-                        if !param.is_empty() {
-                            let parts: Vec<&str> = param.split(':').collect();
-                            if parts.len() == 2 {
-                                let param_name = parts[0].trim();
-                                let param_type = parts[1].trim();
-
-                                // Map parameter types to SystemImport variants
-                                let import = match param_type {
-                                    "Commands" => SystemImport::Commands,
-                                    "Query" => SystemImport::Query,
-                                    _ => continue, // Skip unknown parameter types
-                                };
-
-                                args.push(MethodArg {
-                                    name: param_name.to_string(),
-                                    import,
-                                });
-                            }
-                        }
-                    }
-
-                    systems.push(Method {
-                        name: fn_name.to_string(),
-                        args,
-                    });
-                }
-            }
-        }
-
-        Ok(Exports { methods: systems })
+        result
     }
+}
+
+fn retry_witgen(source: Source) -> Result<()> {
+    let wit_source = build(SetupOnly, &source, Stdio::null())?;
+    write_guest_wit(&wit_source)
+}
+
+enum BuildMode {
+    /// Full build for the game
+    Full,
+
+    /// Instruct the wasvy_setup macro to only export the setup method
+    SetupOnly,
+}
+use BuildMode::*;
+
+fn build(mode: BuildMode, source: &Source, stdio: Stdio) -> Result<Source> {
+    let name = source.name();
+    let path = source.path();
+
+    let mut command = Command::new("cargo");
+    command
+        .arg("build")
+        .arg("--release")
+        .arg("--target")
+        .arg("wasm32-wasip2")
+        .arg("-p")
+        .arg(name)
+        .current_dir(path)
+        .stderr(stdio);
+
+    if matches!(mode, Full) {
+        command.arg("--feature").arg("setup_only");
+    }
+
+    let file = target_dir(path)
+        .with_context(|| format!("path = {path:?}"))?
+        .join("wasm32-wasip2")
+        .join("release")
+        .join(format!("{name}.wasm"));
+    Source::identify_file(file, source.runtime()).context("identifying build artifcat")
+}
+
+fn target_dir(path: impl AsRef<Path>) -> Result<PathBuf> {
+    let path = path.as_ref();
+    let output = Command::new("cargo")
+        .arg("metadata")
+        .arg("--format-version")
+        .arg("1")
+        .arg("--no-deps")
+        .current_dir(path)
+        .output()
+        .context("could not run cargo metadata")?;
+
+    let stdout =
+        String::from_utf8(output.stdout).context("cargo metadata output was not valid UTF-8")?;
+
+    let metadata: serde_json::Value =
+        serde_json::from_str(&stdout).context("failed to parse cargo metadata as JSON")?;
+
+    let target_directory = metadata["target_directory"]
+        .as_str()
+        .context("target_directory not found in cargo metadata")?;
+
+    Ok(PathBuf::from(target_directory))
 }
 
 impl Default for Rust {
@@ -200,6 +197,7 @@ impl Default for Rust {
 mod tests {
     use crate::{
         id::Id,
+        languages::rust::target_dir,
         runtime::{Config, Runtime},
     };
 
@@ -236,30 +234,17 @@ mod tests {
     }
 
     #[test]
-    fn exports() {
-        let source = source();
-        let Exports { methods } = Rust::default().exports(&source).expect("exports are found");
-        assert_eq!(methods.len(), 2);
-        assert_eq!(
-            methods[0],
-            Method {
-                name: "spawn_entities".to_string(),
-                args: vec![MethodArg {
-                    name: "commands".to_string(),
-                    import: SystemImport::Commands,
-                }],
-            }
-        );
-        assert_eq!(
-            methods[1],
-            Method {
-                name: "spin_cube".to_string(),
-                args: vec![MethodArg {
-                    name: "query".to_string(),
-                    import: SystemImport::Query,
-                }],
-            }
-        );
+    fn target_dir_simple() {
+        let dir = target_dir(".").unwrap();
+        assert_eq!(dir.file_name(), Some("target".as_ref()));
+        assert!(dir.try_exists().unwrap_or(false));
+    }
+
+    #[test]
+    fn build_simple() {
+        let dir = target_dir(".").unwrap();
+        assert_eq!(dir.file_name(), Some("target".as_ref()));
+        assert!(dir.try_exists().unwrap());
     }
 
     fn source() -> Source {

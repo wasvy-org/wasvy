@@ -25,7 +25,7 @@ resolver = "2"
 [workspace.package]
 authors = ["EngoDev", "MarcGuiselin"]
 categories = ["wasm", "game-development"]
-rust-version = "1.89.0"
+rust-version = "1.92.0"
 version = "0.0.7"
 edition = "2024"
 description = "Bevy WASM"
@@ -46,7 +46,10 @@ bevy_math = { version = "0.18.0", features = [
     "serialize",
 ], default-features = false }
 bevy_platform = "0.18.0"
-bevy_reflect = { version = "0.18.0", features = ["functions", "reflect_documentation"] }
+bevy_reflect = { version = "0.18.0", features = [
+    "functions",
+    "reflect_documentation",
+] }
 bevy_transform = { version = "0.18.0", features = [
     "serialize",
 ], default-features = false }

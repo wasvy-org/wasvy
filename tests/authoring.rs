@@ -83,7 +83,7 @@ fn methods_macro_registers() {
         )
         .unwrap();
 
-    let pct_val: f32 = WasvyCodec::decode(&pct).unwrap();
+    let pct_val: f32 = wasvy::serialize::wasvy_decode(&pct).unwrap();
     assert!((pct_val - 0.7).abs() < 1e-6);
 }
 

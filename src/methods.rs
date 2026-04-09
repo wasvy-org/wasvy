@@ -356,8 +356,10 @@ mod tests {
     use super::*;
     use crate::WasvyComponent;
     use crate::authoring::{WasvyExport, WasvyMethodMetadata, inventory, register_all};
+    use crate::plugin::ModloaderPlugin;
     use crate::serialize::CodecResource;
     use bevy_app::App;
+    use bevy_asset::AssetPlugin;
     use bevy_ecs::component::Component;
     use bevy_ecs::prelude::ReflectComponent;
     use bevy_ecs::reflect::AppFunctionRegistry;
@@ -435,7 +437,7 @@ mod tests {
     #[test]
     fn index_builds_and_invokes() {
         let mut app = App::new();
-        register_all(&mut app);
+        app.add_plugins((AssetPlugin::default(), ModloaderPlugin::unscheduled()));
 
         let type_registry = app
             .world()
@@ -449,7 +451,7 @@ mod tests {
         let codec = app
             .world()
             .get_resource::<CodecResource>()
-            .expect("CodecResource");
+            .expect("ModloaderPlugin inserts CodecResource::new(JsonCodec)");
 
         let index = FunctionIndex::build(type_registry, function_registry);
         let mut health = Health {
@@ -480,7 +482,7 @@ mod tests {
                 codec,
             )
             .unwrap();
-        let pct_val: f32 = WasvyCodec::decode(&pct).unwrap();
+        let pct_val: f32 = crate::serialize::wasvy_decode(&pct).unwrap();
         assert!((pct_val - 0.7).abs() < 1e-6);
     }
 

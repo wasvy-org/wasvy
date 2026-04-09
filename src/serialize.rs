@@ -100,3 +100,19 @@ impl WasvyCodec for JsonCodec {
         "json".to_string()
     }
 }
+
+#[cfg(feature = "serde_json")]
+pub fn wasvy_encode<T>(value: &T) -> Result<Vec<u8>>
+where
+    T: ?Sized + serde::Serialize,
+{
+    Ok(serde_json::to_vec(&value)?)
+}
+
+#[cfg(feature = "serde_json")]
+pub fn wasvy_decode<'a, T>(v: &'a [u8]) -> Result<T>
+where
+    T: serde::Deserialize<'a>,
+{
+    serde_json::from_slice(v).map_err(anyhow::Error::from)
+}

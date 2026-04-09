@@ -43,10 +43,10 @@ impl Default for Config {
     }
 }
 
-impl Into<Config> for &'static str {
-    fn into(self) -> Config {
+impl From<&'static str> for Config {
+    fn from(name: &'static str) -> Self {
         Config {
-            name: self,
+            name,
             ..Default::default()
         }
     }

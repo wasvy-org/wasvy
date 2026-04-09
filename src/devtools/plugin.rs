@@ -56,9 +56,8 @@ impl AppExtend for App {
         handler: impl IntoSystem<In<Option<Value>>, Result<Value>, M> + 'static,
     ) -> &mut Self {
         // Map anyhow::Result to BrpResult
-        let handler = handler.pipe(|In(result): In<Result<Value>>| {
-            result.map_err(|error| BrpError::internal(error))
-        });
+        let handler =
+            handler.pipe(|In(result): In<Result<Value>>| result.map_err(BrpError::internal));
 
         // Add handler to remote methods
         let system_id = self.world_mut().register_system(handler);

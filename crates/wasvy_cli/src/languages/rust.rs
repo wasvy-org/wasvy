@@ -31,7 +31,7 @@ impl Rust {
 
     fn parse(version: impl AsRef<str>) -> Result<Self> {
         let version = version.as_ref().trim();
-        once(Version::parse(&version))
+        once(Version::parse(version))
             .chain(version.split(" ").map(Version::parse))
             .find_map(|parsed| parsed.ok())
             .map(|rust_version| Self { rust_version })

@@ -29,8 +29,7 @@ pub fn list(
             })
             .or_insert(vec![id]);
     }
-    let value: Value = todo!();
-    Ok(value)
+    Ok(serde_json::to_value(mods)?)
 }
 
 /// Spawn an instance of a mod, returning its mod id (u64).

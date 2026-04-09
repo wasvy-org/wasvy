@@ -2,7 +2,7 @@ use std::process::ExitStatus;
 
 use anyhow::Result;
 
-use crate::{editors::Generic, id::Id, named::Named, source::Source};
+use crate::{editors::Generic, named::Named, source::Source};
 
 pub trait Editor: Named + Send + Sync {
     /// Checks that an editor is available

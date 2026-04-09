@@ -68,9 +68,9 @@ impl Source {
         if let Some((id, _)) = runtime
             .languages()
             .iter()
-            .find(|(_, language)| language.identify(&path))
+            .find(|(_, language)| language.identify(path))
         {
-            return Source::new_raw(None, &path, runtime, Some(id.clone()), resolve, package);
+            return Source::new_raw(None, path, runtime, Some(id.clone()), resolve, package);
         }
         Err(anyhow!("path was not identified as any language"))
     }
@@ -224,7 +224,7 @@ impl Source {
             source.name = if let Some(language) = &source.language {
                 runtime
                     .languages()
-                    .get(&language)
+                    .get(language)
                     .map(|a| a.name(&source))
                     .ok_or(anyhow!("builder does not implement {language:?}"))?
             } else {

@@ -45,7 +45,7 @@ impl Default for Config {
 impl Config {
     /// Adds a new required dependency to our builder
     pub fn add_dependency(&mut self, dependency: Dependency) -> Result<&mut Self> {
-        dependency.resolve(&PathBuf::new(), &mut self.resolve)?;
+        dependency.resolve(PathBuf::new(), &mut self.resolve)?;
         self.dependencies.push(dependency);
 
         Ok(self)
@@ -70,8 +70,7 @@ impl Config {
             .and_then(OsStr::to_str)
             .ok_or(anyhow!("dependency path should be a file name"))?;
 
-        let dependency =
-            Dependency::new_with_resolve(&mut self.resolve, &file_name, file_contents)?;
+        let dependency = Dependency::new_with_resolve(&mut self.resolve, file_name, file_contents)?;
         self.dependencies.push(dependency);
 
         Ok(self)
@@ -102,7 +101,10 @@ pub struct Runtime(Arc<Config>);
 impl Runtime {
     /// Produces a runtime from a config
     pub fn new(config: Config) -> Self {
-        assert!(config.languages.len() > 0, "must add languages to builder");
+        assert!(
+            !config.languages.is_empty(),
+            "must add languages to builder"
+        );
         Self(Arc::new(config))
     }
 
@@ -175,7 +177,7 @@ impl Runtime {
         language: Id,
         stdio: Stdio,
     ) -> Result<Source> {
-        Source::new(name, path, &self, language, stdio)
+        Source::new(name, path, self, language, stdio)
     }
 
     /// Populates the wit deps, overwriting those already there
@@ -195,6 +197,5 @@ fn search_glob(pattern: PathBuf) -> impl Iterator<Item = PathBuf> {
     let pattern = pattern.to_str().expect("unicode path");
     glob::glob(pattern)
         .expect("valid glob")
-        .into_iter()
         .filter_map(Result::ok)
 }

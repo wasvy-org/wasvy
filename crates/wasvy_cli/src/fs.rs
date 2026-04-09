@@ -1,6 +1,6 @@
 use std::{any, fs, path::Path};
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 
 // Implemented for things that can be written to the disk.
 pub trait WriteTo {
@@ -26,12 +26,12 @@ where
         let path = path.as_ref().join(file_name.trim());
 
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)?;
+            fs::create_dir_all(parent).with_context(|| format!("path = {parent:?}"))?;
         }
 
         // Avoid updating files that have not changed
         if fs::read_to_string(&path).ok().as_deref() != Some(contents) {
-            fs::write(&path, contents)?;
+            fs::write(&path, contents).with_context(|| format!("path = {path:?}"))?;
         }
 
         Ok(())

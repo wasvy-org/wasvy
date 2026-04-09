@@ -9,21 +9,24 @@ use bevy::{
 };
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use serde::
-    de::DeserializeSeed
-;
+use serde::de::DeserializeSeed;
 use wasvy::{plugin::ModloaderPlugin, serialize::WasvyCodec};
 
 #[derive(Default)]
 pub struct CustomCodec;
 
 impl WasvyCodec for CustomCodec {
-    fn encode_reflect(reflect: &dyn PartialReflect, registry: &TypeRegistry) -> Result<Vec<u8>> {
+    fn encode_reflect(
+        &self,
+        reflect: &dyn PartialReflect,
+        registry: &TypeRegistry,
+    ) -> Result<Vec<u8>> {
         let serializer = TypedReflectSerializer::new(reflect, registry);
         Ok(rmp_serde::to_vec_named(&serializer)?)
     }
 
     fn decode_reflect(
+        &self,
         bytes: &[u8],
         registration: &TypeRegistration,
         registry: &TypeRegistry,
@@ -34,7 +37,7 @@ impl WasvyCodec for CustomCodec {
         Ok(boxed_dyn_reflect)
     }
 
-    fn get_type() -> String {
+    fn get_type(&self) -> String {
         "msgpack".to_string()
     }
 
@@ -51,7 +54,7 @@ impl WasvyCodec for CustomCodec {
         let value = rmp_serde::from_slice(params)?;
 
         let args = match value {
-            rmpv::Value::Null => Vec::new(),
+            rmpv::Value::Nil => Vec::new(),
             rmpv::Value::Array(values) => values,
             _ => bail!("Expected JSON array for params, got {}", value),
         };
@@ -64,7 +67,7 @@ impl WasvyCodec for CustomCodec {
                 .ok_or_else(|| anyhow::anyhow!("Type {type_path} is not registered"))?;
 
             let bytes = rmp_serde::to_vec(value)?;
-            let mut de = rmp_serde::Deserializer::from_slice(&bytes);
+            let mut de = rmp_serde::Deserializer::new(&*bytes);
             let reflect_de = TypedReflectDeserializer::new(registration, registry);
             output.push(Some(reflect_de.deserialize(&mut de)?));
         }

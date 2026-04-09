@@ -11,7 +11,7 @@ use anyhow::{Result, anyhow};
 use wit_parser::Resolve;
 
 use crate::{
-    dependency::Dependency, editor::Editor, id::Id, language::Language, named::Named,
+    dependency::Dependency, editor::BoxedEditor, id::Id, language::Language, named::Named,
     source::Source,
 };
 
@@ -28,7 +28,7 @@ pub struct Config {
 }
 
 type Languages = HashMap<Id, Box<dyn Language>>;
-type Editors = HashMap<Id, Box<dyn Editor>>;
+type Editors = HashMap<Id, BoxedEditor>;
 
 impl Default for Config {
     fn default() -> Self {
@@ -85,9 +85,10 @@ impl Config {
     }
 
     /// Adds support for an external editor
-    pub fn add_editor<E: Editor + Named + 'static>(&mut self, editor: E) -> &mut Self {
+    pub fn add_editor(&mut self, editor: impl Into<BoxedEditor>) -> &mut Self {
+        let editor = editor.into();
         let id = Id::from(&editor);
-        self.editors.insert(id, Box::new(editor));
+        self.editors.insert(id, editor);
         self
     }
 }
@@ -137,6 +138,11 @@ impl Runtime {
     /// Returns this builder's supported languages
     pub fn languages(&self) -> &Languages {
         &self.0.languages
+    }
+
+    /// Returns this builder's supported editors
+    pub fn editors(&self) -> &Editors {
+        &self.0.editors
     }
 
     /// Given a directory, searches its contents for compatible [Source]s (build files) for Mods

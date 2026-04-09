@@ -5,18 +5,18 @@ use crate::runtime::Config;
 
 impl Config {
     pub fn add_all_editors(&mut self) {
-        self.add_editor(Generic::new("atom"));
-        self.add_editor(Generic::new("clion"));
-        self.add_editor(Generic::new("emacs"));
-        self.add_editor(Generic::new("intellij"));
-        self.add_editor(Generic::new("neovim"));
-        self.add_editor(Generic::new("pycharm"));
-        self.add_editor(Generic::new("sublime"));
-        self.add_editor(Generic::new("vim"));
-        self.add_editor(Generic::new("vscode"));
-        self.add_editor(Generic::new("vscodium"));
-        self.add_editor(Generic::new("webstorm"));
-        self.add_editor(Generic::new("zed"));
-        self.add_editor(Generic::new("zeditor"));
+        self.add_editor("atom");
+        self.add_editor("clion");
+        self.add_editor("emacs");
+        self.add_editor("intellij");
+        self.add_editor("neovim");
+        self.add_editor("pycharm");
+        self.add_editor("sublime");
+        self.add_editor("vim");
+        self.add_editor("vscode");
+        self.add_editor("vscodium");
+        self.add_editor("webstorm");
+        self.add_editor("zed");
+        self.add_editor("zeditor");
     }
 }

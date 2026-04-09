@@ -25,7 +25,7 @@ resolver = "2"
 [workspace.package]
 authors = ["EngoDev", "MarcGuiselin"]
 categories = ["wasm", "game-development"]
-rust-version = "1.89.0"
+rust-version = "1.92.0"
 version = "0.0.7"
 edition = "2024"
 description = "Bevy WASM"

@@ -61,10 +61,10 @@
             udev
             vulkan-loader
             wayland
-            xorg.libX11
-            xorg.libXcursor
-            xorg.libXi
-            xorg.libXrandr
+            libx11
+            libxcursor
+            libxi
+            libxrandr
           ]
           ++ lib.optionals stdenv.isDarwin [
             darwin.apple_sdk_11_0.frameworks.Cocoa

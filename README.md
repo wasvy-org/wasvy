@@ -9,7 +9,7 @@
 [![Crates.io](https://img.shields.io/crates/v/wasvy.svg)](https://crates.io/crates/wasvy)
 [![Downloads](https://img.shields.io/crates/d/wasvy.svg)](https://crates.io/crates/wasvy)
 [![Docs](https://docs.rs/wasvy/badge.svg)](https://docs.rs/wasvy)
-[![Rust Version](https://img.shields.io/badge/rust-1.89.0+-blue.svg)](https://www.rust-lang.org)
+[![Rust Version](https://img.shields.io/badge/rust-1.95.0+-blue.svg)](https://www.rust-lang.org)
 [![CI](https://github.com/wasvy-org/wasvy/workflows/CI/badge.svg)](https://github.com/wasvy-org/wasvy/actions)
 [![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.com/channels/691052431525675048/1034543904478998539)
 

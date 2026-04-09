@@ -7,6 +7,9 @@ use bevy_ecs::reflect::AppTypeRegistry;
 use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
 use bevy_log::prelude::*;
 
+use crate::serialize::CodecResource;
+use crate::serialize::JsonCodec;
+use crate::serialize::WasvyCodec;
 use crate::{
     asset::{ModAsset, ModAssetLoader},
     authoring::register_all,
@@ -85,11 +88,20 @@ struct Inner {
     schedules: ModSchedules,
     setup_schedule: Interned<dyn ScheduleLabel>,
     despawn_behaviour: ModDespawnBehaviour,
+    codec: Option<CodecResource>,
 }
 
 impl Default for ModloaderPlugin {
     fn default() -> Self {
         Self::new(ModSchedules::default())
+    }
+}
+
+impl ModloaderPlugin {
+    pub fn with_codec(mut self, codec: impl WasvyCodec + 'static) -> Self {
+        let inner = self.inner();
+        inner.codec = Some(CodecResource::new(codec));
+        self
     }
 }
 
@@ -106,7 +118,14 @@ impl ModloaderPlugin {
             schedules,
             setup_schedule,
             despawn_behaviour,
+            codec: None,
         };
+        #[cfg(feature = "serde_json")]
+        let inner = Inner {
+            codec: Some(CodecResource::new(JsonCodec)),
+            ..inner
+        };
+
         ModloaderPlugin(Mutex::new(Some(inner)))
     }
 
@@ -180,6 +199,7 @@ impl Plugin for ModloaderPlugin {
             schedules,
             setup_schedule,
             despawn_behaviour,
+            codec,
         } = self
             .0
             .lock()
@@ -196,6 +216,7 @@ impl Plugin for ModloaderPlugin {
             .register_asset_loader(ModAssetLoader { linker })
             .insert_resource(engine)
             .insert_resource(despawn_behaviour)
+            .insert_resource(codec.expect("Codec is necessary"))
             .init_resource::<WasmComponentRegistry>()
             .init_resource::<AppTypeRegistry>()
             .init_resource::<AppFunctionRegistry>()

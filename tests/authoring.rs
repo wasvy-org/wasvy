@@ -8,7 +8,7 @@ use wasvy::WasvyComponent;
 use wasvy::authoring::register_all;
 use wasvy::methods::MethodTarget;
 use wasvy::prelude::*;
-use wasvy::serialize::{WasvyCodec, WasvyCodecImpl};
+use wasvy::serialize::CodecResource;
 
 #[derive(Component, Reflect, Default, WasvyComponent)]
 #[reflect(Component)]
@@ -49,6 +49,10 @@ fn methods_macro_registers() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -61,6 +65,7 @@ fn methods_macro_registers() {
             MethodTarget::Write(&mut health),
             b"[5.0]",
             type_registry,
+            codec,
         )
         .unwrap();
 
@@ -74,6 +79,7 @@ fn methods_macro_registers() {
             MethodTarget::Read(&health),
             b"null",
             type_registry,
+            codec,
         )
         .unwrap();
 
@@ -121,6 +127,10 @@ fn auto_registration_plugin_registers_all() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -137,6 +147,7 @@ fn auto_registration_plugin_registers_all() {
             MethodTarget::Write(&mut health),
             b"[1.0]",
             type_registry,
+            codec,
         )
         .unwrap();
     assert_eq!(out, b"null");
@@ -152,6 +163,10 @@ fn skip_attribute_excludes_method() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -170,6 +185,7 @@ fn skip_attribute_excludes_method() {
             MethodTarget::Read(&health),
             b"null",
             type_registry,
+            codec,
         )
         .unwrap_err();
 
@@ -212,6 +228,10 @@ fn invoke_errors_on_missing_method() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -225,6 +245,7 @@ fn invoke_errors_on_missing_method() {
             MethodTarget::Write(&mut health),
             b"[]",
             type_registry,
+            codec,
         )
         .unwrap_err();
 
@@ -245,6 +266,10 @@ fn invoke_errors_on_wrong_access() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -258,6 +283,7 @@ fn invoke_errors_on_wrong_access() {
             MethodTarget::Read(&health),
             b"[1.0]",
             type_registry,
+            codec,
         )
         .unwrap_err();
 
@@ -278,6 +304,10 @@ fn invoke_errors_on_arg_count_mismatch() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -291,6 +321,7 @@ fn invoke_errors_on_arg_count_mismatch() {
             MethodTarget::Write(&mut health),
             b"[]",
             type_registry,
+            codec,
         )
         .unwrap_err();
 
@@ -311,6 +342,10 @@ fn invoke_errors_on_bad_json() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -324,6 +359,7 @@ fn invoke_errors_on_bad_json() {
             MethodTarget::Write(&mut health),
             b"[",
             type_registry,
+            codec,
         )
         .unwrap_err();
 

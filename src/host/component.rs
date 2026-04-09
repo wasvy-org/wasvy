@@ -34,6 +34,7 @@ impl HostComponent for WasmHost {
             queries,
             query_resolver,
             type_registry,
+            codec,
             ..
         } = self.access()
         else {
@@ -47,6 +48,7 @@ impl HostComponent for WasmHost {
             component.index,
             queries,
             type_registry,
+            codec,
         )
     }
 
@@ -60,6 +62,7 @@ impl HostComponent for WasmHost {
             queries,
             query_resolver,
             type_registry,
+            codec,
             ..
         } = self.access()
         else {
@@ -74,6 +77,7 @@ impl HostComponent for WasmHost {
             value,
             queries,
             type_registry,
+            codec,
         )
     }
 
@@ -108,6 +112,7 @@ pub fn invoke_component_method(
         queries,
         query_resolver,
         type_registry,
+        codec,
         function_index,
         ..
     } = host.access()
@@ -128,6 +133,7 @@ pub fn invoke_component_method(
                 MethodTarget::Write(reflect),
                 params,
                 type_registry,
+                codec,
             )
         })?
     } else {
@@ -139,6 +145,7 @@ pub fn invoke_component_method(
                 MethodTarget::Read(reflect),
                 params,
                 type_registry,
+                codec,
             )
         })?
     };

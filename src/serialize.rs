@@ -1,48 +1,58 @@
 use anyhow::{Result, bail};
+use bevy_derive::{Deref, DerefMut};
+use bevy_ecs::resource::Resource;
 use bevy_reflect::{
     PartialReflect, TypeRegistration, TypeRegistry,
     serde::{TypedReflectDeserializer, TypedReflectSerializer},
 };
-use serde::{
-    Serialize,
-    de::{self, DeserializeSeed},
-};
+use serde::de::DeserializeSeed;
 
-pub trait WasvyCodecImpl {
-    type WasvySerializeValue;
-    fn encode<T>(value: &T) -> Result<Vec<u8>>
-    where
-        T: ?Sized + Serialize;
-    fn decode<'a, T>(v: &'a [u8]) -> Result<T>
-    where
-        T: de::Deserialize<'a>;
+#[derive(Resource, Deref, DerefMut)]
+pub struct CodecResource(#[deref] pub Box<dyn WasvyCodec>);
 
-    fn encode_reflect(reflect: &dyn PartialReflect, registry: &TypeRegistry) -> Result<Vec<u8>>;
+impl CodecResource {
+    pub fn new(codec: impl WasvyCodec) -> Self {
+        Self(Box::new(codec))
+    }
+}
+
+pub trait WasvyCodec: Send + Sync + 'static {
+    fn encode_reflect(
+        &self,
+        reflect: &dyn PartialReflect,
+        registry: &TypeRegistry,
+    ) -> Result<Vec<u8>>;
     fn decode_reflect(
+        &self,
         bytes: &[u8],
         registration: &TypeRegistration,
         registry: &TypeRegistry,
     ) -> Result<Box<dyn PartialReflect>>;
-    fn parse_params(params: &[u8]) -> Result<Vec<Self::WasvySerializeValue>>;
-    fn deserialize_arg(
-        registry: &bevy_reflect::TypeRegistry,
-        type_path: &str,
-        value: &Self::WasvySerializeValue,
-    ) -> Result<Box<dyn PartialReflect>>;
-    fn get_type() -> String;
+    fn decode_reflect_args(
+        &self,
+        params: &[u8],
+        type_path: &[&str],
+        registry: &TypeRegistry,
+    ) -> Result<Vec<Option<Box<dyn PartialReflect>>>>;
+    fn get_type(&self) -> String;
 }
 
-pub struct WasvyCodec;
+#[derive(Default, Resource)]
+pub struct JsonCodec;
 
 #[cfg(feature = "serde_json")]
-impl WasvyCodecImpl for WasvyCodec {
-    type WasvySerializeValue = serde_json::Value;
-    fn encode_reflect(reflect: &dyn PartialReflect, registry: &TypeRegistry) -> Result<Vec<u8>> {
+impl WasvyCodec for JsonCodec {
+    fn encode_reflect(
+        &self,
+        reflect: &dyn PartialReflect,
+        registry: &TypeRegistry,
+    ) -> Result<Vec<u8>> {
         let serializer = TypedReflectSerializer::new(reflect, registry);
         Ok(serde_json::to_vec(&serializer)?)
     }
 
     fn decode_reflect(
+        &self,
         bytes: &[u8],
         registration: &TypeRegistration,
         registry: &TypeRegistry,
@@ -52,50 +62,41 @@ impl WasvyCodecImpl for WasvyCodec {
         let boxed_dyn_reflect = reflect_deserializer.deserialize(&mut de)?;
         Ok(boxed_dyn_reflect)
     }
-
-    fn encode<T>(value: &T) -> Result<Vec<u8>>
-    where
-        T: ?Sized + Serialize,
-    {
-        Ok(serde_json::to_vec(&value)?)
-    }
-
-    fn decode<'a, T>(v: &'a [u8]) -> Result<T>
-    where
-        T: de::Deserialize<'a>,
-    {
-        serde_json::from_slice(v).map_err(anyhow::Error::from)
-    }
-
-    fn parse_params(params: &[u8]) -> Result<Vec<Self::WasvySerializeValue>> {
+    fn decode_reflect_args(
+        &self,
+        params: &[u8],
+        type_path: &[&str],
+        registry: &TypeRegistry,
+    ) -> Result<Vec<Option<Box<dyn PartialReflect>>>> {
         if params.is_empty() || params.iter().all(|b| b.is_ascii_whitespace()) {
-            return Ok(Vec::new());
+            return Ok(vec![]);
         }
 
-        let value: Self::WasvySerializeValue = serde_json::from_slice(params)?;
-        match value {
-            Self::WasvySerializeValue::Null => Ok(Vec::new()),
-            Self::WasvySerializeValue::Array(values) => Ok(values),
-            other => bail!("Expected JSON array for params, got {other}"),
+        let value = serde_json::from_slice(params)?;
+
+        let args = match value {
+            serde_json::Value::Null => Vec::new(),
+            serde_json::Value::Array(values) => values,
+            _ => bail!("Expected JSON array for params, got {}", value),
+        };
+
+        let mut output = Vec::new();
+
+        for (type_path, value) in type_path.iter().zip(args.iter()) {
+            let registration = registry
+                .get_with_type_path(type_path)
+                .ok_or_else(|| anyhow::anyhow!("Type {type_path} is not registered"))?;
+
+            let bytes = serde_json::to_vec(value)?;
+            let mut de = serde_json::Deserializer::from_slice(&bytes);
+            let reflect_de = TypedReflectDeserializer::new(registration, registry);
+            output.push(Some(reflect_de.deserialize(&mut de)?));
         }
-    }
 
-    fn deserialize_arg(
-        registry: &bevy_reflect::TypeRegistry,
-        type_path: &str,
-        value: &Self::WasvySerializeValue,
-    ) -> Result<Box<dyn PartialReflect>> {
-        let registration = registry
-            .get_with_type_path(type_path)
-            .ok_or_else(|| anyhow::anyhow!("Type {type_path} is not registered"))?;
-
-        let bytes = serde_json::to_vec(value)?;
-        let mut de = serde_json::Deserializer::from_slice(&bytes);
-        let reflect_de = TypedReflectDeserializer::new(registration, registry);
-        let output: Box<dyn PartialReflect> = reflect_de.deserialize(&mut de)?;
         Ok(output)
     }
-    fn get_type() -> String {
+
+    fn get_type(&self) -> String {
         "json".to_string()
     }
 }

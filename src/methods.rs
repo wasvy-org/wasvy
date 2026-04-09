@@ -14,13 +14,13 @@ use bevy_ecs::prelude::Resource;
 use bevy_ecs::reflect::{AppFunctionRegistry, AppTypeRegistry};
 use bevy_platform::collections::HashMap;
 use bevy_reflect::{
-    PartialReflect, Reflect,
+    Reflect,
     func::args::Ownership,
     func::{ArgList, DynamicFunction},
 };
 
 use crate::authoring::{WasvyExport, WasvyMethodMetadata, inventory};
-use crate::serialize::{WasvyCodec, WasvyCodecImpl};
+use crate::serialize::CodecResource;
 
 /// Required access for a registered function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -254,6 +254,7 @@ impl FunctionIndex {
         target: MethodTarget<'_>,
         params: &[u8],
         type_registry: &AppTypeRegistry,
+        codec: &CodecResource,
     ) -> Result<Vec<u8>> {
         let entry = self
             .get(type_path, method)
@@ -263,28 +264,29 @@ impl FunctionIndex {
             bail!("Method {type_path}::{method} requires mutable access")
         }
 
-        let args = WasvyCodec::parse_params(params)?;
-        if args.len() != entry.args.len() {
+        let type_paths = entry
+            .args
+            .iter()
+            .map(|arg| arg.type_path.as_str())
+            .collect::<Vec<_>>();
+
+        let registry = type_registry.read();
+
+        let mut owned_args = codec.decode_reflect_args(params, &type_paths, &registry)?;
+
+        if owned_args.len() != entry.args.len() {
             bail!(
                 "Method {type_path}::{method} expects {} args but received {}",
                 entry.args.len(),
-                args.len()
+                owned_args.len()
             );
         }
 
-        let registry = type_registry.read();
         let mut arg_list = ArgList::new();
         match target {
             MethodTarget::Read(target) => arg_list.push_ref(target),
             MethodTarget::Write(target) => arg_list.push_mut(target),
         }
-
-        let mut owned_args: Vec<Option<Box<dyn PartialReflect>>> = Vec::new();
-        for (spec, value) in entry.args.iter().zip(args.into_iter()) {
-            let boxed = WasvyCodec::deserialize_arg(&registry, &spec.type_path, &value)?;
-            owned_args.push(Some(boxed));
-        }
-
         for (spec, slot) in entry.args.iter().zip(owned_args.iter_mut()) {
             match spec.ownership {
                 Ownership::Owned => {
@@ -303,7 +305,7 @@ impl FunctionIndex {
         }
 
         let result = entry.function.call(arg_list)?;
-        let output = serialize_return(result, &registry)?;
+        let output = serialize_return(result, &registry, codec)?;
         Ok(output)
     }
 }
@@ -311,16 +313,17 @@ impl FunctionIndex {
 fn serialize_return(
     result: bevy_reflect::func::Return<'_>,
     registry: &bevy_reflect::TypeRegistry,
+    codec: &CodecResource,
 ) -> Result<Vec<u8>> {
     if result.is_unit() {
         return Ok(b"null".to_vec());
     }
     match result {
         bevy_reflect::func::Return::Owned(value) => {
-            Ok(WasvyCodec::encode_reflect(value.as_ref(), registry)?)
+            Ok(codec.encode_reflect(value.as_ref(), registry)?)
         }
-        bevy_reflect::func::Return::Ref(value) => Ok(WasvyCodec::encode_reflect(value, registry)?),
-        bevy_reflect::func::Return::Mut(value) => Ok(WasvyCodec::encode_reflect(value, registry)?),
+        bevy_reflect::func::Return::Ref(value) => Ok(codec.encode_reflect(value, registry)?),
+        bevy_reflect::func::Return::Mut(value) => Ok(codec.encode_reflect(value, registry)?),
     }
 }
 
@@ -353,6 +356,7 @@ mod tests {
     use super::*;
     use crate::WasvyComponent;
     use crate::authoring::{WasvyExport, WasvyMethodMetadata, inventory, register_all};
+    use crate::serialize::CodecResource;
     use bevy_app::App;
     use bevy_ecs::component::Component;
     use bevy_ecs::prelude::ReflectComponent;
@@ -442,6 +446,11 @@ mod tests {
             .get_resource::<AppFunctionRegistry>()
             .expect("AppFunctionRegistry");
 
+        let codec = app
+            .world()
+            .get_resource::<CodecResource>()
+            .expect("CodecResource");
+
         let index = FunctionIndex::build(type_registry, function_registry);
         let mut health = Health {
             current: 2.0,
@@ -455,6 +464,7 @@ mod tests {
                 MethodTarget::Write(&mut health),
                 b"[5.0]",
                 type_registry,
+                codec,
             )
             .unwrap();
         assert_eq!(out, b"null");
@@ -467,6 +477,7 @@ mod tests {
                 MethodTarget::Read(&health),
                 b"null",
                 type_registry,
+                codec,
             )
             .unwrap();
         let pct_val: f32 = WasvyCodec::decode(&pct).unwrap();

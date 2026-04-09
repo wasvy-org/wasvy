@@ -7,6 +7,7 @@ use bevy_ecs::{
 use crate::{
     bindings::wasvy::ecs::app::{ComponentIndex, QueryFor},
     component::{ComponentRef, get_component, set_component},
+    serialize::CodecResource,
     system::Param,
 };
 
@@ -42,13 +43,14 @@ impl QueryResolver {
         index: ComponentIndex,
         queries: &mut Queries<'_, '_>,
         type_registry: &AppTypeRegistry,
+        codec: &CodecResource,
     ) -> Result<Vec<u8>> {
         let query_for = self.query_for(id, index)?;
 
         let query = queries.get_mut(id.0);
         let entity = query.get(entity)?;
 
-        get_component(&entity, &query_for.component, type_registry)
+        get_component(&entity, &query_for.component, type_registry, codec)
     }
 
     pub(crate) fn set(
@@ -59,6 +61,7 @@ impl QueryResolver {
         serialized_value: Vec<u8>,
         queries: &mut Queries<'_, '_>,
         type_registry: &AppTypeRegistry,
+        codec: &CodecResource,
     ) -> Result<()> {
         let query_for = self.query_for(id, index)?;
         if !query_for.mutable {
@@ -73,6 +76,7 @@ impl QueryResolver {
             &query_for.component,
             serialized_value,
             type_registry,
+            codec
         )
     }
 

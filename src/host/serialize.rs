@@ -1,9 +1,4 @@
-use crate::{
-    bindings::wasvy::ecs::app::HostSerialize,
-    host::WasmHost,
-    runner::State,
-    serialize::{WasvyCodec, WasvyCodecImpl},
-};
+use crate::{bindings::wasvy::ecs::app::HostSerialize, host::WasmHost, runner::State};
 use anyhow::{Result, bail};
 use wasmtime::component::Resource;
 
@@ -12,7 +7,10 @@ pub struct WasmSerialize;
 
 impl HostSerialize for WasmHost {
     fn get_type(&mut self, _self: Resource<WasmSerialize>) -> Result<String> {
-        return Ok(WasvyCodec::get_type());
+        let State::RunSystem { codec, .. } = self.access() else {
+            bail!("Codec can only be instantiated in system")
+        };
+        return Ok(codec.get_type());
     }
 
     fn drop(&mut self, serialize: Resource<WasmSerialize>) -> Result<()> {

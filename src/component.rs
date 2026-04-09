@@ -16,7 +16,7 @@ use bevy_ecs::{
 use bevy_platform::collections::HashMap;
 use bevy_reflect::{Reflect, ReflectFromPtr};
 
-use crate::serialize::{WasvyCodec, WasvyCodecImpl};
+use crate::serialize::CodecResource;
 
 /// Fully-qualified type path used to identify a component type.
 pub type TypePath = String;
@@ -67,6 +67,7 @@ impl Command for InsertWasmComponent {
 pub(crate) fn insert_component(
     commands: &mut Commands,
     type_registry: &AppTypeRegistry,
+    codec: &CodecResource,
     entity: Entity,
     type_path: String,
     serialized_value: Vec<u8>,
@@ -75,7 +76,7 @@ pub(crate) fn insert_component(
 
     // Insert types that are known by bevy (inserted as concrete types)
     if let Some(type_registration) = type_registry.get_with_type_path(&type_path) {
-        let output = WasvyCodec::decode_reflect(&serialized_value, type_registration, &type_registry)?;
+        let output = codec.decode_reflect(&serialized_value, type_registration, &type_registry)?;
         commands.entity(entity).insert_reflect(output);
     }
     // Handle guest types (inserted as json strings)
@@ -213,6 +214,7 @@ pub(crate) fn get_component(
     entity: &FilteredEntityRef,
     component: &ComponentRef,
     type_registry: &AppTypeRegistry,
+    codec: &CodecResource,
 ) -> Result<Vec<u8>> {
     let val = entity
         .get_by_id(component.component_id)
@@ -230,7 +232,7 @@ pub(crate) fn get_component(
 
         // SAFETY: val is of the same type that reflect_from_ptr was constructed for
         let reflect = unsafe { reflect_from_ptr.as_reflect(val) };
-        let value = WasvyCodec::encode_reflect(reflect, &type_registry)?;
+        let value = codec.encode_reflect(reflect, &type_registry)?;
 
         Ok(value)
     }
@@ -248,6 +250,7 @@ pub(crate) fn set_component(
     component_ref: &ComponentRef,
     serialized_value: Vec<u8>,
     type_registry: &AppTypeRegistry,
+    codec: &CodecResource,
 ) -> Result<()> {
     let mut val = entity
         .get_mut_by_id(component_ref.component_id)
@@ -265,7 +268,7 @@ pub(crate) fn set_component(
             .expect("ReflectFromPtr to be registered");
 
         let boxed_dyn_reflect =
-            WasvyCodec::decode_reflect(&serialized_value, type_registration, &type_registry)?;
+            codec.decode_reflect(&serialized_value, type_registration, &type_registry)?;
 
         // SAFETY: val is of the same type that ReflectFromPtr was constructed for
         let reflect = unsafe { reflect_from_ptr.as_reflect_mut(val.as_mut()) };

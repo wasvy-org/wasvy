@@ -81,6 +81,7 @@ where
         commands,
         table,
         type_registry,
+        codec,
         ..
     } = host.access()
     else {
@@ -98,6 +99,7 @@ where
         insert_component(
             commands,
             type_registry,
+            codec,
             entity,
             type_path,
             serialized_component,

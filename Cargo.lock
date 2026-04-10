@@ -2581,11 +2581,9 @@ dependencies = [
  "bevy",
  "bevy-inspector-egui",
  "bevy_egui",
- "rmp",
  "rmp-serde",
  "rmpv",
  "serde",
- "thiserror 2.0.18",
  "wasvy",
 ]
 
@@ -6810,7 +6808,6 @@ dependencies = [
  "inventory",
  "serde",
  "serde_json",
- "thiserror 2.0.18",
  "trybuild",
  "wasmtime",
  "wasmtime-wasi",

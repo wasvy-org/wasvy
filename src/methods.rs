@@ -355,11 +355,10 @@ fn normalize_type_path(path: &str) -> String {
 mod tests {
     use super::*;
     use crate::WasvyComponent;
-    use crate::authoring::{WasvyExport, WasvyMethodMetadata, inventory, register_all};
-    use crate::plugin::ModloaderPlugin;
+    use crate::authoring::{WasvyExport, WasvyMethodMetadata, inventory};
+    use crate::prelude::WasvyAutoRegistrationPlugin;
     use crate::serialize::CodecResource;
     use bevy_app::App;
-    use bevy_asset::AssetPlugin;
     use bevy_ecs::component::Component;
     use bevy_ecs::prelude::ReflectComponent;
     use bevy_ecs::reflect::AppFunctionRegistry;
@@ -434,10 +433,15 @@ mod tests {
         }
     }
 
+    fn new_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(WasvyAutoRegistrationPlugin);
+        app
+    }
+
     #[test]
     fn index_builds_and_invokes() {
-        let mut app = App::new();
-        app.add_plugins((AssetPlugin::default(), ModloaderPlugin::unscheduled()));
+        let app = new_app();
 
         let type_registry = app
             .world()
@@ -448,11 +452,7 @@ mod tests {
             .get_resource::<AppFunctionRegistry>()
             .expect("AppFunctionRegistry");
 
-        let codec = app
-            .world()
-            .get_resource::<CodecResource>()
-            .expect("ModloaderPlugin inserts CodecResource::new(JsonCodec)");
-
+        let codec = CodecResource::default();
         let index = FunctionIndex::build(type_registry, function_registry);
         let mut health = Health {
             current: 2.0,
@@ -466,7 +466,7 @@ mod tests {
                 MethodTarget::Write(&mut health),
                 b"[5.0]",
                 type_registry,
-                codec,
+                &codec,
             )
             .unwrap();
         assert_eq!(out, b"null");
@@ -479,7 +479,7 @@ mod tests {
                 MethodTarget::Read(&health),
                 b"null",
                 type_registry,
-                codec,
+                &codec,
             )
             .unwrap();
         let pct_val: f32 = crate::serialize::wasvy_decode(&pct).unwrap();
@@ -532,8 +532,7 @@ mod tests {
 
     #[test]
     fn arg_names_fallback_to_arg_index() {
-        let mut app = App::new();
-        register_all(&mut app);
+        let mut app = new_app();
         app.register_function(FallbackHealth::heal);
 
         let type_registry = app
@@ -557,8 +556,7 @@ mod tests {
     fn build_skips_overloaded_functions() {
         use bevy_reflect::func::IntoFunction;
 
-        let mut app = App::new();
-        register_all(&mut app);
+        let app = new_app();
 
         let function_registry = app
             .world()

@@ -5,7 +5,6 @@ use bevy_ecs::reflect::AppFunctionRegistry;
 use bevy_reflect::{Reflect, TypePath};
 
 use wasvy::WasvyComponent;
-use wasvy::authoring::register_all;
 use wasvy::methods::MethodTarget;
 use wasvy::prelude::*;
 use wasvy::serialize::CodecResource;
@@ -34,11 +33,16 @@ impl Health {
     }
 }
 
+fn new_app() -> App {
+    let mut app = App::new();
+    app.add_plugins(WasvyAutoRegistrationPlugin);
+    app.insert_resource(CodecResource::default());
+    app
+}
+
 #[test]
 fn methods_macro_registers() {
-    let mut app = App::new();
-    app.init_resource::<AppFunctionRegistry>();
-    register_all(&mut app);
+    let app = new_app();
 
     let mut health = Health {
         current: 2.0,
@@ -111,8 +115,7 @@ fn component_plugin_registers_type() {
 
 #[test]
 fn auto_registration_plugin_registers_all() {
-    let mut app = App::new();
-    app.add_plugins(WasvyAutoRegistrationPlugin);
+    let app = new_app();
 
     {
         let registry = app
@@ -156,8 +159,7 @@ fn auto_registration_plugin_registers_all() {
 
 #[test]
 fn skip_attribute_excludes_method() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let type_registry = app
         .world()
@@ -197,8 +199,7 @@ fn skip_attribute_excludes_method() {
 
 #[test]
 fn wit_uses_arg_names() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let type_registry = app
         .world()
@@ -216,8 +217,7 @@ fn wit_uses_arg_names() {
 
 #[test]
 fn invoke_errors_on_missing_method() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let mut health = Health {
         current: 1.0,
@@ -254,8 +254,7 @@ fn invoke_errors_on_missing_method() {
 
 #[test]
 fn invoke_errors_on_wrong_access() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let health = Health {
         current: 1.0,
@@ -292,8 +291,7 @@ fn invoke_errors_on_wrong_access() {
 
 #[test]
 fn invoke_errors_on_arg_count_mismatch() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let mut health = Health {
         current: 1.0,
@@ -330,8 +328,7 @@ fn invoke_errors_on_arg_count_mismatch() {
 
 #[test]
 fn invoke_errors_on_bad_json() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let mut health = Health {
         current: 1.0,

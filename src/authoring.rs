@@ -6,7 +6,7 @@
 //!   serialized but never invoked.
 //! - [`WasvyMethods`] registers exported methods (typically via
 //!   [`#[wasvy::methods]`](crate::methods)).
-//! - [`WasvyAutoRegistrationPlugin`] and [`register_all`] apply all submitted
+//! - [`WasvyAutoRegistrationPlugin`] apply all submitted
 //!   registrations to a Bevy `App`.
 //!
 //! # Example (component without methods)
@@ -104,8 +104,6 @@ macro_rules! __wasvy_submit_method_metadata {
 /// Re-exported inventory crate for proc-macro submissions.
 pub use inventory;
 
-use crate::serialize::{CodecResource, JsonCodec};
-
 /// Marker type data for components exported to Wasvy.
 ///
 /// This data is used to identify which components should appear in WIT.
@@ -194,28 +192,22 @@ impl<T: WasvyMethods> Plugin for WasvyMethodsPlugin<T> {
 }
 
 /// Plugin that registers all components and methods submitted to inventory.
+///
+/// This is used by [ModloaderPlugin](crate::plugin::ModloaderPlugin) and can be called directly
+/// in build scripts that generate WIT.
 pub struct WasvyAutoRegistrationPlugin;
 
 impl Plugin for WasvyAutoRegistrationPlugin {
     fn build(&self, app: &mut App) {
-        register_all(app);
-    }
-}
+        app.init_resource::<AppTypeRegistry>();
+        app.init_resource::<AppFunctionRegistry>();
 
-/// Register all components and methods submitted via inventory.
-///
-/// This is used by `WasvyAutoRegistrationPlugin` and can be called directly
-/// in build scripts that generate WIT.
-pub fn register_all(app: &mut App) {
-    app.init_resource::<AppTypeRegistry>();
-    app.init_resource::<AppFunctionRegistry>();
-    app.insert_resource(CodecResource::new(JsonCodec));
+        for registration in inventory::iter::<WasvyComponentRegistration> {
+            (registration.register)(app);
+        }
 
-    for registration in inventory::iter::<WasvyComponentRegistration> {
-        (registration.register)(app);
-    }
-
-    for registration in inventory::iter::<WasvyMethodsRegistration> {
-        (registration.register)(app);
+        for registration in inventory::iter::<WasvyMethodsRegistration> {
+            (registration.register)(app);
+        }
     }
 }

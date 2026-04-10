@@ -12,10 +12,10 @@ use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use serde::de::DeserializeSeed;
 use wasvy::{plugin::ModloaderPlugin, serialize::WasvyCodec};
 
-#[derive(Default)]
-pub struct CustomCodec;
+/// My custom codec
+pub struct MessagePack;
 
-impl WasvyCodec for CustomCodec {
+impl WasvyCodec for MessagePack {
     fn encode_reflect(
         &self,
         reflect: &dyn PartialReflect,
@@ -78,14 +78,12 @@ impl WasvyCodec for CustomCodec {
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
         .add_plugins((
-            // Next, add the [`ModloaderPlugin`] ;)
-            ModloaderPlugin::default().with_codec(CustomCodec),
-            // Plus some helpers for the example
+            DefaultPlugins,
             FpsOverlayPlugin::default(),
             EguiPlugin::default(),
             WorldInspectorPlugin::new(),
+            ModloaderPlugin::default().with_codec(MessagePack),
         ))
         .run();
 }

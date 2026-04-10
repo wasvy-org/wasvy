@@ -1,10 +1,9 @@
-use anyhow::{Result, bail};
+use anyhow::*;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::resource::Resource;
-use bevy_reflect::{
-    PartialReflect, TypeRegistration, TypeRegistry,
-    serde::{TypedReflectDeserializer, TypedReflectSerializer},
-};
+use bevy_reflect::{PartialReflect, TypeRegistration, TypeRegistry};
+
+#[cfg(feature = "serde_json")]
 use serde::de::DeserializeSeed;
 
 #[derive(Resource, Deref, DerefMut)]
@@ -37,8 +36,16 @@ pub trait WasvyCodec: Send + Sync + 'static {
     fn get_type(&self) -> String;
 }
 
+#[cfg(feature = "serde_json")]
 #[derive(Default, Resource)]
 pub struct JsonCodec;
+
+#[cfg(feature = "serde_json")]
+impl Default for CodecResource {
+    fn default() -> Self {
+        Self(Box::new(JsonCodec))
+    }
+}
 
 #[cfg(feature = "serde_json")]
 impl WasvyCodec for JsonCodec {
@@ -47,7 +54,7 @@ impl WasvyCodec for JsonCodec {
         reflect: &dyn PartialReflect,
         registry: &TypeRegistry,
     ) -> Result<Vec<u8>> {
-        let serializer = TypedReflectSerializer::new(reflect, registry);
+        let serializer = bevy_reflect::serde::TypedReflectSerializer::new(reflect, registry);
         Ok(serde_json::to_vec(&serializer)?)
     }
 
@@ -58,10 +65,12 @@ impl WasvyCodec for JsonCodec {
         registry: &TypeRegistry,
     ) -> Result<Box<dyn PartialReflect>> {
         let mut de = serde_json::Deserializer::from_slice(bytes);
-        let reflect_deserializer = TypedReflectDeserializer::new(registration, registry);
+        let reflect_deserializer =
+            bevy_reflect::serde::TypedReflectDeserializer::new(registration, registry);
         let boxed_dyn_reflect = reflect_deserializer.deserialize(&mut de)?;
         Ok(boxed_dyn_reflect)
     }
+
     fn decode_reflect_args(
         &self,
         params: &[u8],
@@ -89,7 +98,8 @@ impl WasvyCodec for JsonCodec {
 
             let bytes = serde_json::to_vec(value)?;
             let mut de = serde_json::Deserializer::from_slice(&bytes);
-            let reflect_de = TypedReflectDeserializer::new(registration, registry);
+            let reflect_de =
+                bevy_reflect::serde::TypedReflectDeserializer::new(registration, registry);
             output.push(Some(reflect_de.deserialize(&mut de)?));
         }
 

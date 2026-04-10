@@ -11,7 +11,7 @@
 [![Docs](https://docs.rs/wasvy/badge.svg)](https://docs.rs/wasvy)
 [![Rust Version](https://img.shields.io/badge/rust-1.92.0+-blue.svg)](https://www.rust-lang.org)
 [![CI](https://github.com/wasvy-org/wasvy/workflows/CI/badge.svg)](https://github.com/wasvy-org/wasvy/actions)
-[![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.com/channels/691052431525675048/1034543904478998539)
+[![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.com/channels/691052431525675048/1492230910383357992/1492230910383357992)
 
 > 🪺 **Just hatched**: This project in in the process of stabilization. Some features are still missing and breaking API changes are likely to happen as we approach a 1.0 release. Use at your own risk!
 
@@ -27,7 +27,7 @@ Wasvy is an experimental Bevy modding engine, enabling the execution of WebAssem
 
 - 🪶 Easy integration with your game (see the example below)
 - 🔥 Hot reloading
-- 🛠️ Devtools (soon) via [wasvy-cli](https://github.com/wasvy-org/wasvy-cli)
+- 🛠️ Devtools (soon) via wasvy-cli
 - 🧩 WASI support powered by [wasmtime](https://wasmtime.dev/)
 
 ## Vision

@@ -2575,7 +2575,7 @@ checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
 name = "custom_codec"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "anyhow",
  "bevy",
@@ -3440,7 +3440,7 @@ checksum = "f9e2d4c0a8296178d8802098410ca05d86b17a10bb5ab559b3fb404c1f948220"
 
 [[package]]
 name = "guest_wit_example"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "serde",
  "serde_json",
@@ -3556,7 +3556,7 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 
 [[package]]
 name = "host_example"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
@@ -3566,7 +3566,7 @@ dependencies = [
 
 [[package]]
 name = "host_wit_example"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -5576,7 +5576,7 @@ checksum = "e320a6c5ad31d271ad523dcf3ad13e2767ad8b1cb8f047f75a8aeaf8da139da2"
 
 [[package]]
 name = "simple"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "bevy_math",
  "bevy_transform",
@@ -6795,7 +6795,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -6817,7 +6817,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_macros"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",

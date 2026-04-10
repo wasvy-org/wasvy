@@ -25,6 +25,7 @@ use crate::{
     mods::ModSystemSet,
     query::{QueryId, QueryIdGenerator, QueryResolver, create_query_builder},
     runner::{ConfigRunSystem, Runner},
+    serialize::CodecResource,
 };
 
 /// A helper struct that stores dynamic systems that a mod would like to register.
@@ -155,6 +156,7 @@ impl AddSystems {
             ParamBuilder,
             ParamBuilder,
             ParamBuilder,
+            ParamBuilder,
             // TODO: FilteredResourcesMutParamBuilder::new(|builder| {}),
             ParamSetBuilder(queries),
         )
@@ -203,6 +205,7 @@ fn dynamic_system(
     assets: Res<Assets<ModAsset>>,
     engine: Res<Engine>,
     type_registry: Res<AppTypeRegistry>,
+    codec: Res<CodecResource>,
     wasm_registry: Res<WasmComponentRegistry>,
     function_index: Res<FunctionIndex>,
     mut commands: Commands,
@@ -232,6 +235,7 @@ fn dynamic_system(
         ConfigRunSystem {
             commands: &mut commands,
             type_registry: &type_registry,
+            codec: &codec,
             wasm_registry: &wasm_registry,
             function_index: &function_index,
             queries: &mut queries,

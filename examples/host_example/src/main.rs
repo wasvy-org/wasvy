@@ -25,8 +25,8 @@ fn main() {
 /// Access the modloader's api through the Mods interface
 fn load_mods(mut mods: Mods) {
     // Load one (or several) mods at once from the asset directory!
-    //mods.load("mods/simple.wasm");
-    //mods.load("mods/python.wasm");
+    mods.load("mods/simple.wasm");
+    mods.load("mods/python.wasm");
     mods.load("mods/go.wasm");
 }
 

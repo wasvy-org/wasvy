@@ -81,6 +81,7 @@ where
         commands,
         table,
         type_registry,
+        codec,
         ..
     } = host.access()
     else {
@@ -94,10 +95,18 @@ where
     let entity = input.into();
     trace!("Insert components to ({entity})");
     for (type_path, serialized_component) in bundle {
-        trace!("- {type_path}: {serialized_component}");
+        #[cfg(feature = "serde_json")]
+        trace!(
+            "- {type_path}: {}",
+            String::from_utf8_lossy(&serialized_component)
+        );
+        #[cfg(not(feature = "serde_json"))]
+        trace!("- {type_path}: {:?}", serialized_component);
+
         insert_component(
             commands,
             type_registry,
+            codec,
             entity,
             type_path,
             serialized_component,

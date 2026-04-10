@@ -2701,6 +2701,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
+name = "custom_codec"
+version = "0.0.8"
+dependencies = [
+ "anyhow",
+ "bevy",
+ "bevy-inspector-egui",
+ "bevy_egui",
+ "rmp-serde",
+ "rmpv",
+ "serde",
+ "wasvy",
+]
+
+[[package]]
 name = "dasp_sample"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3574,7 +3588,7 @@ checksum = "f9e2d4c0a8296178d8802098410ca05d86b17a10bb5ab559b3fb404c1f948220"
 
 [[package]]
 name = "guest_wit_example"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "serde",
  "serde_json",
@@ -3690,7 +3704,7 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 
 [[package]]
 name = "host_example"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
@@ -3700,7 +3714,7 @@ dependencies = [
 
 [[package]]
 name = "host_wit_example"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -5544,6 +5558,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b30a45b0cd0bcca8037f3d0dc3421eaf95327a17cad11964fb8179b4fc4832"
 
 [[package]]
+name = "rmp"
+version = "0.8.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ba8be72d372b2c9b35542551678538b562e7cf86c3315773cae48dfbfe7790c"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "rmp-serde"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72f81bee8c8ef9b577d1681a70ebbc962c232461e397b22c208c43c04b67a155"
+dependencies = [
+ "rmp",
+ "serde",
+]
+
+[[package]]
+name = "rmpv"
+version = "1.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a4e1d4b9b938a26d2996af33229f0ca0956c652c1375067f0b45291c1df8417"
+dependencies = [
+ "rmp",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
 name = "rodio"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5724,6 +5768,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_bytes"
+version = "0.11.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5d440709e79d88e51ac01c4b72fc6cb7314017bb7da9eeff678aa94c10e3ea8"
+dependencies = [
+ "serde",
+ "serde_core",
+]
+
+[[package]]
 name = "serde_core"
 version = "1.0.228"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5828,7 +5882,7 @@ checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
 name = "simple"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "bevy_math",
  "bevy_transform",
@@ -7111,7 +7165,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -7125,7 +7179,6 @@ dependencies = [
  "inventory",
  "serde",
  "serde_json",
- "thiserror 2.0.18",
  "trybuild",
  "wasmtime",
  "wasmtime-wasi",
@@ -7135,7 +7188,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_cli"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "anyhow",
  "askama",
@@ -7152,7 +7205,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_macros"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",

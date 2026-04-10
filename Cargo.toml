@@ -19,6 +19,7 @@ members = [
     "examples/host_example",
     "examples/host_wit_example",
     "examples/simple",
+    "examples/custom_codec",
 ]
 resolver = "2"
 
@@ -26,7 +27,7 @@ resolver = "2"
 authors = ["EngoDev", "MarcGuiselin"]
 categories = ["wasm", "game-development"]
 rust-version = "1.92.0"
-version = "0.0.7"
+version = "0.0.8"
 edition = "2024"
 description = "Bevy WASM"
 license = "MIT OR Apache-2.0"
@@ -71,9 +72,14 @@ wasmtime = { version = "40.0.1", features = ["component-model"] }
 wasmtime-wasi = "40.0.1"
 wasvy = { path = "./" }
 wasvy_cli = { path = "./crates/wasvy_cli" }
-wasvy_macros = { version = "0.0.7", path = "crates/wasvy_macros" }
+wasvy_macros = { version = "0.0.8", path = "crates/wasvy_macros" }
 wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
 wit-parser = "0.245.1"
+
+[features]
+default = ["devtools", "serde_json"]
+devtools = ["dep:bevy_remote"]
+serde_json = ["dep:serde_json"]
 
 [dependencies]
 anyhow.workspace = true
@@ -87,8 +93,7 @@ bevy_reflect.workspace = true
 bevy_remote = { workspace = true, optional = true }
 inventory.workspace = true
 serde.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
+serde_json = { workspace = true, optional = true }
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
 wasvy_macros.workspace = true
@@ -96,11 +101,6 @@ wasvy_macros.workspace = true
 [dev-dependencies]
 wit-bindgen.workspace = true
 trybuild = "1.0.111"
-
-[features]
-default = ["devtools"]
-
-devtools = ["bevy_remote"]
 
 # These lints may be important signals about code quality, but normal Bevy code
 # commonly triggers them and the CI workflow treats them as errors, so we've

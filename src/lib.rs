@@ -24,6 +24,7 @@ pub(crate) mod runner;
 pub mod sandbox;
 pub mod schedule;
 pub mod send_sync_ptr;
+pub mod serialize;
 pub(crate) mod setup;
 pub(crate) mod system;
 pub mod witgen;
@@ -36,6 +37,7 @@ mod bindings {
         // to return traps from generated functions.
         imports: { default: trappable },
         with: {
+            "wasvy:ecs/app.serialize": crate::host::WasmSerialize,
             "wasvy:ecs/app.app": crate::host::WasmApp,
             "wasvy:ecs/app.system": crate::host::WasmSystem,
             "wasvy:ecs/app.commands": crate::host::WasmCommands,

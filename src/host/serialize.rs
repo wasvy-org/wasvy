@@ -6,7 +6,7 @@ use wasmtime::component::Resource;
 pub struct WasmSerialize;
 
 impl HostSerialize for WasmHost {
-    fn get_type(&mut self, _self: Resource<WasmSerialize>) -> Result<String> {
+    fn get_type(&mut self, _: Resource<WasmSerialize>) -> Result<String> {
         let State::RunSystem { codec, .. } = self.access() else {
             bail!("Codec can only be instantiated in system")
         };

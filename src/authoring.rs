@@ -104,6 +104,8 @@ macro_rules! __wasvy_submit_method_metadata {
 /// Re-exported inventory crate for proc-macro submissions.
 pub use inventory;
 
+use crate::serialize::{CodecResource, JsonCodec};
+
 /// Marker type data for components exported to Wasvy.
 ///
 /// This data is used to identify which components should appear in WIT.
@@ -207,6 +209,7 @@ impl Plugin for WasvyAutoRegistrationPlugin {
 pub fn register_all(app: &mut App) {
     app.init_resource::<AppTypeRegistry>();
     app.init_resource::<AppFunctionRegistry>();
+    app.insert_resource(CodecResource::new(JsonCodec));
 
     for registration in inventory::iter::<WasvyComponentRegistration> {
         (registration.register)(app);

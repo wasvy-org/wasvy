@@ -55,7 +55,7 @@ impl Language for Rust {
             .map(|s| s.to_string())
     }
 
-    fn generate(&self, source: &Source) -> Result<()> {
+    fn create(&self, source: &Source) -> Result<()> {
         let path = source.path();
         let name = source.name();
         let rust_version = &self.rust_version.to_string();

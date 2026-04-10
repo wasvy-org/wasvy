@@ -3,7 +3,6 @@ use std::{
     ffi::OsStr,
     fs,
     path::{Path, PathBuf},
-    process::Stdio,
     sync::Arc,
 };
 
@@ -170,14 +169,13 @@ impl Runtime {
     }
 
     /// Creates a new source (project/build files) at the specified directory, using the language of choice
-    pub fn generate(
+    pub fn create(
         &self,
         name: impl AsRef<str>,
         path: impl AsRef<Path>,
         language: Id,
-        stdio: Stdio,
     ) -> Result<Source> {
-        Source::new(name, path, self, language, stdio)
+        Source::create(name, path, self, language)
     }
 
     /// Populates the wit deps, overwriting those already there

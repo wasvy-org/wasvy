@@ -22,7 +22,7 @@ impl Language for Python {
             .map(|s| s.to_string())
     }
 
-    fn generate(&self, source: &Source) -> Result<()> {
+    fn create(&self, source: &Source) -> Result<()> {
         let path = source.path();
         let namespace = source.runtime().namespace();
         let name = source.name();
@@ -54,6 +54,9 @@ impl Language for Python {
         let _ = fs::remove_file(src.join("componentize_py_runtime.pyi"));
         let _ = fs::remove_file(src.join("componentize_py_types.py"));
         let _ = fs::remove_file(src.join("poll_loop.py"));
+
+        // Componentize will fail if the wit is not there
+        source.update_deps()?;
 
         let output = std::process::Command::new("poetry")
             .arg("run")

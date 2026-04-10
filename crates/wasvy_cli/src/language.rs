@@ -16,10 +16,8 @@ pub trait Language: Send + Sync {
         None
     }
 
-    /// Generates necessary files for a source of this language type
-    ///
-    /// This shouldn't overwrite existing files.
-    fn generate(&self, source: &Source) -> Result<()>;
+    /// Creates necessary files for a new source of this language type
+    fn create(&self, source: &Source) -> Result<()>;
 
     /// Compiles this language to a source.
     ///

@@ -126,7 +126,9 @@ impl Source {
     }
 
     /// Updates the wit deps, overwriting those already there
-    pub fn update_deps(&mut self) -> Result<()> {
+    ///
+    /// Make sure to [Self::refresh] the source after calling this since it might be invalid
+    pub fn update_deps(&self) -> Result<()> {
         if self.language.is_some() {
             let wit_path = self.path.join("wit");
             let deps_path = wit_path.join("deps");
@@ -135,9 +137,6 @@ impl Source {
             for dependency in self.runtime.dependencies() {
                 dependency.create(&deps_path)?;
             }
-
-            // The source is no longer valid, so refresh it
-            self.refresh()?;
         }
 
         Ok(())
@@ -160,20 +159,21 @@ impl Source {
     }
 
     /// Creates a new source (project/build files) at the specified directory, using the language of choice
-    pub(crate) fn new(
+    pub(crate) fn create(
         name: impl AsRef<str>,
         path: impl AsRef<Path>,
         runtime: &Runtime,
         language: Id,
-        stdio: Stdio,
     ) -> Result<Self> {
-        assert!(runtime.languages().contains_key(&language));
-
+        let boxed_language = runtime
+            .languages()
+            .get(&language)
+            .expect("language belongs to runtime");
         let name = name.as_ref().to_string();
         let path = path.as_ref().to_owned();
 
         // Now create the source and generate it's contents
-        let source = Self {
+        let mut source = Self {
             name: Some(name),
             path,
             language: Some(language),
@@ -181,7 +181,12 @@ impl Source {
             package: invalid_package_id(),
             runtime: runtime.clone(),
         };
-        source.build(stdio)?;
+
+        boxed_language
+            .create(&source)
+            .context("generating source")?;
+        source.update_deps()?;
+        source.refresh()?;
 
         // Ensure package is no longer invalid
         debug_assert!(source.resolve.packages.get(source.package).is_some());
@@ -292,7 +297,7 @@ mod tests {
             self.identify
         }
 
-        fn generate(&self, _source: &Source) -> Result<()> {
+        fn create(&self, _source: &Source) -> Result<()> {
             unreachable!()
         }
 

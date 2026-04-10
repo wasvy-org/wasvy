@@ -155,3 +155,17 @@ impl bindings::HostQuery for Host {
         bail!("Unexpected call to Query::iter");
     }
 }
+
+impl bindings::HostSerialize for Host {
+    fn drop(&mut self, _: Resource<bindings::Serialize>) -> Result<()> {
+        bail!("Unexpected call to Serialize::drop");
+    }
+
+    fn get_type(&mut self, _: Resource<bindings::Serialize>) -> Result<String> {
+        bail!("Unexpected call to Serialize::get_type");
+    }
+
+    fn new(&mut self) -> Result<Resource<bindings::Serialize>> {
+        bail!("Unexpected call to Serialize::new");
+    }
+}

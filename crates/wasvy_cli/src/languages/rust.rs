@@ -128,7 +128,7 @@ fn retry_witgen(source: Source) -> Result<()> {
 }
 
 enum BuildMode {
-    /// Full build for the game
+    /// Full build for the mod
     Full,
 
     /// Instruct the wasvy_setup macro to only export the setup method
@@ -155,15 +155,15 @@ fn build(mode: BuildMode, source: &Source, stdio: Stdio) -> Result<Source> {
         command.arg("--feature").arg("setup_only");
     }
 
-    let file = target_dir(path)
-        .with_context(|| format!("path = {path:?}"))?
+    let file = build_directory(path)
+        .with_context(|| format!("build_directory for path = {path:?}"))?
         .join("wasm32-wasip2")
         .join("release")
         .join(format!("{name}.wasm"));
-    Source::identify_file(file, source.runtime()).context("identifying build artifcat")
+    Source::identify_file(file, source.runtime()).context("identifying build artifact")
 }
 
-fn target_dir(path: impl AsRef<Path>) -> Result<PathBuf> {
+fn build_directory(path: impl AsRef<Path>) -> Result<PathBuf> {
     let path = path.as_ref();
     let output = Command::new("cargo")
         .arg("metadata")
@@ -180,9 +180,11 @@ fn target_dir(path: impl AsRef<Path>) -> Result<PathBuf> {
     let metadata: serde_json::Value =
         serde_json::from_str(&stdout).context("failed to parse cargo metadata as JSON")?;
 
-    let target_directory = metadata["target_directory"]
-        .as_str()
-        .context("target_directory not found in cargo metadata")?;
+    let target_directory = metadata
+        .get("build_directory")
+        .or(metadata.get("target_directory"))
+        .and_then(|path| path.as_str())
+        .ok_or(anyhow!("missing target_directory"))?;
 
     Ok(PathBuf::from(target_directory))
 }
@@ -197,7 +199,7 @@ impl Default for Rust {
 mod tests {
     use crate::{
         id::Id,
-        languages::rust::target_dir,
+        languages::rust::build_directory,
         runtime::{Config, Runtime},
     };
 
@@ -234,17 +236,10 @@ mod tests {
     }
 
     #[test]
-    fn target_dir_simple() {
-        let dir = target_dir(".").unwrap();
+    fn build_directory_current() {
+        let dir = build_directory(".").unwrap();
         assert_eq!(dir.file_name(), Some("target".as_ref()));
         assert!(dir.try_exists().unwrap_or(false));
-    }
-
-    #[test]
-    fn build_simple() {
-        let dir = target_dir(".").unwrap();
-        assert_eq!(dir.file_name(), Some("target".as_ref()));
-        assert!(dir.try_exists().unwrap());
     }
 
     fn source() -> Source {

@@ -47,6 +47,33 @@ impl Language for Python {
         }
         let file3 = App { name }.write(path);
 
+        let src = path.join("src");
+        let _ = fs::remove_dir_all(src.join("componentize_py_async_support"));
+        let _ = fs::remove_dir_all(src.join("wit_world"));
+        let _ = fs::remove_dir_all(src.join("componentize_py_async_support"));
+        let _ = fs::remove_file(src.join("componentize_py_runtime.pyi"));
+        let _ = fs::remove_file(src.join("componentize_py_types.py"));
+        let _ = fs::remove_file(src.join("poll_loop.py"));
+
+        let output = std::process::Command::new("poetry")
+            .arg("run")
+            .arg("componentize-py")
+            .arg("--wit-path")
+            .arg("wit/")
+            .arg("--world")
+            .arg(name)
+            .arg("bindings")
+            .arg("src")
+            .current_dir(path)
+            .output()?;
+
+        if !output.status.success() {
+            anyhow::bail!(
+                "componentize-py failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+
         // Avoid exiting before all files are written
         file1?;
         file2?;
@@ -56,7 +83,34 @@ impl Language for Python {
     }
 
     fn build(&self, source: &Source, stdio: Stdio) -> Result<Source> {
-        todo!()
+        let path = source.path();
+        let name = source.name();
+        let dest = path.join("dest");
+        let _ = fs::create_dir_all(&dest);
+
+        let output = std::process::Command::new("poetry")
+            .arg("run")
+            .arg("componentize-py")
+            .arg("--wit-path")
+            .arg("../wit/")
+            .arg("--world")
+            .arg(&name)
+            .arg("componentize")
+            .arg("app")
+            .arg("-o")
+            .arg(format!("../dest/{}.wasm", name))
+            .current_dir(path.join("src"))
+            .stdout(stdio)
+            .output()?;
+
+        if !output.status.success() {
+            anyhow::bail!(
+                "componentize-py build failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+
+        Ok(source.clone())
     }
 }
 

@@ -27,7 +27,7 @@ resolver = "2"
 authors = ["EngoDev", "MarcGuiselin"]
 categories = ["wasm", "game-development"]
 rust-version = "1.92.0"
-version = "0.0.7"
+version = "0.0.8"
 edition = "2024"
 description = "Bevy WASM"
 license = "MIT OR Apache-2.0"
@@ -60,7 +60,7 @@ inventory = "0.3.15"
 wasmtime = { version = "40.0.1", features = ["component-model"] }
 wasmtime-wasi = "40.0.1"
 wasvy = { path = "./" }
-wasvy_macros = { version = "0.0.7", path = "crates/wasvy_macros" }
+wasvy_macros = { version = "0.0.8", path = "crates/wasvy_macros" }
 wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
 
 [features]

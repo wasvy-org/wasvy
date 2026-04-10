@@ -16,8 +16,8 @@ mod entity;
 mod entity_commands;
 mod query;
 mod query_result;
-mod system;
 mod serialize;
+mod system;
 
 pub use app::*;
 pub use commands::*;
@@ -26,8 +26,8 @@ pub use entity::*;
 pub use entity_commands::*;
 pub use query::*;
 pub use query_result::*;
-pub use system::*;
 pub use serialize::*;
+pub use system::*;
 
 /// Host state shared across mod executions.
 ///

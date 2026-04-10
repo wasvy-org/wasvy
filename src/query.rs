@@ -76,7 +76,7 @@ impl QueryResolver {
             &query_for.component,
             serialized_value,
             type_registry,
-            codec
+            codec,
         )
     }
 

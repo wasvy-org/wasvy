@@ -10,7 +10,7 @@ impl HostSerialize for WasmHost {
         let State::RunSystem { codec, .. } = self.access() else {
             bail!("Codec can only be instantiated in system")
         };
-        return Ok(codec.get_type());
+        Ok(codec.get_type())
     }
 
     fn drop(&mut self, serialize: Resource<WasmSerialize>) -> Result<()> {
@@ -23,6 +23,6 @@ impl HostSerialize for WasmHost {
             bail!("Serialize can only be instantiated in system")
         };
 
-        Ok(table.push(WasmSerialize::default())?)
+        Ok(table.push(WasmSerialize)?)
     }
 }

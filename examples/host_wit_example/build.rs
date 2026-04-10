@@ -3,6 +3,7 @@ use std::{env, fs, path::PathBuf};
 use bevy_app::App;
 use bevy_ecs::prelude::AppTypeRegistry;
 use bevy_ecs::reflect::AppFunctionRegistry;
+use wasvy::prelude::*;
 
 wasvy::include_wasvy_components!("src");
 
@@ -14,8 +15,7 @@ fn main() {
         .expect("repo root");
 
     let mut app = App::new();
-    app.init_resource::<AppFunctionRegistry>();
-    wasvy::authoring::register_all(&mut app);
+    app.add_plugins(WasvyAutoRegistrationPlugin);
     let type_registry = app
         .world()
         .get_resource::<AppTypeRegistry>()

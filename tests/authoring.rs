@@ -5,9 +5,9 @@ use bevy_ecs::reflect::AppFunctionRegistry;
 use bevy_reflect::{Reflect, TypePath};
 
 use wasvy::WasvyComponent;
-use wasvy::authoring::register_all;
 use wasvy::methods::MethodTarget;
 use wasvy::prelude::*;
+use wasvy::serialize::CodecResource;
 
 #[derive(Component, Reflect, Default, WasvyComponent)]
 #[reflect(Component)]
@@ -33,11 +33,16 @@ impl Health {
     }
 }
 
+fn new_app() -> App {
+    let mut app = App::new();
+    app.add_plugins(WasvyAutoRegistrationPlugin);
+    app.insert_resource(CodecResource::default());
+    app
+}
+
 #[test]
 fn methods_macro_registers() {
-    let mut app = App::new();
-    app.init_resource::<AppFunctionRegistry>();
-    register_all(&mut app);
+    let app = new_app();
 
     let mut health = Health {
         current: 2.0,
@@ -48,6 +53,10 @@ fn methods_macro_registers() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -58,12 +67,13 @@ fn methods_macro_registers() {
             Health::type_path(),
             "heal",
             MethodTarget::Write(&mut health),
-            "[5.0]",
+            b"[5.0]",
             type_registry,
+            codec,
         )
         .unwrap();
 
-    assert_eq!(out, "null");
+    assert_eq!(out, b"null");
     assert_eq!(health.current, 7.0);
 
     let pct = index
@@ -71,12 +81,13 @@ fn methods_macro_registers() {
             Health::type_path(),
             "pct",
             MethodTarget::Read(&health),
-            "null",
+            b"null",
             type_registry,
+            codec,
         )
         .unwrap();
 
-    let pct_val: f32 = serde_json::from_str(&pct).unwrap();
+    let pct_val: f32 = wasvy::serialize::wasvy_decode(&pct).unwrap();
     assert!((pct_val - 0.7).abs() < 1e-6);
 }
 
@@ -104,8 +115,7 @@ fn component_plugin_registers_type() {
 
 #[test]
 fn auto_registration_plugin_registers_all() {
-    let mut app = App::new();
-    app.add_plugins(WasvyAutoRegistrationPlugin);
+    let app = new_app();
 
     {
         let registry = app
@@ -120,6 +130,10 @@ fn auto_registration_plugin_registers_all() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -134,23 +148,27 @@ fn auto_registration_plugin_registers_all() {
             Health::type_path(),
             "heal",
             MethodTarget::Write(&mut health),
-            "[1.0]",
+            b"[1.0]",
             type_registry,
+            codec,
         )
         .unwrap();
-    assert_eq!(out, "null");
+    assert_eq!(out, b"null");
     assert!((health.current - 3.0).abs() < f32::EPSILON);
 }
 
 #[test]
 fn skip_attribute_excludes_method() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let type_registry = app
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -167,8 +185,9 @@ fn skip_attribute_excludes_method() {
             Health::type_path(),
             "internal_ratio",
             MethodTarget::Read(&health),
-            "null",
+            b"null",
             type_registry,
+            codec,
         )
         .unwrap_err();
 
@@ -180,8 +199,7 @@ fn skip_attribute_excludes_method() {
 
 #[test]
 fn wit_uses_arg_names() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let type_registry = app
         .world()
@@ -199,8 +217,7 @@ fn wit_uses_arg_names() {
 
 #[test]
 fn invoke_errors_on_missing_method() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let mut health = Health {
         current: 1.0,
@@ -211,6 +228,10 @@ fn invoke_errors_on_missing_method() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -222,8 +243,9 @@ fn invoke_errors_on_missing_method() {
             Health::type_path(),
             "missing",
             MethodTarget::Write(&mut health),
-            "[]",
+            b"[]",
             type_registry,
+            codec,
         )
         .unwrap_err();
 
@@ -232,8 +254,7 @@ fn invoke_errors_on_missing_method() {
 
 #[test]
 fn invoke_errors_on_wrong_access() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let health = Health {
         current: 1.0,
@@ -244,6 +265,10 @@ fn invoke_errors_on_wrong_access() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -255,8 +280,9 @@ fn invoke_errors_on_wrong_access() {
             Health::type_path(),
             "heal",
             MethodTarget::Read(&health),
-            "[1.0]",
+            b"[1.0]",
             type_registry,
+            codec,
         )
         .unwrap_err();
 
@@ -265,8 +291,7 @@ fn invoke_errors_on_wrong_access() {
 
 #[test]
 fn invoke_errors_on_arg_count_mismatch() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let mut health = Health {
         current: 1.0,
@@ -277,6 +302,10 @@ fn invoke_errors_on_arg_count_mismatch() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -288,8 +317,9 @@ fn invoke_errors_on_arg_count_mismatch() {
             Health::type_path(),
             "heal",
             MethodTarget::Write(&mut health),
-            "[]",
+            b"[]",
             type_registry,
+            codec,
         )
         .unwrap_err();
 
@@ -298,8 +328,7 @@ fn invoke_errors_on_arg_count_mismatch() {
 
 #[test]
 fn invoke_errors_on_bad_json() {
-    let mut app = App::new();
-    register_all(&mut app);
+    let app = new_app();
 
     let mut health = Health {
         current: 1.0,
@@ -310,6 +339,10 @@ fn invoke_errors_on_bad_json() {
         .world()
         .get_resource::<AppTypeRegistry>()
         .expect("AppTypeRegistry to exist");
+    let codec = app
+        .world()
+        .get_resource::<CodecResource>()
+        .expect("CodecResource to exist");
     let function_registry = app
         .world()
         .get_resource::<AppFunctionRegistry>()
@@ -321,8 +354,9 @@ fn invoke_errors_on_bad_json() {
             Health::type_path(),
             "heal",
             MethodTarget::Write(&mut health),
-            "[",
+            b"[",
             type_registry,
+            codec,
         )
         .unwrap_err();
 

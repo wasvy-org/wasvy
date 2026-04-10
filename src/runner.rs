@@ -14,6 +14,7 @@ use crate::{
     methods::FunctionIndex,
     query::{Queries, QueryResolver},
     send_sync_ptr::SendSyncPtr,
+    serialize::CodecResource,
     system::AddSystems,
 };
 
@@ -63,6 +64,7 @@ impl Runner {
             Config::RunSystem(ConfigRunSystem {
                 commands,
                 type_registry,
+                codec,
                 wasm_registry,
                 function_index,
                 queries,
@@ -72,6 +74,7 @@ impl Runner {
             }) => Inner::RunSystem {
                 commands: SendSyncPtr::new(NonNull::from_mut(commands).cast()),
                 type_registry: SendSyncPtr::new(NonNull::from_ref(type_registry)),
+                codec: SendSyncPtr::new(NonNull::from_ref(codec)),
                 wasm_registry: SendSyncPtr::new(NonNull::from_ref(wasm_registry)),
                 function_index: SendSyncPtr::new(NonNull::from_ref(function_index)),
                 queries: SendSyncPtr::new(NonNull::from_ref(queries).cast()),
@@ -103,6 +106,7 @@ enum Inner {
     RunSystem {
         commands: SendSyncPtr<Commands<'static, 'static>>,
         type_registry: SendSyncPtr<AppTypeRegistry>,
+        codec: SendSyncPtr<CodecResource>,
         wasm_registry: SendSyncPtr<WasmComponentRegistry>,
         function_index: SendSyncPtr<FunctionIndex>,
         queries: SendSyncPtr<Queries<'static, 'static>>,
@@ -135,6 +139,7 @@ impl Data {
             Inner::RunSystem {
                 commands,
                 type_registry,
+                codec,
                 wasm_registry,
                 function_index,
                 queries,
@@ -148,6 +153,7 @@ impl Data {
                 Some(State::RunSystem {
                     commands: commands.cast().as_mut(),
                     type_registry: type_registry.as_ref(),
+                    codec: codec.as_ref(),
                     wasm_registry: wasm_registry.as_ref(),
                     function_index: function_index.as_ref(),
                     queries: queries.cast().as_mut(),
@@ -172,6 +178,7 @@ pub(crate) enum State<'a> {
         table: &'a mut ResourceTable,
         commands: &'a mut Commands<'a, 'a>,
         type_registry: &'a AppTypeRegistry,
+        codec: &'a CodecResource,
         wasm_registry: &'a WasmComponentRegistry,
         function_index: &'a FunctionIndex,
         queries: &'a mut Queries<'a, 'a>,
@@ -194,6 +201,7 @@ pub(crate) struct ConfigSetup<'a> {
 pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
     pub(crate) commands: &'a mut Commands<'b, 'c>,
     pub(crate) type_registry: &'a AppTypeRegistry,
+    pub(crate) codec: &'a CodecResource,
     pub(crate) wasm_registry: &'a WasmComponentRegistry,
     pub(crate) function_index: &'a FunctionIndex,
     pub(crate) queries:

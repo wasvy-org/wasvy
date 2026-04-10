@@ -1,10 +1,14 @@
 import json
+import msgpack
 import math
 from typing import List
 from dataclasses import dataclass, asdict
 
 import wit_world
 from wit_world.imports.app import App, Commands, Query, QueryFor_Mut, QueryFor_With, Schedule_Update, System
+
+import wasvy_codec
+from wasvy_codec import get_codec
 
 class WitWorld(wit_world.WitWorld):
     def setup(self, app: App):
@@ -26,6 +30,8 @@ class WitWorld(wit_world.WitWorld):
     DELTA = 0.015
 
     def spin_cube(self, query: Query):
+        codec = get_codec()
+
         """Advance rotation about the x-axis for the single component returned per iter()."""
         while True:
             query_result = query.iter()
@@ -34,7 +40,7 @@ class WitWorld(wit_world.WitWorld):
 
             component = query_result.component(0)
 
-            transform = json.loads(component.get())
+            transform = codec.loads(component.get())
 
             rotation = transform["rotation"]
             q = q_normalize([float(rotation[0]), float(rotation[1]), float(rotation[2]), float(rotation[3])])
@@ -44,9 +50,11 @@ class WitWorld(wit_world.WitWorld):
             q_next = q_normalize(q_mul(q, dq))
 
             transform["rotation"] = q_next
-            component.set(json.dumps(transform))
+            component.set(codec.dumps(transform))
     
     def my_system(self, commands: Commands, query: Query):
+        codec = get_codec()
+        
         # Count how many entities we've spawned
         count = 0
         while True:
@@ -73,10 +81,10 @@ class WitWorld(wit_world.WitWorld):
             "rotation":    [1.0, 0.0, 0.0, 0.0],
             "scale":       [1.0, 1.0, 1.0],
         }
-
+        
         commands.spawn([
-            ("python::MyComponent", json.dumps(component_1)),
-            ("bevy_transform::components::transform::Transform", json.dumps(component_2)),
+            ("python::MyComponent", codec.dumps(component_1)),
+            ("bevy_transform::components::transform::Transform", codec.dumps(component_2)),
         ])
 
 def q_normalize(q: List[float]) -> List[float]:

@@ -7,7 +7,7 @@ use std::{
     process::Stdio,
 };
 
-use crate::{id::Id, runtime::Runtime};
+use crate::{fs::WriteTo, id::Id, runtime::Runtime};
 
 use anyhow::{Context, Result, anyhow, ensure};
 use wit_parser::{Package, PackageId, Resolve, UnresolvedPackageGroup, World};
@@ -135,7 +135,7 @@ impl Source {
 
             fs::create_dir_all(&deps_path)?;
             for dependency in self.runtime.dependencies() {
-                dependency.create(&deps_path)?;
+                dependency.write(&deps_path)?;
             }
         }
 
@@ -309,10 +309,7 @@ mod tests {
     fn runtime(lang: MockLang) -> Runtime {
         let mut config = Config::default();
         config
-            .add_dependency_str(
-                "wasvy.wit",
-                include_str!("../../../wit/wasvy.wit").to_string(),
-            )
+            .add_dependency(include_str!("../../../wit/wasvy-ecs.wit"))
             .expect("valid dep");
         config.add_language(lang);
         Runtime::new(config)

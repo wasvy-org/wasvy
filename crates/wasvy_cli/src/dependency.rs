@@ -1,5 +1,6 @@
 use std::{
-    fmt, fs,
+    borrow::Cow,
+    fmt,
     path::{Path, PathBuf},
 };
 
@@ -7,11 +8,17 @@ use anyhow::{Result, anyhow};
 use semver::Version;
 use wit_parser::{PackageId, PackageName, Resolve};
 
+use crate::fs::{WriteTo, write};
+
+/// Represents a wit interface supported by the game, thus a possible dependency for our mod.
+///
+/// These include:
+/// - bevy-ecs.wit
+/// - wasvy-ecs.wit
+///
+/// And any custom wit we choose to define.
 #[derive(Clone)]
 pub struct Dependency {
-    /// Package id guaranteed to be in [Dependency::resolve]
-    pub package_id: PackageId,
-
     /// The name of the package
     pub name: String,
 
@@ -21,55 +28,53 @@ pub struct Dependency {
     /// The version of the package
     pub version: Version,
 
-    /// The file name of the package
-    pub file_name: PathBuf,
+    /// The contents of the wit file: the interface
+    pub interface: Interface,
+}
 
-    /// The file contents of the package
-    pub file_contents: String,
+pub type Interface = Cow<'static, str>;
+
+impl From<Dependency> for Interface {
+    fn from(value: Dependency) -> Self {
+        value.interface.clone()
+    }
 }
 
 impl Dependency {
-    pub fn new(file_name: impl AsRef<Path>, file_contents: impl AsRef<str>) -> Result<Self> {
+    pub fn new(interface: impl Into<Interface>) -> Result<Self> {
         let mut resolve = Resolve::default();
-        Self::new_with_resolve(&mut resolve, file_name, file_contents)
+        Self::new_with_resolve(interface, &mut resolve).map(|(dep, _)| dep)
     }
 
     pub fn new_with_resolve(
+        interface: impl Into<Interface>,
         resolve: &mut Resolve,
-        file_name: impl AsRef<Path>,
-        file_contents: impl AsRef<str>,
-    ) -> Result<Self> {
-        let file_name = file_name.as_ref().to_path_buf();
-        let file_contents = file_contents.as_ref().to_string();
-        let package_id = resolve.push_str(&file_name, &file_contents)?;
+    ) -> Result<(Self, PackageId)> {
+        let interface = interface.into();
+        let package_id = resolve.push_str("unknown", &interface)?;
         let package = &resolve.packages[package_id];
         let PackageName {
             name,
             namespace,
             version,
         } = package.name.clone();
-        let version = version.ok_or(anyhow!("dependency {file_name:?} must have a version"))?;
-        Ok(Self {
+        let version = version.ok_or(anyhow!(
+            "dependency \"{namespace}:{name}.wit\" must have a version"
+        ))?;
+        Ok((
+            Self {
+                name,
+                namespace,
+                version,
+                interface,
+            },
             package_id,
-            name,
-            namespace,
-            version,
-            file_name,
-            file_contents,
-        })
+        ))
     }
 
     pub fn resolve(&self, path: impl AsRef<Path>, resolve: &mut Resolve) -> Result<PackageId> {
-        let path = path.as_ref().join(&self.file_name);
-        resolve.push_str(path, &self.file_contents)
-    }
-
-    /// Writes the contents of the dependency to the path in the disk
-    pub fn create(&self, path: impl AsRef<Path>) -> Result<()> {
-        let path = path.as_ref().join(&self.file_name);
-        fs::write(path, &self.file_contents)?;
-
-        Ok(())
+        let path = path.as_ref().join(&self.file_name());
+        resolve.push_str(path, &self.interface)
     }
 
     pub fn compare(&self, resolve: &Resolve) -> Option<Comparison> {
@@ -92,6 +97,21 @@ impl Dependency {
             }
         })
     }
+
+    /// Returns the file name for this dependency in the format "namespace:name.wit"
+    pub fn file_name(&self) -> PathBuf {
+        let Self {
+            namespace, name, ..
+        } = self;
+        format!("{namespace}:{name}.wit").into()
+    }
+}
+
+impl WriteTo for Dependency {
+    fn write(&self, path: impl AsRef<Path>) -> Result<()> {
+        let path = path.as_ref().join(&self.file_name());
+        write(&path, self.interface.as_bytes())
+    }
 }
 
 impl fmt::Display for Dependency {
@@ -100,10 +120,9 @@ impl fmt::Display for Dependency {
             namespace,
             name,
             version,
-            file_name,
             ..
         } = self;
-        write!(f, "{namespace}:{name}@{version} ({file_name:?})")
+        write!(f, "{namespace}:{name}@{version}")
     }
 }
 

@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use bevy_ecs::resource::Resource;
 use serde::Serialize;
 
@@ -23,30 +25,39 @@ impl bevy_app::Plugin for DevtoolsPlugin {
 #[derive(Resource, Debug, Clone, Serialize)]
 pub struct Config {
     /// The name of your app or game, defaults to "Bevy App powered by Wasvy"
-    name: &'static str,
+    pub program_name: String,
 
-    /// This is a list of your application's wasi bindings compiled into the application.
+    /// This is a list of the application's supported wit interfaces
     ///
-    /// Give it all the wit bindings you implement via the `include_str` macro.
-    interfaces: &'static [&'static str],
+    /// Hint: Use your interface directly via `vec![include_str!("../wit/my-interface.wit").into()]`,
+    pub interfaces: Vec<Cow<'static, str>>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            name: "Bevy App powered by Wasvy",
-            interfaces: &[
-                include_str!("./../../wit/bevy.wit"),
-                include_str!("./../../wit/wasvy.wit"),
+            program_name: "Bevy App powered by Wasvy".into(),
+            interfaces: vec![
+                include_str!("./../../wit/bevy-ecs.wit").into(),
+                include_str!("./../../wit/wasvy-ecs.wit").into(),
             ],
         }
     }
 }
 
 impl From<&'static str> for Config {
-    fn from(name: &'static str) -> Self {
+    fn from(value: &'static str) -> Self {
         Config {
-            name,
+            program_name: value.into(),
+            ..Default::default()
+        }
+    }
+}
+
+impl From<String> for Config {
+    fn from(value: String) -> Self {
+        Config {
+            program_name: value,
             ..Default::default()
         }
     }

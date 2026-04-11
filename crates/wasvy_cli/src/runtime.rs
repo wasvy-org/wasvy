@@ -1,16 +1,18 @@
 use std::{
     collections::{HashMap, HashSet},
-    ffi::OsStr,
-    fs,
     path::{Path, PathBuf},
     sync::Arc,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use wit_parser::Resolve;
 
 use crate::{
-    dependency::Dependency, editor::BoxedEditor, id::Id, language::Language, named::Named,
+    dependency::{Dependency, Interface},
+    editor::BoxedEditor,
+    id::Id,
+    language::Language,
+    named::Named,
     source::Source,
 };
 
@@ -43,34 +45,9 @@ impl Default for Config {
 
 impl Config {
     /// Adds a new required dependency to our builder
-    pub fn add_dependency(&mut self, dependency: Dependency) -> Result<&mut Self> {
-        dependency.resolve(PathBuf::new(), &mut self.resolve)?;
-        self.dependencies.push(dependency);
-
-        Ok(self)
-    }
-
-    /// Adds a new required dependency to our builder via a path
-    pub fn add_dependency_path(&mut self, path: impl AsRef<Path>) -> Result<&mut Self> {
-        let path = path.as_ref();
-        let contents = std::fs::read_to_string(path)?;
-        self.add_dependency_str(path, contents)
-    }
-
-    /// Adds a new required dependency to our builder
-    pub fn add_dependency_str(
-        &mut self,
-        file_name: impl AsRef<Path>,
-        file_contents: String,
-    ) -> Result<&mut Self> {
-        let file_name = file_name
-            .as_ref()
-            .file_name()
-            .and_then(OsStr::to_str)
-            .ok_or(anyhow!("dependency path should be a file name"))?;
-
-        let dependency = Dependency::new_with_resolve(&mut self.resolve, file_name, file_contents)?;
-        self.dependencies.push(dependency);
+    pub fn add_dependency(&mut self, interface: impl Into<Interface>) -> Result<&mut Self> {
+        let (dep, _) = Dependency::new_with_resolve(interface, &mut self.resolve)?;
+        self.dependencies.push(dep);
 
         Ok(self)
     }
@@ -176,18 +153,6 @@ impl Runtime {
         language: Id,
     ) -> Result<Source> {
         Source::create(name, path, self, language)
-    }
-
-    /// Populates the wit deps, overwriting those already there
-    pub fn populate_deps(&self, path: impl AsRef<Path>) -> Result<()> {
-        let path = path.as_ref().join("wit/deps");
-
-        fs::create_dir_all(&path)?;
-        for dependency in self.dependencies() {
-            dependency.create(&path)?;
-        }
-
-        Ok(())
     }
 }
 

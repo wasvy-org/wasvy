@@ -25,15 +25,23 @@ where
         })?;
         let path = path.as_ref().join(file_name.trim());
 
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).with_context(|| format!("path = {parent:?}"))?;
-        }
-
-        // Avoid updating files that have not changed
-        if fs::read_to_string(&path).ok().as_deref() != Some(contents) {
-            fs::write(&path, contents).with_context(|| format!("path = {path:?}"))?;
-        }
+        write(&path, contents)?;
 
         Ok(())
     }
+}
+
+// Avoid updating files that have not changed
+pub fn write(path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> Result<()> {
+    let path = path.as_ref();
+
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    if fs::read(path).ok().as_deref() != Some(contents.as_ref()) {
+        fs::write(path, contents).with_context(|| format!("path = {path:?}"))?;
+    }
+
+    Ok(())
 }

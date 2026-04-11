@@ -874,15 +874,21 @@ fn render_invoke_body(
     let method_lit = syn::LitStr::new(method, proc_macro2::Span::call_site());
     match result {
         None => quote! {
-            let params = serde_json::to_string(&#args_expr).expect("serialize params");
+            #[allow(unused_imports)]
+            use #wasvy_path::serialize::*;
+            // Note: when implementing a custom codec, a wasvy_encode method is expected to be in scope
+            let params = wasvy_encode(&#args_expr).expect("serialize params");
             let _ = #wasvy_path::host::invoke_component_method(self, component, #method_lit, &params)
                 .expect("invoke method");
         },
         Some(_) => quote! {
-            let params = serde_json::to_string(&#args_expr).expect("serialize params");
+            #[allow(unused_imports)]
+            use #wasvy_path::serialize::*;
+            // Note: when implementing a custom codec, a wasvy_encode and wasvy_decode method is expected to be in scope
+            let params = wasvy_encode(&#args_expr).expect("serialize params");
             let output = #wasvy_path::host::invoke_component_method(self, component, #method_lit, &params)
                 .expect("invoke method");
-            serde_json::from_str(&output).expect("deserialize")
+            wasvy_decode(&output).expect("deserialize")
         },
     }
 }

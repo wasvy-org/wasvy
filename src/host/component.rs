@@ -34,6 +34,7 @@ impl HostComponent for WasmHost {
             queries,
             query_resolver,
             type_registry,
+            codec,
             ..
         } = self.access()
         else {
@@ -47,6 +48,7 @@ impl HostComponent for WasmHost {
             component.index,
             queries,
             type_registry,
+            codec,
         )
     }
 
@@ -60,6 +62,7 @@ impl HostComponent for WasmHost {
             queries,
             query_resolver,
             type_registry,
+            codec,
             ..
         } = self.access()
         else {
@@ -74,6 +77,7 @@ impl HostComponent for WasmHost {
             value,
             queries,
             type_registry,
+            codec,
         )
     }
 
@@ -101,13 +105,14 @@ pub fn invoke_component_method(
     host: &mut WasmHost,
     component: Resource<WasmComponent>,
     method: &str,
-    params: &str,
+    params: &[u8],
 ) -> Result<SerializedComponent> {
     let State::RunSystem {
         table,
         queries,
         query_resolver,
         type_registry,
+        codec,
         function_index,
         ..
     } = host.access()
@@ -118,7 +123,6 @@ pub fn invoke_component_method(
     let component = table.get(&component)?;
     let query_for = query_resolver.query_for(component.id, component.index)?;
     let component_ref = query_for.component();
-
     let mut query = queries.get_mut(component.id.index());
     let output = if query_for.mutable() {
         let mut entity = query.get_mut(component.entity)?;
@@ -129,6 +133,7 @@ pub fn invoke_component_method(
                 MethodTarget::Write(reflect),
                 params,
                 type_registry,
+                codec,
             )
         })?
     } else {
@@ -140,6 +145,7 @@ pub fn invoke_component_method(
                 MethodTarget::Read(reflect),
                 params,
                 type_registry,
+                codec,
             )
         })?
     };

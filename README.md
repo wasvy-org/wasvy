@@ -9,9 +9,9 @@
 [![Crates.io](https://img.shields.io/crates/v/wasvy.svg)](https://crates.io/crates/wasvy)
 [![Downloads](https://img.shields.io/crates/d/wasvy.svg)](https://crates.io/crates/wasvy)
 [![Docs](https://docs.rs/wasvy/badge.svg)](https://docs.rs/wasvy)
-[![Rust Version](https://img.shields.io/badge/rust-1.89.0+-blue.svg)](https://www.rust-lang.org)
+[![Rust Version](https://img.shields.io/badge/rust-1.92.0+-blue.svg)](https://www.rust-lang.org)
 [![CI](https://github.com/wasvy-org/wasvy/workflows/CI/badge.svg)](https://github.com/wasvy-org/wasvy/actions)
-[![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.com/channels/691052431525675048/1034543904478998539)
+[![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.com/channels/691052431525675048/1492230910383357992/1492230910383357992)
 
 > 🪺 **Just hatched**: This project in in the process of stabilization. Some features are still missing and breaking API changes are likely to happen as we approach a 1.0 release. Use at your own risk!
 
@@ -27,7 +27,7 @@ Wasvy is an experimental Bevy modding engine, enabling the execution of WebAssem
 
 - 🪶 Easy integration with your game (see the example below)
 - 🔥 Hot reloading
-- 🛠️ Devtools (soon) via [wasvy-cli](https://github.com/wasvy-org/wasvy-cli)
+- 🛠️ Devtools (soon) via wasvy-cli
 - 🧩 WASI support powered by [wasmtime](https://wasmtime.dev/)
 
 ## Vision
@@ -160,7 +160,7 @@ world example {
 
 > Warning: Due to [#40](https://github.com/wasvy-org/wasvy/issues/40) `wkg wit fetch` will pull the old version 0.0.5.
 >
-> For the latest version (v0.0.7) download and add the [wit/ecs/ecs.wit](https://docs.rs/crate/wasvy/0.0.7/source/wit/ecs/ecs.wit) file inside your wit folder manually like so (any file in this `deps` folder should be picked up during compile-time).
+> For the latest version (v0.0.8) download and add the [wit/ecs/ecs.wit](https://docs.rs/crate/wasvy/0.0.8/source/wit/ecs/ecs.wit) file inside your wit folder manually like so (any file in this `deps` folder should be picked up during compile-time).
 >
 > <img width="306" height="172" alt="Image" src="https://github.com/user-attachments/assets/9e238e43-01da-4653-af44-26462c33be24" />
 

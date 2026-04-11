@@ -10,6 +10,24 @@ import weakref
 from componentize_py_types import Result, Ok, Err, Some
 
 
+class Serialize:
+    
+    def __init__(self) -> None:
+        raise NotImplementedError
+
+    def get_type(self) -> str:
+        raise NotImplementedError
+    def __enter__(self) -> Self:
+        """Returns self"""
+        return self
+                                
+    def __exit__(self, exc_type: type[BaseException] | None, exc_value: BaseException | None, traceback: TracebackType | None) -> bool | None:
+        """
+        Release this resource.
+        """
+        raise NotImplementedError
+
+
 
 @dataclass
 class Schedule_ModStartup:
@@ -176,7 +194,7 @@ class EntityCommands:
         Returns the identifier for this entity
         """
         raise NotImplementedError
-    def insert(self, bundle: List[Tuple[str, str]]) -> None:
+    def insert(self, bundle: List[Tuple[str, bytes]]) -> None:
         """
         Adds a `bundle` of components to the entity.
         
@@ -231,7 +249,7 @@ class Commands:
         Spawns a new empty `entity` and returns its corresponding `entity-commands`.
         """
         raise NotImplementedError
-    def spawn(self, bundle: List[Tuple[str, str]]) -> EntityCommands:
+    def spawn(self, bundle: List[Tuple[str, bytes]]) -> EntityCommands:
         """
         Spawns a new `entity` with the given components
         and returns the entity's corresponding `entity-commands`.
@@ -258,19 +276,19 @@ class Commands:
 
 class Component:
     
-    def get(self) -> str:
+    def get(self) -> bytes:
         """
         Gets the value of a component
         """
         raise NotImplementedError
-    def set(self, value: str) -> None:
+    def set(self, value: bytes) -> None:
         """
         Sets the value of a component
         
         Traps if this component was not declared as mutable
         """
         raise NotImplementedError
-    def invoke(self, method: str, params: str) -> str:
+    def invoke(self, method: str, params: bytes) -> bytes:
         """
         Invokes a method on this component.
         

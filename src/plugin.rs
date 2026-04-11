@@ -7,9 +7,11 @@ use bevy_ecs::reflect::AppTypeRegistry;
 use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
 use bevy_log::prelude::*;
 
+use crate::prelude::WasvyAutoRegistrationPlugin;
+use crate::serialize::CodecResource;
+use crate::serialize::WasvyCodec;
 use crate::{
     asset::{ModAsset, ModAssetLoader},
-    authoring::register_all,
     cleanup::{DespawnModEntities, DisableSystemSet, disable_mod_system_sets},
     component::WasmComponentRegistry,
     engine::{Engine, Linker, create_linker},
@@ -85,6 +87,7 @@ struct Inner {
     schedules: ModSchedules,
     setup_schedule: Interned<dyn ScheduleLabel>,
     despawn_behaviour: ModDespawnBehaviour,
+    codec: Option<CodecResource>,
 }
 
 impl Default for ModloaderPlugin {
@@ -106,7 +109,12 @@ impl ModloaderPlugin {
             schedules,
             setup_schedule,
             despawn_behaviour,
+            #[cfg(feature = "serde_json")]
+            codec: Some(CodecResource::default()),
+            #[cfg(not(feature = "serde_json"))]
+            codec: None,
         };
+
         ModloaderPlugin(Mutex::new(Some(inner)))
     }
 
@@ -163,6 +171,15 @@ impl ModloaderPlugin {
         self
     }
 
+    /// Apply a custom codec for serializing data to/from mods
+    ///
+    /// Defaults to [JsonCodec]
+    pub fn with_codec(mut self, codec: impl WasvyCodec) -> Self {
+        let inner = self.inner();
+        inner.codec = Some(CodecResource::new(codec));
+        self
+    }
+
     fn inner(&mut self) -> &mut Inner {
         self.0
             .get_mut()
@@ -180,6 +197,7 @@ impl Plugin for ModloaderPlugin {
             schedules,
             setup_schedule,
             despawn_behaviour,
+            codec,
         } = self
             .0
             .lock()
@@ -196,15 +214,14 @@ impl Plugin for ModloaderPlugin {
             .register_asset_loader(ModAssetLoader { linker })
             .insert_resource(engine)
             .insert_resource(despawn_behaviour)
+            .insert_resource(codec.expect("WasvyCodec is necessary"))
             .init_resource::<WasmComponentRegistry>()
             .init_resource::<AppTypeRegistry>()
-            .init_resource::<AppFunctionRegistry>()
             .insert_resource(schedules)
             .add_schedule(ModStartup::new_schedule())
             .add_message::<DisableSystemSet>()
-            .add_systems(setup_schedule, (run_setup, disable_mod_system_sets));
-
-        register_all(app);
+            .add_systems(setup_schedule, (run_setup, disable_mod_system_sets))
+            .add_plugins(WasvyAutoRegistrationPlugin);
 
         let function_index = {
             let type_registry = app

@@ -72,16 +72,18 @@ impl Guest for GuestComponent {
 
 export!(GuestComponent);
 
-fn from_json<'a, T>(component: &'a str) -> T
+fn from_json<'a, T>(component: &'a [u8]) -> T
 where
     T: Deserialize<'a>,
 {
-    serde_json::from_str(component).expect("serializable component")
+    serde_json::from_slice(component).expect("serializable component")
 }
 
-fn to_json<T>(component: &T) -> String
+fn to_json<T>(component: &T) -> Vec<u8>
 where
     T: Serialize,
 {
-    serde_json::to_string(&component).expect("serializable component")
+    serde_json::to_string(&component)
+        .expect("serializable component")
+        .into_bytes()
 }

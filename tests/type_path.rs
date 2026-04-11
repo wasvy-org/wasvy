@@ -5,14 +5,15 @@ mod fixtures {
 use bevy_app::App;
 use bevy_ecs::prelude::AppTypeRegistry;
 use bevy_ecs::reflect::AppFunctionRegistry;
-use wasvy::authoring::register_all;
-use wasvy::witgen::{self, WitGeneratorSettings};
+use wasvy::{
+    prelude::WasvyAutoRegistrationPlugin,
+    witgen::{self, WitGeneratorSettings},
+};
 
 #[test]
 fn include_wasvy_components_preserves_type_path() {
     let mut app = App::new();
-    app.init_resource::<AppFunctionRegistry>();
-    register_all(&mut app);
+    app.add_plugins(WasvyAutoRegistrationPlugin);
 
     let type_registry = app
         .world()

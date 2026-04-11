@@ -38,6 +38,9 @@ interface app {
 			schedule: schedule,
 			systems: list<borrow<system>>,
 		);
+
+		/// Inserts a new resource to the mod
+		insert-resource: func(%resource: tuple<type-path, serialized-resource>);
 	}
 
 	/// An interface with which to define a new system for the host.
@@ -158,6 +161,16 @@ interface app {
 		invoke: func(method: string, params: serialized-component) -> serialized-component;
 	}
 
+	resource %resource{
+		/// Gets the value of a resource
+		get: func() -> serialized-resource;
+
+		/// Sets the value of a resource
+		set: func(value: serialized-resource);
+	}
+
+	type serialized-resource = list<u8>;
+
 	/// A fully-qualified type name
 	type type-path = string;
 
@@ -209,5 +222,10 @@ interface app {
 		mut(type-path),
 		%with(type-path),
 		without(type-path),
+	}
+
+	variant resource-for {
+		ref(type-path),
+		mut(type-path),
 	}
 }

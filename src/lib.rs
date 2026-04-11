@@ -26,6 +26,7 @@ pub mod send_sync_ptr;
 pub mod serialize;
 pub(crate) mod setup;
 pub(crate) mod system;
+pub(crate) mod resource;
 pub mod witgen;
 
 mod bindings {
@@ -45,6 +46,7 @@ mod bindings {
             "wasvy:ecs/app.query": crate::host::WasmQuery,
             "wasvy:ecs/app.query-result": crate::host::WasmQueryResult,
             "wasvy:ecs/app.component": crate::host::WasmComponent,
+            "wasvy:ecs/app.resource": crate::host::WasmResource,
         },
     });
 }

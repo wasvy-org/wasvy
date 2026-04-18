@@ -144,19 +144,17 @@ impl ModloaderPlugin {
     /// Disable the "devtools" feature to disable it completely.
     ///
     /// ```
-    /// # let mut modloader = ModloaderPlugin::default()
+    /// # use wasvy::prelude::ModloaderPlugin;
+    /// # use wasvy::devtools::Config;
+    /// # let mut modloader = ModloaderPlugin::default();
     /// // Enable and use a custom name
     /// modloader.devtools("My Bevy app");
     ///
-    /// // Get it automatically from you Cargo.toml
-    /// modloader.devtools(env!("CRATE_NAME"));
-    ///
+    /// # let mut modloader = ModloaderPlugin::default();
     /// // Host a custom wit interface:
-    /// modloader.devtools(Config{
-    ///     name: "Expose anything that you can dream of",
-    ///     interfaces: &[
-    ///         include_str!("./../wit/bevy.wit"),
-    ///     ],
+    /// modloader.devtools(Config {
+    ///     program_name: "Expose anything that you can dream of".into(),
+    ///     interfaces: vec![],
     /// });
     /// ```
     pub fn devtools(mut self, config: impl Into<devtools::Config>) -> Self {

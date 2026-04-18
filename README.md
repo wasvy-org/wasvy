@@ -186,14 +186,13 @@ use wasvy::ecs::app::{App, Commands, Schedule, System};
 struct MyMod;
 
 impl Guest for MyMod {
-    fn setup() {
+    fn setup(app: App) {
         // This must match the system we have defined in world.wit
         // If you want more systems, just define more in wit
         let system = System::new("my-system");
         system.add_commands();
 
         // Register the system, similarly as you would in a Bevy App
-        let app = App::new();
         app.add_systems(&Schedule::ModStartup, vec![system]);
     }
 

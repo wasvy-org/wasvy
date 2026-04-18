@@ -6,11 +6,17 @@ use std::{
     thread,
 };
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use semver::Version;
 use tracing::warn;
 
-use crate::{fs::WriteTo, language::Language, source::Source, witgen::write_guest_wit};
+use crate::{
+    fs::WriteTo,
+    language::{Language, SourceInfo},
+    named::Named,
+    source::Source,
+    witgen::write_guest_wit,
+};
 
 pub struct Rust {
     pub rust_version: Version,
@@ -40,19 +46,15 @@ impl Rust {
 }
 
 impl Language for Rust {
-    fn identify(&self, path: &Path) -> bool {
-        path.join("Cargo.toml").is_file()
-    }
+    fn identify(&self, path: &Path) -> Result<SourceInfo> {
+        let path = path.join("Cargo.toml");
+        if !path.is_file() {
+            bail!("missing Cargo.toml");
+        }
 
-    fn name(&self, source: &Source) -> Option<String> {
-        let path = source.path().join("Cargo.toml");
-        let contents = fs::read_to_string(&path).ok()?;
-        let value = contents.parse::<toml::Table>().ok()?;
-        value
-            .get("package")?
-            .get("name")?
-            .as_str()
-            .map(|s| s.to_string())
+        Ok(SourceInfo {
+            name: get_name(&path),
+        })
     }
 
     fn create(&self, source: &Source) -> Result<()> {
@@ -120,6 +122,16 @@ impl Language for Rust {
 
         result
     }
+}
+
+fn get_name(path: &Path) -> Option<String> {
+    let contents = fs::read_to_string(&path).ok()?;
+    let value = contents.parse::<toml::Table>().ok()?;
+    value
+        .get("package")?
+        .get("name")?
+        .as_str()
+        .map(|s| s.to_string())
 }
 
 fn retry_witgen(source: Source) -> Result<()> {
@@ -197,11 +209,7 @@ impl Default for Rust {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        id::Id,
-        languages::rust::build_directory,
-        runtime::{Config, Runtime},
-    };
+    use crate::languages::rust::build_directory;
 
     use super::*;
 
@@ -219,20 +227,19 @@ mod tests {
     #[test]
     fn identify() {
         let path = Path::new("../../examples/simple");
-        assert!(Rust::default().identify(path));
+        let info = Rust::default().identify(path).expect("valid source");
+        assert_eq!(
+            info,
+            SourceInfo {
+                name: Some("simple".into())
+            }
+        );
     }
 
     #[test]
     fn identify_invalid() {
         let path = Path::new("../../examples/python_example");
-        assert!(!Rust::default().identify(path));
-    }
-
-    #[test]
-    fn name() {
-        let source = source();
-        let name = Rust::default().name(&source).expect("name is found");
-        assert_eq!(&name, "simple");
+        assert!(Rust::default().identify(path).is_err());
     }
 
     #[test]
@@ -240,15 +247,5 @@ mod tests {
         let dir = build_directory(".").unwrap();
         assert_eq!(dir.file_name(), Some("target".as_ref()));
         assert!(dir.try_exists().unwrap_or(false));
-    }
-
-    fn source() -> Source {
-        let mut config = Config::default();
-        config.add_language(Rust::default());
-        let runtime = Runtime::new(config);
-
-        let path = Path::new("../../examples/simple");
-        let language = Id::from(&Rust::default());
-        Source::mock(path, runtime, language)
     }
 }

@@ -14,6 +14,7 @@ readme.workspace = true
 [dependencies]
 anyhow.workspace = true
 askama.workspace = true
+derive_more.workspace = true
 glob.workspace = true
 semver.workspace = true
 serde_json.workspace = true

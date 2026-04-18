@@ -1,25 +1,26 @@
 use std::{fs, path::Path, process::Stdio};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 
-use crate::{fs::WriteTo, language::Language, source::Source};
+use crate::{
+    fs::WriteTo,
+    language::{Language, SourceInfo},
+    named::Named,
+    source::Source,
+};
 
 pub struct Python;
 
 impl Language for Python {
-    fn identify(&self, path: &Path) -> bool {
-        path.join("pyproject.toml").is_file()
-    }
+    fn identify(&self, path: &Path) -> Result<SourceInfo> {
+        let path = path.join("pyproject.toml");
+        if !path.is_file() {
+            bail!("missing pyproject.toml");
+        }
 
-    fn name(&self, source: &Source) -> Option<String> {
-        let path = source.path().join("pyproject.toml");
-        let contents = fs::read_to_string(&path).ok()?;
-        let value = contents.parse::<toml::Table>().ok()?;
-        value
-            .get("project")?
-            .get("name")?
-            .as_str()
-            .map(|s| s.to_string())
+        Ok(SourceInfo {
+            name: get_name(&path),
+        })
     }
 
     fn create(&self, source: &Source) -> Result<()> {
@@ -47,6 +48,7 @@ impl Language for Python {
         }
         let file3 = App { name }.write(path);
 
+        // Remove outdated codegen
         let src = path.join("src");
         let _ = fs::remove_dir_all(src.join("componentize_py_async_support"));
         let _ = fs::remove_dir_all(src.join("wit_world"));
@@ -117,41 +119,35 @@ impl Language for Python {
     }
 }
 
+fn get_name(path: &Path) -> Option<String> {
+    let contents = fs::read_to_string(&path).ok()?;
+    let value = contents.parse::<toml::Table>().ok()?;
+    value
+        .get("project")?
+        .get("name")?
+        .as_str()
+        .map(|s| s.to_string())
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{
-        id::Id,
-        runtime::{Config, Runtime},
-    };
-
     use super::*;
 
     #[test]
     fn identify() {
         let path = Path::new("../../examples/python_example");
-        assert!(Python.identify(path));
+        let info = Python.identify(path).expect("valid source");
+        assert_eq!(
+            info,
+            SourceInfo {
+                name: Some("python-example".into())
+            }
+        );
     }
 
     #[test]
     fn identify_invalid() {
         let path = Path::new("../../examples/simple");
-        assert!(!Python.identify(path));
-    }
-
-    #[test]
-    fn name() {
-        let source = source();
-        let name = Python.name(&source).expect("name is found");
-        assert_eq!(&name, "python-example");
-    }
-
-    fn source() -> Source {
-        let mut config = Config::default();
-        config.add_language(Python);
-        let runtime = Runtime::new(config);
-
-        let path = Path::new("../../examples/python_example");
-        let language = Id::from(&Python);
-        Source::mock(path, runtime, language)
+        assert!(Python.identify(path).is_err());
     }
 }

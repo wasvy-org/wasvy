@@ -1,6 +1,7 @@
 use std::process::ExitStatus;
 
 use anyhow::Result;
+use derive_more::Deref;
 
 use crate::{editors::Generic, named::Named, source::Source};
 
@@ -12,17 +13,8 @@ pub trait Editor: Named + Send + Sync {
     fn launch(&self, source: &Source) -> Result<ExitStatus>;
 }
 
+#[derive(Deref)]
 pub struct BoxedEditor(Box<dyn Editor>);
-
-impl BoxedEditor {
-    pub fn available(&self) -> bool {
-        self.0.available()
-    }
-
-    pub fn launch(&self, source: &Source) -> Result<ExitStatus> {
-        self.0.launch(source)
-    }
-}
 
 impl Named for BoxedEditor {
     fn name(&self) -> &str {
@@ -32,7 +24,7 @@ impl Named for BoxedEditor {
 
 impl<T> From<T> for BoxedEditor
 where
-    T: Editor + Named + 'static,
+    T: Editor + 'static,
 {
     fn from(value: T) -> Self {
         Self(Box::new(value))

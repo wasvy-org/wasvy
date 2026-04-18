@@ -11,8 +11,7 @@ use crate::{
     dependency::{Dependency, Interface},
     editor::BoxedEditor,
     id::Id,
-    language::Language,
-    named::Named,
+    language::BoxedLanguage,
     source::Source,
 };
 
@@ -28,7 +27,7 @@ pub struct Config {
     editors: Editors,
 }
 
-type Languages = HashMap<Id, Box<dyn Language>>;
+type Languages = HashMap<Id, BoxedLanguage>;
 type Editors = HashMap<Id, BoxedEditor>;
 
 impl Default for Config {
@@ -53,9 +52,10 @@ impl Config {
     }
 
     /// Adds support for a new language
-    pub fn add_language<L: Language + Named + 'static>(&mut self, language: L) -> &mut Self {
+    pub fn add_language(&mut self, language: impl Into<BoxedLanguage>) -> &mut Self {
+        let language = language.into();
         let id = Id::from(&language);
-        self.languages.insert(id, Box::new(language));
+        self.languages.insert(id, language);
         self
     }
 

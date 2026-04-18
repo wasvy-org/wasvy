@@ -7,9 +7,9 @@ use std::{
     process::Stdio,
 };
 
-use crate::{fs::WriteTo, id::Id, runtime::Runtime};
+use crate::{fs::WriteTo, id::Id, named::Named, runtime::Runtime};
 
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use wit_parser::{Package, PackageId, Resolve, UnresolvedPackageGroup, World};
 
 /// A source
@@ -65,21 +65,15 @@ impl Source {
             .context("failed to resolve path")?;
 
         // Try validating different languages until one matches
-        if let Some((id, _)) = runtime
+        let Some((id, info)) = runtime
             .languages()
             .iter()
-            .find(|(_, language)| language.identify(path))
-        {
-            return Source::new_raw(None, path, runtime, Some(id.clone()), resolve, package);
-        }
-        Err(anyhow!("path was not identified as any language"))
-    }
+            .find_map(|(id, language)| language.identify(path).ok().map(|info| (id, info)))
+        else {
+            bail!("path was not identified as any language");
+        };
 
-    // Returns the name
-    pub fn name(&self) -> &str {
-        self.name
-            .as_ref()
-            .unwrap_or_else(|| &self.resolve.packages[self.package].name.name)
+        Source::new_raw(info.name, path, runtime, Some(id.clone()), resolve, package)
     }
 
     // Returns the path of this source
@@ -202,6 +196,8 @@ impl Source {
         resolve: Resolve,
         package: PackageId,
     ) -> Result<Self> {
+        let path = path.as_ref();
+
         // Root package must have a single guest world
         let world = get_world(&resolve, package).ok_or(anyhow!("package is missing world"))?;
 
@@ -214,43 +210,22 @@ impl Source {
 
         // TODO: Are there other checks that we should perform?
 
-        let path = path.as_ref();
-        let mut source = Source {
+        Ok(Self {
             name,
             path: path.to_path_buf(),
             language,
             resolve,
             package,
             runtime: runtime.clone(),
-        };
-
-        // Use the language implementation to try to find the name
-        if source.name.is_none() {
-            source.name = if let Some(language) = &source.language {
-                runtime
-                    .languages()
-                    .get(language)
-                    .map(|a| a.name(&source))
-                    .ok_or(anyhow!("builder does not implement {language:?}"))?
-            } else {
-                Some(source.package().name.name.clone())
-            };
-        }
-
-        Ok(source)
+        })
     }
+}
 
-    /// A mock source for tests
-    #[cfg(test)]
-    pub(crate) fn mock(path: impl AsRef<Path>, runtime: Runtime, language: Id) -> Self {
-        Self {
-            name: None,
-            path: path.as_ref().to_path_buf(),
-            language: Some(language),
-            resolve: Resolve::new(),
-            package: invalid_package_id(),
-            runtime,
-        }
+impl Named for Source {
+    fn name(&self) -> &str {
+        self.name
+            .as_ref()
+            .unwrap_or_else(|| &self.resolve.packages[self.package].name.name)
     }
 }
 
@@ -285,7 +260,10 @@ fn get_world(resolve: &Resolve, package: PackageId) -> Option<&World> {
 mod tests {
     use std::{env, fs, path::Path};
 
-    use crate::{language::Language, runtime::Config};
+    use crate::{
+        language::{Language, SourceInfo},
+        runtime::Config,
+    };
 
     use super::*;
 
@@ -293,8 +271,12 @@ mod tests {
         identify: bool,
     }
     impl Language for MockLang {
-        fn identify(&self, _path: &Path) -> bool {
-            self.identify
+        fn identify(&self, _path: &Path) -> Result<SourceInfo> {
+            if self.identify {
+                Ok(SourceInfo::default())
+            } else {
+                Err(anyhow!("nothing"))
+            }
         }
 
         fn create(&self, _source: &Source) -> Result<()> {

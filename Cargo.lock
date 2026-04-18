@@ -7192,6 +7192,7 @@ version = "0.0.8"
 dependencies = [
  "anyhow",
  "askama",
+ "derive_more",
  "glob",
  "semver",
  "serde_json",

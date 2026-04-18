@@ -18,7 +18,7 @@ pub use app::*;
 pub use host::*;
 pub use system::*;
 
-use crate::{fs::WriteTo, source::Source};
+use crate::{fs::WriteTo, named::Named, source::Source};
 
 pub fn write_guest_wit(source: &Source) -> Result<()> {
     let wit = GuestWit::new(source)?;

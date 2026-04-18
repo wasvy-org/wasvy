@@ -65,7 +65,7 @@ fn generates_wit_resources() {
 
     let wasvy_use = "use wasvy:ecs/app@0.0.7.{component}";
 
-    assert!(output.contains("package game:components;"));
+    assert!(output.contains("package my-namespace:my-game;"));
     assert!(output.contains("interface components"));
     assert!(output.contains(wasvy_use));
     assert!(output.contains("resource health"));

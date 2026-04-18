@@ -33,7 +33,7 @@ type Editors = HashMap<Id, BoxedEditor>;
 impl Default for Config {
     fn default() -> Self {
         Self {
-            namespace: "namespace".to_string(),
+            namespace: "my-namespace".to_string(),
             resolve: Default::default(),
             dependencies: Default::default(),
             languages: Default::default(),

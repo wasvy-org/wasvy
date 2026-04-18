@@ -45,6 +45,23 @@ impl Default for Config {
     }
 }
 
+impl Config {
+    /// Creates a default config with a custom name
+    pub fn new(program_name: impl Into<String>) -> Self {
+        Self {
+            program_name: program_name.into(),
+            ..Default::default()
+        }
+    }
+
+    /// Adds to the interfaces implemented by our game
+    pub fn implement(mut self, interface: impl Into<Cow<'static, str>>) -> Self {
+        self.interfaces.push(interface.into());
+
+        self
+    }
+}
+
 impl From<&'static str> for Config {
     fn from(value: &'static str) -> Self {
         Config {

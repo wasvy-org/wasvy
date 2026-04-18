@@ -13,6 +13,7 @@ use crate::{
     host::WasmHost,
     methods::FunctionIndex,
     query::{Queries, QueryResolver},
+    resource::InsertResources,
     send_sync_ptr::SendSyncPtr,
     serialize::CodecResource,
     system::AddSystems,
@@ -57,9 +58,11 @@ impl Runner {
             Config::Setup(ConfigSetup {
                 world,
                 add_systems: systems,
+                insert_resources,
             }) => Inner::Setup {
                 world: SendSyncPtr::new(world.into()),
                 add_systems: SendSyncPtr::new(systems.into()),
+                insert_resources: SendSyncPtr::new(insert_resources.into()),
             },
             Config::RunSystem(ConfigRunSystem {
                 commands,
@@ -102,6 +105,7 @@ enum Inner {
     Setup {
         world: SendSyncPtr<World>,
         add_systems: SendSyncPtr<AddSystems>,
+        insert_resources: SendSyncPtr<InsertResources>,
     },
     RunSystem {
         commands: SendSyncPtr<Commands<'static, 'static>>,
@@ -129,12 +133,14 @@ impl Data {
             Inner::Setup {
                 world,
                 add_systems: systems,
+                insert_resources,
             } => Some(State::Setup {
                 // Safety: Runner::use_store ensures that this always contains a valid reference
                 // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
                 world: unsafe { world.as_mut() },
                 table,
                 add_systems: unsafe { systems.as_mut() },
+                insert_resources: unsafe { insert_resources.as_mut() },
             }),
             Inner::RunSystem {
                 commands,
@@ -173,6 +179,7 @@ pub(crate) enum State<'a> {
         world: &'a mut World,
         table: &'a mut ResourceTable,
         add_systems: &'a mut AddSystems,
+        insert_resources: &'a mut InsertResources,
     },
     RunSystem {
         table: &'a mut ResourceTable,
@@ -196,6 +203,7 @@ pub(crate) enum Config<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
 pub(crate) struct ConfigSetup<'a> {
     pub(crate) world: &'a mut World,
     pub(crate) add_systems: &'a mut AddSystems,
+    pub(crate) insert_resources: &'a mut InsertResources,
 }
 
 pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {

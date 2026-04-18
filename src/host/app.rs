@@ -2,8 +2,9 @@ use anyhow::{Result, bail};
 use wasmtime::component::Resource;
 
 use crate::{
-    bindings::wasvy::ecs::app::{HostApp, Schedule},
+    bindings::wasvy::ecs::app::{HostApp, Schedule, SerializedResource},
     host::{WasmHost, WasmSystem},
+    resource::WasmResource,
     runner::State,
 };
 
@@ -33,6 +34,28 @@ impl HostApp for WasmHost {
     fn drop(&mut self, app: Resource<WasmApp>) -> Result<()> {
         let _ = self.table().delete(app)?;
 
+        Ok(())
+    }
+
+    #[doc = " Inserts a new resource to the mod"]
+    fn insert_resource(
+        &mut self,
+        _: Resource<WasmApp>,
+        resource: (String, SerializedResource),
+    ) -> wasmtime::Result<()> {
+        let State::Setup {
+            insert_resources, ..
+        } = self.access()
+        else {
+            bail!("App can only be modified in a setup function")
+        };
+
+        insert_resources.push((
+            resource.0,
+            WasmResource {
+                serialized_value: resource.1,
+            },
+        ));
         Ok(())
     }
 }

@@ -7,13 +7,7 @@ use bevy_reflect::TypePath;
 use wasmtime::component::{Component, InstancePre, Val};
 
 use crate::{
-    access::ModAccess,
-    cleanup::DespawnModEntities,
-    engine::{Engine, Linker},
-    host::{WasmApp, WasmHost},
-    mods::ModDespawnBehaviour,
-    runner::{Config, ConfigRunSystem, ConfigSetup, Runner},
-    system::AddSystems,
+    access::ModAccess, cleanup::DespawnModEntities, engine::{Engine, Linker}, host::{WasmApp, WasmHost}, mods::ModDespawnBehaviour, resource::InsertResources, runner::{Config, ConfigRunSystem, ConfigSetup, Runner}, system::AddSystems
 };
 
 /// An asset representing a loaded wasvy Mod
@@ -92,10 +86,12 @@ impl ModAsset {
 
         let mut runner = Runner::new(engine);
 
-        let mut systems = AddSystems::default();
+        let mut add_systems = AddSystems::default();
+        let mut insert_resources = InsertResources::default();
         let config = Config::Setup(ConfigSetup {
             world,
-            add_systems: &mut systems,
+            add_systems: &mut add_systems,
+            insert_resources: &mut insert_resources
         });
 
         // The setup method takes an App parameter.
@@ -110,7 +106,7 @@ impl ModAsset {
         )?;
 
         // Now register all the mod's systems
-        systems.add_systems(
+        add_systems.add_systems(
             world,
             accesses,
             runner.table(),

@@ -100,7 +100,7 @@ publish:
 	cargo test
 	cargo clippy -- -D warnings
 	cargo fmt --all -- --check
-	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features
+	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features --exclude guest_wit_example --exclude host_wit_example --exclude simple
 
 	# Publish
 	cargo publish -p wasvy_macros

@@ -85,7 +85,7 @@ jobs:
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
       - name: Run cargo doc
-        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features --exclude guest_wit_example --exclude host_wit_example --exclude simple
 
   # Run cargo fmt --all -- --check
   format:

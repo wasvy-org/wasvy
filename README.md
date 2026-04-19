@@ -17,7 +17,7 @@
 
 > 🎯 **Community Feedback**: Your ideas, suggestions, and contributions are highly valued! Come and talk with us in the [Bevy Discord](https://discord.com/channels/691052431525675048/1034543904478998539). Report bugs and discuss new features on [Github](https://github.com/wasvy-org/wasvy/issues). Together, we can shape this into something great!
 
-> 💡 **TIP**: Check out the [`justfile`](justfile) for useful commands and as a reference for common operations in the project.
+> 💡 **TIP**: Check out the [`justfile`](./justfile) for useful commands and as a reference for common operations in the project.
 
 ## Overview
 
@@ -261,7 +261,7 @@ If you are not using Nix, install the required tooling manually:
 - Install [`just`](https://github.com/casey/just)
 - Run `just enable-git-hooks`
 
-For additional project commands, see the [`justfile`](justfile).
+For additional project commands, see the [`justfile`](./justfile).
 
 ### Code Contributions
 

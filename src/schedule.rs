@@ -10,8 +10,8 @@ use crate::bindings::wasvy::ecs::app::Schedule as WitSchedule;
 /// Call [ModloaderPlugin::enable_schedule](crate::plugin::ModloaderPlugin::enable_schedule)
 /// to enable new or custom schedules for mods.
 ///
-/// None of the startup schedules (like [PreStartup](bevy_app::PreStartup),
-/// [Startup](bevy_app::Startup), etc) are included since mods can't usually run
+/// None of the startup schedules (like [PreStartup],
+/// [Startup], etc) are included since mods can't usually run
 /// within them, since mods take time to load and begin loading these schedules
 /// have finished running.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,7 +19,7 @@ pub enum ModSchedule {
     /// A custom schedule that runs the first time a mod is loaded.
     ///
     /// It is a custom schedule that runs during the setup schedule
-    /// (which defaults to [First](bevy_app::First)), see
+    /// (which defaults to [First]), see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)).
     ///
     /// Upon being loaded, mods are guaranteed to only run this schedule once,
@@ -57,7 +57,7 @@ impl ModSchedule {
     /// - `name` must match what the mod registers with via the wit api
     /// - `schedule` is the Bevy schedule this represents. This schedule must be added to the Bevy Schedules.
     ///
-    /// Note: Trying to add mod systems to the setup schedule (which defaults to [First](bevy_app::First), see
+    /// Note: Trying to add mod systems to the setup schedule (which defaults to [First], see
     /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule))
     /// Bevy's First schedule will do nothing since this is the mod setup phase
     pub fn new_custom(name: impl ToString, schedule: impl ScheduleLabel) -> Self {

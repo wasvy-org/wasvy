@@ -17,7 +17,7 @@ use crate::{
 
 /// The config for a [Runtime]
 ///
-/// Create a runtime by calling [Config::build()]
+/// Create a new runtime by calling [Runtime::build]
 pub struct Config {
     /// A namespace, usually the name of the game/software being modded
     pub namespace: String,
@@ -70,7 +70,7 @@ impl Config {
 
 /// A Wasvy Cli Runtime exposes an api for locating and building mods from source.
 ///
-/// Start with a [BuildConfig]
+/// Start with a [Config]
 #[derive(Clone)]
 pub struct Runtime(Arc<Config>);
 

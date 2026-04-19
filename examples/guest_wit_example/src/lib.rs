@@ -1,16 +1,16 @@
 mod bindings {
     wasvy_macros::guest_bindings!({
-        path: ["./wit"],
+        path: "./wit",
         world: "component:guest-wit/example",
         with: {
-            "wasvy:ecs/app": generate,
-            "game:components/components": generate,
+            "wasvy:ecs/app@0.0.7": generate,
+            "wasvy-examples:bindings/components": generate,
         }
     });
 }
 
-use bindings::game::components::components::Health;
 use bindings::wasvy::ecs::app::{App, Query, QueryFor, Schedule, System};
+use bindings::wasvy_examples::bindings::components::Health;
 use bindings::*;
 
 struct GuestComponent;

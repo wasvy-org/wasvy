@@ -62,15 +62,9 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         // Adding the [`ModloaderPlugin`] is all you need 😉
-        .add_plugins(ModloaderPlugin::default())
-        .add_systems(Startup, startup)
+        // Optionally, enable the devtools for CLI access ⚡
+        .add_plugins(ModloaderPlugin::default().devtools("My moddable Bevy app"))
         .run();
-}
-
-/// Access the modloader's api through the Mods interface 🪄
-fn startup(mut mods: Mods) {
-    // Load one (or several) mods at once from the asset directory!
-    mods.load("mods/my-mod.wasm");
 }
 ```
 
@@ -186,14 +180,13 @@ use wasvy::ecs::app::{App, Commands, Schedule, System};
 struct MyMod;
 
 impl Guest for MyMod {
-    fn setup() {
+    fn setup(app: App) {
         // This must match the system we have defined in world.wit
         // If you want more systems, just define more in wit
         let system = System::new("my-system");
         system.add_commands();
 
         // Register the system, similarly as you would in a Bevy App
-        let app = App::new();
         app.add_systems(&Schedule::ModStartup, vec![system]);
     }
 

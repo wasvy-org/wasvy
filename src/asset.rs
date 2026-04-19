@@ -1,4 +1,7 @@
-use std::fmt;
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+};
 
 use anyhow::{Context, Result, anyhow};
 use bevy_asset::{Asset, AssetId, AssetLoader, Assets, LoadContext, io::Reader};
@@ -19,6 +22,7 @@ use crate::{
 /// An asset representing a loaded wasvy Mod
 #[derive(Asset, TypePath)]
 pub struct ModAsset {
+    path: PathBuf,
     version: Option<Tick>,
     instance_pre: InstancePre<WasmHost>,
 }
@@ -26,7 +30,11 @@ pub struct ModAsset {
 const SETUP: &str = "setup";
 
 impl ModAsset {
-    pub(crate) async fn new(loader: &ModAssetLoader, reader: &mut dyn Reader) -> Result<Self> {
+    pub(crate) async fn new(
+        loader: &ModAssetLoader,
+        reader: &mut dyn Reader,
+        path: impl Into<PathBuf>,
+    ) -> Result<Self> {
         let mut bytes = vec![];
         reader.read_to_end(&mut bytes).await?;
 
@@ -34,9 +42,14 @@ impl ModAsset {
         let instance_pre = loader.linker.instantiate_pre(&component)?;
 
         Ok(Self {
+            path: path.into(),
             version: None,
             instance_pre,
         })
+    }
+
+    pub(crate) fn path(&self) -> &Path {
+        &self.path
     }
 
     pub(crate) fn version(&self) -> Option<Tick> {
@@ -185,9 +198,9 @@ impl AssetLoader for ModAssetLoader {
         &self,
         reader: &mut dyn Reader,
         _settings: &Self::Settings,
-        _load_context: &mut LoadContext<'_>,
+        load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset> {
-        let asset = ModAsset::new(self, reader).await?;
+        let asset = ModAsset::new(self, reader, load_context.path().path()).await?;
 
         Ok(asset)
     }

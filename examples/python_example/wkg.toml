@@ -1,2 +1,0 @@
-[overrides]
-"wasvy:ecs" = { path = "../../wit/ecs/ecs.wit" }

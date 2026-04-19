@@ -37,6 +37,7 @@ readme = "README.md"
 
 [workspace.dependencies]
 anyhow = "1.0.99"
+askama = "0.14.0"
 bevy_asset = "0.18.0"
 bevy_app = { version = "0.18.0", features = ["reflect_functions"] }
 bevy_derive = "0.18.0"
@@ -51,20 +52,37 @@ bevy_reflect = { version = "0.18.0", features = [
     "functions",
     "reflect_documentation",
 ] }
+bevy_remote = "0.18.0"
 bevy_transform = { version = "0.18.0", features = [
     "serialize",
 ], default-features = false }
+derive_more = { version = "2", default-features = false, features = [
+  "deref",
+  "deref_mut",
+] }
+glob = "0.3.3"
+inventory = "0.3.15"
+proc-macro2 = "1.0.89"
+proc-macro-crate = "3.1.0"
+quote = "1.0.36"
+semver = "1.0.27"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.143"
-inventory = "0.3.15"
+syn = { version = "2.0.87", features = ["full", "extra-traits"] }
+thiserror = "2.0.16"
+toml = "1.1.0"
+tracing = "0.1.44"
 wasmtime = { version = "40.0.1", features = ["component-model"] }
 wasmtime-wasi = "40.0.1"
 wasvy = { path = "./" }
+wasvy_cli = { path = "./crates/wasvy_cli" }
 wasvy_macros = { version = "0.0.8", path = "crates/wasvy_macros" }
 wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
+wit-parser = "0.245.1"
 
 [features]
-default = ["serde_json"]
+default = ["devtools", "serde_json"]
+devtools = ["dep:bevy_remote"]
 serde_json = ["dep:serde_json"]
 
 [dependencies]
@@ -76,12 +94,12 @@ bevy_ecs.workspace = true
 bevy_log.workspace = true
 bevy_platform.workspace = true
 bevy_reflect.workspace = true
+bevy_remote = { workspace = true, optional = true }
+inventory.workspace = true
 serde.workspace = true
-serde_json.workspace = true
-serde_json.optional = true
+serde_json = { workspace = true, optional = true }
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
-inventory.workspace = true
 wasvy_macros.workspace = true
 
 [dev-dependencies]

@@ -29,4 +29,4 @@ path = "wit"
 world = "example"
 
 [package.metadata.component.target.dependencies]
-"wasvy:ecs" = { path = "wit/deps/wasvy-ecs" }
+"wasvy:ecs" = { path = "wit/deps/wasvy" }

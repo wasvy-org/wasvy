@@ -23,7 +23,7 @@ pub type TypePath = String;
 
 /// Registry for storing the components that are registered from WASM assets.
 ///
-/// Note that this is unique per world, not per app like the [AppTypeRegistry](bevy_ecs::reflect::AppTypeRegistry)
+/// Note that this is unique per world, not per app like the [AppTypeRegistry]
 #[derive(Default, Clone, Debug, Resource, Deref, DerefMut)]
 pub struct WasmComponentRegistry(HashMap<TypePath, ComponentId>);
 

@@ -5,7 +5,7 @@
 //!   **no methods**. This is important for components that are queried or
 //!   serialized but never invoked.
 //! - [`WasvyMethods`] registers exported methods (typically via
-//!   [`#[wasvy::methods]`](crate::methods)).
+//!   [`#[wasvy::methods]`](macro@crate::methods)).
 //! - [`WasvyAutoRegistrationPlugin`] apply all submitted
 //!   registrations to a Bevy `App`.
 //!

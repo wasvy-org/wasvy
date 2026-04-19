@@ -209,7 +209,7 @@ impl ModloaderPlugin {
 
     /// Apply a custom codec for serializing data to/from mods
     ///
-    /// Defaults to [JsonCodec]
+    /// Defaults to [JsonCodec](crate::serialize::JsonCodec)
     pub fn with_codec(mut self, codec: impl WasvyCodec) -> Self {
         let inner = self.inner();
         inner.codec = Some(CodecResource::new(codec));

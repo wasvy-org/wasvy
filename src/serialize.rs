@@ -36,7 +36,6 @@ pub trait WasvyCodec: Send + Sync + 'static {
     fn get_type(&self) -> String;
 }
 
-#[cfg(feature = "serde_json")]
 #[derive(Default, Resource)]
 pub struct JsonCodec;
 

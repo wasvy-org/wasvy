@@ -10,14 +10,14 @@
 [![Downloads](https://img.shields.io/crates/d/wasvy.svg)](https://crates.io/crates/wasvy)
 [![Docs](https://docs.rs/wasvy/badge.svg)](https://docs.rs/wasvy)
 [![Rust Version](https://img.shields.io/badge/rust-1.92.0+-blue.svg)](https://www.rust-lang.org)
-[![CI](https://github.com/wasvy-org/wasvy/workflows/CI/badge.svg)](https://github.com/wasvy-org/wasvy/actions)
+[![CI](https://github.com/wasvy-org/wasvy/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/wasvy-org/wasvy/actions)
 [![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.com/channels/691052431525675048/1492230910383357992/1492230910383357992)
 
 > 🪺 **Just hatched**: This project in in the process of stabilization. Some features are still missing and breaking API changes are likely to happen as we approach a 1.0 release. Use at your own risk!
 
-> 🎯 **Community Feedback**: Your ideas, suggestions, and contributions are highly valued! Come and talk with us in the [Bevy Discord](https://discord.com/channels/691052431525675048/1034543904478998539). Report bugs and discuss new features on [Github](https://github.com/wasvy-org/wasvy/issues). Together, we can shape this into something great!
+> 🎯 **Community Feedback**: Your ideas, suggestions, and contributions are highly valued! Come and talk with us in the [Bevy Discord](https://discord.com/channels/691052431525675048/1492230910383357992/1492230910383357992). Report bugs and discuss new features on [Github](https://github.com/wasvy-org/wasvy/issues). Together, we can shape this into something great!
 
-> 💡 **TIP**: Check out the [`justfile`](justfile) for useful commands and as a reference for common operations in the project.
+> 💡 **TIP**: Check out the [`justfile`](./justfile) for useful commands and as a reference for common operations in the project.
 
 ## Overview
 
@@ -231,6 +231,30 @@ Check out the examples directory for more detailed usage:
 ## Contributing
 
 Contributions come in many forms, and we welcome all kinds of help! Here's how you can contribute:
+
+### Setup your development environment
+
+Using the project's [Nix flake](https://nixos.org/download/) is the simplest way to get a working development environment.
+
+1. Install [Nix](https://nixos.org/download/).
+2. Install [direnv](https://direnv.net/) and hook it into your shell by following the [official setup instructions](https://direnv.net/docs/hook.html).
+3. From the repository root, allow direnv to load the flake-based development shell:
+
+```sh
+direnv allow
+```
+
+Once allowed, direnv will automatically enter the development shell for this repository and provision the required tooling.
+
+### Other environments
+
+If you are not using Nix, install the required tooling manually:
+
+- Install [Rust 1.92.0+](https://www.rust-lang.org/tools/install)
+- Install [`just`](https://github.com/casey/just)
+- Run `just enable-git-hooks`
+
+For additional project commands, see the [`justfile`](./justfile).
 
 ### Code Contributions
 

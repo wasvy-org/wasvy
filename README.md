@@ -239,6 +239,30 @@ Check out the examples directory for more detailed usage:
 
 Contributions come in many forms, and we welcome all kinds of help! Here's how you can contribute:
 
+### Setup your development environment
+
+Using the project's [Nix flake](https://nixos.org/download/) is the simplest way to get a working development environment.
+
+1. Install [Nix](https://nixos.org/download/).
+2. Install [direnv](https://direnv.net/) and hook it into your shell by following the [official setup instructions](https://direnv.net/docs/hook.html).
+3. From the repository root, allow direnv to load the flake-based development shell:
+
+```sh
+direnv allow
+```
+
+Once allowed, direnv will automatically enter the development shell for this repository and provision the required tooling.
+
+### Other environments
+
+If you are not using Nix, install the required tooling manually:
+
+- Install [Rust 1.92.0+](https://www.rust-lang.org/tools/install)
+- Install [`just`](https://github.com/casey/just)
+- Run `just enable-git-hooks`
+
+For additional project commands, see the [`justfile`](justfile).
+
 ### Code Contributions
 
 1. Fork the repository

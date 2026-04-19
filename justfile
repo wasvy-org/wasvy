@@ -32,3 +32,12 @@ build-wasvy-ecs:
 
 publish-wasvy-ecs file_path version:
 	wkg publish --package wasvy:ecs@{{version}} {{file_path}} --registry wa.dev
+
+# Enables git hooks
+enable-git-hooks:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/pre-push
+
+# Replace the existing (1.92.0) rust toolchain version with a new one
+toolchain new:
+    rg -l 'rust' . | xargs sed -i "/rust/s/1.92.0/{{new}}/g"

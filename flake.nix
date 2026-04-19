@@ -44,6 +44,7 @@
           wkg
           nixd
           nil
+          ripgrep
 
           poetry
           python3
@@ -79,6 +80,8 @@
 
           shellHook = ''
             ${wkgConfigHook}
+
+            just enable-git-hooks
 
             # Impure python setup for now
             unset PYTHONPATH

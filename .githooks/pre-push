@@ -1,0 +1,48 @@
+#!/usr/bin/env sh
+set -eu
+
+required_rust_version="1.92.0"
+
+if ! command -v rustc >/dev/null 2>&1; then
+  echo "🚫 pre-push: rustc is not installed or not on PATH"
+  exit 1
+fi
+
+current_rust_version=$(rustc --version | awk '{print $2}')
+
+version_ge() {
+  awk -v v1="$1" -v v2="$2" '
+    BEGIN {
+      n1 = split(v1, a, ".")
+      n2 = split(v2, b, ".")
+      max = (n1 > n2 ? n1 : n2)
+
+      for (i = 1; i <= max; i++) {
+        x = (i <= n1 ? a[i] : 0) + 0
+        y = (i <= n2 ? b[i] : 0) + 0
+
+        if (x > y) exit 0
+        if (x < y) exit 1
+      }
+
+      exit 0
+    }
+  '
+}
+
+if ! version_ge "$current_rust_version" "$required_rust_version"; then
+  echo "🚫 pre-push: rustc $current_rust_version found, but $required_rust_version or newer is required"
+  exit 1
+fi
+
+echo "🔎 pre-push: running checks that mirror GitHub CI"
+echo "• cargo test"
+cargo test
+
+echo "• cargo clippy -- -D warnings"
+cargo clippy -- -D warnings
+
+echo "• cargo fmt --all -- --check"
+cargo fmt --all -- --check
+
+echo "✅ pre-push: all checks passed"

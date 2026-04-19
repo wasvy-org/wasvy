@@ -75,5 +75,33 @@ publish-wasvy-ecs file_path version:
 # Replace the existing (1.92.0) rust toolchain version with a new one.
 [group("chores")]
 [arg("new", pattern="^\\d+\\.\\d+\\.\\d+$")]
-toolchain new:
-    rg -l 'rust' . | xargs sed -i "/rust/s/1.92.0/{{new}}/g"
+bump-toolchain new:
+	rg -l 'rust' . | xargs sed -i "/rust/s/1.92.0/{{new}}/g"
+
+# Replace the existing (0.18.0) bevy version with a new one.
+[group("chores")]
+[arg("new", pattern="^\\d+\\.\\d+\\.\\d+$")]
+bump-bevy new:
+	rg -l -g '!Cargo.lock' 'bevy' . | xargs sed -i "/bevy/s/0.18.0/{{new}}/g"
+	cargo check
+
+# Replace the existing (0.0.8) wasvy version with a new one.
+[group("chores")]
+[arg("new", pattern="^\\d+\\.\\d+\\.\\d+$")]
+bump-version new:
+	rg -l -g '!Cargo.lock' 'version' . | xargs sed -i "/version/s/0.0.8/{{new}}/g"
+	cargo check
+
+# Publishes all crates
+[group("chores")]
+[confirm]
+publish:
+	# CI
+	cargo test
+	cargo clippy -- -D warnings
+	cargo fmt --all -- --check
+	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features
+
+	# Publish
+	cargo publish -p wasvy_macros
+	cargo publish -p wasvy

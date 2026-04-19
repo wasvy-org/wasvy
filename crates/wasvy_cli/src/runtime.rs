@@ -17,7 +17,7 @@ use crate::{
 
 /// The config for a [Runtime]
 ///
-/// Create a new runtime by calling [Runtime::build]
+/// Create a new runtime by calling [Runtime::new]
 pub struct Config {
     /// A namespace, usually the name of the game/software being modded
     pub namespace: String,

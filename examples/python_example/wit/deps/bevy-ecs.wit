@@ -1,0 +1,4 @@
+/// Bevy does not yet have native wit bindings.
+///
+/// But wasvy does generate bindings for it, and so we need to know the version.
+package bevy:ecs@0.18.1;

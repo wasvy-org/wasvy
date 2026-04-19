@@ -1,0 +1,16 @@
+# filename: Cargo.toml
+[package]
+name = "{{ name }}"
+version = "0.0.0-alpha"
+description = "My custom mod"
+readme = "README.md"
+categories = ["bevy-engine", "bevy", "wasm", "wasvy"]
+rust-version = "{{ rust_version }}"
+
+[dependencies]
+bevy_transform = "0.18.0"
+bevy_math = "0.18.0"
+wit-bindgen = "0.50.0"
+
+[lib]
+crate-type = ["cdylib"] # Needed for building to wasm

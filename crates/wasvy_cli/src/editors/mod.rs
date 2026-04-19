@@ -9,7 +9,7 @@ impl Config {
         self.add_editor("clion");
         self.add_editor("emacs");
         self.add_editor("intellij");
-        self.add_editor("neovim");
+        self.add_editor("nvim");
         self.add_editor("pycharm");
         self.add_editor("sublime");
         self.add_editor("vim");

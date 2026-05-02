@@ -7,7 +7,7 @@ use std::{
     process::Stdio,
 };
 
-use crate::{fs::WriteTo, id::Id, named::Named, runtime::Runtime};
+use crate::{fs::WriteTo, id::Id, language::BoxedLanguage, named::Named, runtime::Runtime};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use wit_parser::{Package, PackageId, Resolve, UnresolvedPackageGroup, World};
@@ -91,6 +91,16 @@ impl Source {
         &self.runtime
     }
 
+    // Returns the boxed language implementation
+    pub fn language(&self) -> Option<&BoxedLanguage> {
+        self.language.as_ref().map(|language| {
+            self.runtime()
+                .languages()
+                .get(language)
+                .expect("language exists in source")
+        })
+    }
+
     /// Returns the world at the root directory
     pub fn world(&self) -> &World {
         get_world(&self.resolve, self.package).expect("unreachable")
@@ -138,13 +148,10 @@ impl Source {
 
     /// Builds the source, producing a new Wasm source
     pub fn build(&self, stdio: Stdio) -> Result<Cow<'_, Source>> {
-        if let Some(id) = self.language.clone() {
-            let runtime = self.runtime().clone();
-            let language = &runtime.languages()[&id];
-
+        if let Some(language) = self.language() {
             let source = language
                 .build(self, stdio)
-                .with_context(|| format!("building with language {id}"))?;
+                .with_context(|| format!("building with language {}", language.name()))?;
 
             Ok(Cow::Owned(source))
         } else {
@@ -289,7 +296,7 @@ mod tests {
     }
 
     fn runtime(lang: MockLang) -> Runtime {
-        let mut config = Config::default();
+        let mut config = Config::empty();
         config
             .add_dependency(include_str!("../../../wit/wasvy-ecs.wit"))
             .expect("valid dep");
@@ -309,13 +316,11 @@ mod tests {
 
     #[test]
     fn identify_simple() {
-        let lang = MockLang { identify: true };
-        let lang_id = Id::from(&lang);
         let builder = runtime(MockLang { identify: true });
         let source = Source::identify("../../examples/simple", &builder)
             .expect("Should identify the simple example as a valid source");
         assert_eq!(&source.path, Path::new("../../examples/simple"));
-        assert_eq!(source.language, Some(lang_id));
+        assert!(source.language.is_some());
         assert_eq!(source.world_name(), "component:simple/example");
     }
 

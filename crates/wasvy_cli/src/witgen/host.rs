@@ -15,8 +15,11 @@ pub struct Host {
 impl Default for Host {
     fn default() -> Self {
         Self {
-            ctx: WasiCtxBuilder::new().inherit_stdio().build(),
-            systems: Vec::new(),
+            ctx: WasiCtxBuilder::default()
+                .inherit_stdout()
+                .inherit_stderr()
+                .build(),
+            systems: Default::default(),
             table: Default::default(),
         }
     }

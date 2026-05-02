@@ -34,8 +34,8 @@ pub struct Dependency {
 
 pub type Interface = Cow<'static, str>;
 
-impl From<Dependency> for Interface {
-    fn from(value: Dependency) -> Self {
+impl From<&Dependency> for Interface {
+    fn from(value: &Dependency) -> Self {
         value.interface.clone()
     }
 }

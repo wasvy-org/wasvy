@@ -21,10 +21,10 @@ use crate::{
 pub struct Config {
     /// A namespace, usually the name of the game/software being modded
     pub namespace: String,
-    resolve: Resolve,
-    dependencies: Vec<Dependency>,
-    languages: Languages,
-    editors: Editors,
+    pub resolve: Resolve,
+    pub dependencies: Vec<Dependency>,
+    pub languages: Languages,
+    pub editors: Editors,
 }
 
 type Languages = HashMap<Id, BoxedLanguage>;
@@ -32,6 +32,16 @@ type Editors = HashMap<Id, BoxedEditor>;
 
 impl Default for Config {
     fn default() -> Self {
+        let mut config = Self::empty();
+        config.add_all_editors();
+        config.add_all_languages();
+        config
+    }
+}
+
+impl Config {
+    /// Empty config, different than default
+    pub fn empty() -> Self {
         Self {
             namespace: "my-namespace".to_string(),
             resolve: Default::default(),
@@ -40,9 +50,7 @@ impl Default for Config {
             editors: Default::default(),
         }
     }
-}
 
-impl Config {
     /// Adds a new required dependency to our builder
     pub fn add_dependency(&mut self, interface: impl Into<Interface>) -> Result<&mut Self> {
         let (dep, _) = Dependency::new_with_resolve(interface, &mut self.resolve)?;

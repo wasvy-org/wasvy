@@ -1,6 +1,12 @@
-use std::{fs, path::Path, process::Stdio};
+use std::{
+    fs::{self, canonicalize},
+    path::Path,
+    process::Stdio,
+};
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
+use derive_more::{Deref, DerefMut};
+use error_collection::Errors;
 
 use crate::{
     fs::WriteTo,
@@ -24,6 +30,8 @@ impl Language for Python {
     }
 
     fn create(&self, source: &Source) -> Result<()> {
+        let mut errors = Errors::new();
+
         let path = source.path();
         let namespace = source.runtime().namespace();
         let name = source.name();
@@ -34,19 +42,19 @@ impl Language for Python {
             namespace: &'a str,
             name: &'a str,
         }
-        let file1 = PyProject { namespace, name }.write(path);
+        errors.collect(PyProject { namespace, name }.write(path));
 
         #[derive(askama::Template)]
         #[template(path = "./python/src/__init__.py")]
         pub struct Init;
-        let file2 = Init.write(path);
+        errors.collect(Init.write(path));
 
         #[derive(askama::Template)]
         #[template(path = "./python/src/app.py")]
         pub struct App<'a> {
             name: &'a str,
         }
-        let file3 = App { name }.write(path);
+        errors.collect(App { name }.write(path));
 
         // Remove outdated codegen
         let src = path.join("src");
@@ -58,64 +66,41 @@ impl Language for Python {
         let _ = fs::remove_file(src.join("poll_loop.py"));
 
         // Componentize will fail if the wit is not there
-        source.update_deps()?;
+        errors.collect(source.update_deps());
 
-        let output = std::process::Command::new("poetry")
-            .arg("run")
-            .arg("componentize-py")
-            .arg("--wit-path")
-            .arg("wit/")
-            .arg("--world")
-            .arg(name)
+        let mut poetry = Poetry::new(source);
+        poetry
             .arg("bindings")
             .arg("src")
-            .current_dir(path)
-            .output()?;
+            .arg("--wit-path")
+            .arg("wit/");
+        errors.collect(poetry.run());
 
-        if !output.status.success() {
-            anyhow::bail!(
-                "componentize-py failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
-
-        // Avoid exiting before all files are written
-        file1?;
-        file2?;
-        file3?;
-
-        Ok(())
+        errors.into()
     }
 
     fn build(&self, source: &Source, stdio: Stdio) -> Result<Source> {
         let path = source.path();
         let name = source.name();
         let dest = path.join("dest");
+        let file = canonicalize(dest.join(format!("{name}.wasm")))?;
+
         let _ = fs::create_dir_all(&dest);
 
-        let output = std::process::Command::new("poetry")
-            .arg("run")
-            .arg("componentize-py")
-            .arg("--wit-path")
-            .arg("../wit/")
-            .arg("--world")
-            .arg(&name)
+        let mut poetry = Poetry::new(source);
+        poetry
             .arg("componentize")
             .arg("app")
+            .arg("--wit-path")
+            .arg("../wit/")
             .arg("-o")
-            .arg(format!("../dest/{}.wasm", name))
+            .arg(&file)
             .current_dir(path.join("src"))
-            .stdout(stdio)
-            .output()?;
+            .stdout(stdio);
+        poetry.run()?;
 
-        if !output.status.success() {
-            anyhow::bail!(
-                "componentize-py build failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            );
-        }
-
-        Ok(source.clone())
+        Source::identify_file(&file, source.runtime())
+            .with_context(|| anyhow!("identifying build artifact {file:?}"))
     }
 }
 
@@ -127,6 +112,33 @@ fn get_name(path: &Path) -> Option<String> {
         .get("name")?
         .as_str()
         .map(|s| s.to_string())
+}
+
+#[derive(Deref, DerefMut)]
+struct Poetry(std::process::Command);
+
+impl Poetry {
+    fn new(source: &Source) -> Self {
+        let mut value = Self(std::process::Command::new("poetry"));
+        value
+            .arg("run")
+            .arg("componentize-py")
+            .arg("--world")
+            .arg(source.name())
+            .current_dir(source.path());
+        value
+    }
+
+    fn run(&mut self) -> anyhow::Result<()> {
+        match self.output() {
+            Err(err) => Err(err.into()),
+            Ok(output) if !output.status.success() => Err(anyhow::anyhow!(
+                "componentize-py failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )),
+            _ => Ok(()),
+        }
+    }
 }
 
 #[cfg(test)]

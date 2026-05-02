@@ -57,9 +57,10 @@ bevy_transform = { version = "0.18.0", features = [
     "serialize",
 ], default-features = false }
 derive_more = { version = "2", default-features = false, features = [
-  "deref",
-  "deref_mut",
+    "deref",
+    "deref_mut",
 ] }
+error-collection = "1.0.2"
 glob = "0.3.3"
 inventory = "0.3.15"
 proc-macro2 = "1.0.89"
@@ -115,95 +116,48 @@ type_complexity = "allow"
 
 # Enable high optimizations for wasmtime and its transient dependencies in dev mode.
 # This drastically improves the loading speed for the example mods (python especially)
-
-# Core Wasmtime + internals
-[profile.dev.package.wasmtime-environ]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-asm-macros]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-cache]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-component-macro]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-component-util]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-cranelift]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-fiber]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-jit-debug]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-jit-icache-coherence]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-math]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-slab]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-unwinder]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-versioned-export-macros]
-opt-level = 2
-[profile.dev.package.wasmtime-internal-wit-bindgen]
-opt-level = 2
-[profile.dev.package.cranelift-assembler-x64]
-opt-level = 2
-[profile.dev.package.cranelift-bforest]
-opt-level = 2
-[profile.dev.package.cranelift-bitset]
-opt-level = 2
-[profile.dev.package.cranelift-codegen]
-opt-level = 2
-[profile.dev.package.cranelift-codegen-shared]
-opt-level = 2
-[profile.dev.package.cranelift-control]
-opt-level = 2
-[profile.dev.package.cranelift-entity]
-opt-level = 2
-[profile.dev.package.cranelift-frontend]
-opt-level = 2
-[profile.dev.package.cranelift-native]
-opt-level = 2
-[profile.dev.package.regalloc2]
-opt-level = 2
-[profile.dev.package.wasmparser]
-opt-level = 2
-[profile.dev.package.target-lexicon]
-opt-level = 2
-[profile.dev.package.object]
-opt-level = 2
-[profile.dev.package.id-arena]
-opt-level = 2
-[profile.dev.package.bumpalo]
-opt-level = 2
-[profile.dev.package.memchr]
-opt-level = 2
-[profile.dev.package.rayon]
-opt-level = 2
-[profile.dev.package.rayon-core]
-opt-level = 2
-[profile.dev.package.crossbeam-deque]
-opt-level = 2
-[profile.dev.package.crossbeam-epoch]
-opt-level = 2
-[profile.dev.package.crossbeam-utils]
-opt-level = 2
-[profile.dev.package.smallvec]
-opt-level = 2
-[profile.dev.package.hashbrown]
-opt-level = 2
-[profile.dev.package.indexmap]
-opt-level = 2
-[profile.dev.package.rustc-hash]
-opt-level = 2
-[profile.dev.package.rustix]
-opt-level = 2
-[profile.dev.package.linux-raw-sys]
-opt-level = 2
-[profile.dev.package.memfd]
-opt-level = 2
-[profile.dev.package.zstd]
-opt-level = 2
-[profile.dev.package.zstd-safe]
-opt-level = 2
-[profile.dev.package.zstd-sys]
-opt-level = 2
+[profile.dev.package]
+wasmtime-environ.opt-level = 2
+wasmtime-internal-cache.opt-level = 2
+wasmtime-internal-component-macro.opt-level = 2
+wasmtime-internal-component-util.opt-level = 2
+wasmtime-internal-cranelift.opt-level = 2
+wasmtime-internal-fiber.opt-level = 2
+wasmtime-internal-jit-debug.opt-level = 2
+wasmtime-internal-jit-icache-coherence.opt-level = 2
+wasmtime-internal-math.opt-level = 2
+wasmtime-internal-slab.opt-level = 2
+wasmtime-internal-unwinder.opt-level = 2
+wasmtime-internal-versioned-export-macros.opt-level = 2
+wasmtime-internal-wit-bindgen.opt-level = 2
+cranelift-assembler-x64.opt-level = 2
+cranelift-bforest.opt-level = 2
+cranelift-bitset.opt-level = 2
+cranelift-codegen.opt-level = 2
+cranelift-codegen-shared.opt-level = 2
+cranelift-control.opt-level = 2
+cranelift-entity.opt-level = 2
+cranelift-frontend.opt-level = 2
+cranelift-native.opt-level = 2
+regalloc2.opt-level = 2
+wasmparser.opt-level = 2
+target-lexicon.opt-level = 2
+object.opt-level = 2
+id-arena.opt-level = 2
+bumpalo.opt-level = 2
+memchr.opt-level = 2
+rayon.opt-level = 2
+rayon-core.opt-level = 2
+crossbeam-deque.opt-level = 2
+crossbeam-epoch.opt-level = 2
+crossbeam-utils.opt-level = 2
+smallvec.opt-level = 2
+hashbrown.opt-level = 2
+indexmap.opt-level = 2
+rustc-hash.opt-level = 2
+rustix.opt-level = 2
+linux-raw-sys.opt-level = 2
+memfd.opt-level = 2
+zstd.opt-level = 2
+zstd-safe.opt-level = 2
+zstd-sys.opt-level = 2

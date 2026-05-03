@@ -356,7 +356,7 @@ mod tests {
     use super::*;
     use crate::WasvyComponent;
     use crate::authoring::{WasvyExport, WasvyMethodMetadata, inventory};
-    use crate::prelude::WasvyAutoRegistrationPlugin;
+    use crate::prelude::AutoRegistrationPlugin;
     use crate::serialize::CodecResource;
     use bevy_app::App;
     use bevy_ecs::component::Component;
@@ -435,7 +435,7 @@ mod tests {
 
     fn new_app() -> App {
         let mut app = App::new();
-        app.add_plugins(WasvyAutoRegistrationPlugin);
+        app.add_plugins(AutoRegistrationPlugin);
         app
     }
 

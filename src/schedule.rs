@@ -7,7 +7,7 @@ use crate::bindings::wasvy::ecs::app::Schedule as WitSchedule;
 ///
 /// See the docs for [bevy schedules](bevy_app::Main).
 ///
-/// Call [ModloaderPlugin::enable_schedule](crate::plugin::ModloaderPlugin::enable_schedule)
+/// Call [ModLoaderPlugin::enable_schedule](crate::plugin::ModLoaderPlugin::enable_schedule)
 /// to enable new or custom schedules for mods.
 ///
 /// None of the startup schedules (like [PreStartup],
@@ -20,7 +20,7 @@ pub enum ModSchedule {
     ///
     /// It is a custom schedule that runs during the setup schedule
     /// (which defaults to [First]), see
-    /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)).
+    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)).
     ///
     /// Upon being loaded, mods are guaranteed to only run this schedule once,
     /// even if other mods are loaded afterwards.
@@ -58,7 +58,7 @@ impl ModSchedule {
     /// - `schedule` is the Bevy schedule this represents. This schedule must be added to the Bevy Schedules.
     ///
     /// Note: Trying to add mod systems to the setup schedule (which defaults to [First], see
-    /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule))
+    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule))
     /// Bevy's First schedule will do nothing since this is the mod setup phase
     pub fn new_custom(name: impl ToString, schedule: impl ScheduleLabel) -> Self {
         let name = name.to_string();
@@ -101,7 +101,7 @@ impl ModStartup {
         // This ensures that next time a mod adds a system to this schedule and we run it we won't also re-run old systems
         let mut schedule = schedules
             .insert(Self::new_schedule())
-            .expect("ModStartup schedule be added the App by ModloaderPlugin");
+            .expect("ModStartup schedule be added the App by ModLoaderPlugin");
 
         // Run the schedule and drop it
         schedule.run(world);
@@ -110,11 +110,11 @@ impl ModStartup {
 
 /// A collection of the [ModSchedules] where Wasvy will run mod systems.
 ///
-/// Adjust this via [ModloaderPlugin::new](crate::plugin::ModloaderPlugin::new). This will only affect
+/// Adjust this via [ModLoaderPlugin::new](crate::plugin::ModLoaderPlugin::new). This will only affect
 /// mods with access to the world.
 ///
-/// Or more simply, call [ModloaderPlugin::enable_schedule](crate::plugin::ModloaderPlugin::enable_schedule) with
-/// [ModloaderPlugin::default](crate::plugin::ModloaderPlugin::default).
+/// Or more simply, call [ModLoaderPlugin::enable_schedule](crate::plugin::ModLoaderPlugin::enable_schedule) with
+/// [ModLoaderPlugin::default](crate::plugin::ModLoaderPlugin::default).
 ///
 /// When using a [Sandbox](crate::sandbox::Sandbox), this is provided as an argument to adjust schedules for
 /// mod systems that run in that sandbox.
@@ -144,7 +144,7 @@ impl ModSchedules {
     pub fn push(&mut self, schedule: ModSchedule) {
         assert!(
             !self.0.contains(&schedule),
-            "Duplicate schedule {:?} added to ModloaderPlugin",
+            "Duplicate schedule {:?} added to ModLoaderPlugin",
             &schedule
         );
 

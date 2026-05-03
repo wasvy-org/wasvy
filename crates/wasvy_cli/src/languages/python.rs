@@ -147,7 +147,7 @@ mod tests {
 
     #[test]
     fn identify() {
-        let path = Path::new("../../examples/python_example");
+        let path = Path::new("../../examples/mods/python");
         let info = Python.identify(path).expect("valid source");
         assert_eq!(
             info,
@@ -159,7 +159,7 @@ mod tests {
 
     #[test]
     fn identify_invalid() {
-        let path = Path::new("../../examples/simple");
+        let path = Path::new("../../examples/mods/rust/basic");
         assert!(Python.identify(path).is_err());
     }
 }

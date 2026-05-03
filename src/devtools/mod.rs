@@ -9,7 +9,7 @@ mod mods;
 #[cfg(feature = "devtools")]
 mod plugin;
 
-pub struct DevtoolsPlugin(pub Config);
+pub struct DevtoolsPlugin(pub Devtools);
 
 #[cfg(not(feature = "devtools"))]
 impl bevy_app::Plugin for DevtoolsPlugin {
@@ -21,9 +21,9 @@ impl bevy_app::Plugin for DevtoolsPlugin {
 
 /// A config for the DevtoolsPlugin.
 ///
-/// See `ModloaderPlugin::devtools` for examples of how to create one.
+/// See `ModLoaderPlugin::devtools` for examples of how to create one.
 #[derive(Resource, Debug, Clone, Serialize)]
-pub struct Config {
+pub struct Devtools {
     /// The name of your app or game, defaults to "Bevy App powered by Wasvy"
     pub program_name: String,
 
@@ -33,7 +33,7 @@ pub struct Config {
     pub interfaces: Vec<Cow<'static, str>>,
 }
 
-impl Default for Config {
+impl Default for Devtools {
     fn default() -> Self {
         Self {
             program_name: "Bevy App powered by Wasvy".into(),
@@ -45,7 +45,7 @@ impl Default for Config {
     }
 }
 
-impl Config {
+impl Devtools {
     /// Creates a default config with a custom name
     pub fn new(program_name: impl Into<String>) -> Self {
         Self {
@@ -62,18 +62,18 @@ impl Config {
     }
 }
 
-impl From<&'static str> for Config {
+impl From<&'static str> for Devtools {
     fn from(value: &'static str) -> Self {
-        Config {
+        Devtools {
             program_name: value.into(),
             ..Default::default()
         }
     }
 }
 
-impl From<String> for Config {
+impl From<String> for Devtools {
     fn from(value: String) -> Self {
-        Config {
+        Devtools {
             program_name: value,
             ..Default::default()
         }
@@ -86,6 +86,6 @@ mod tests {
 
     #[test]
     fn default() {
-        let _ = Config::default();
+        let _ = Devtools::default();
     }
 }

@@ -6,14 +6,14 @@ use bevy_app::App;
 use bevy_ecs::prelude::AppTypeRegistry;
 use bevy_ecs::reflect::AppFunctionRegistry;
 use wasvy::{
-    prelude::WasvyAutoRegistrationPlugin,
+    prelude::AutoRegistrationPlugin,
     witgen::{self, WitGeneratorSettings},
 };
 
 #[test]
 fn include_wasvy_components_preserves_type_path() {
     let mut app = App::new();
-    app.add_plugins(WasvyAutoRegistrationPlugin);
+    app.add_plugins(AutoRegistrationPlugin);
 
     let type_registry = app
         .world()

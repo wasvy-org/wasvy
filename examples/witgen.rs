@@ -25,7 +25,7 @@ impl Health {
 
 fn main() {
     let mut app = App::new();
-    app.add_plugins(WasvyAutoRegistrationPlugin);
+    app.add_plugins(AutoRegistrationPlugin);
     app.add_plugins(WitGeneratorPlugin::default());
 
     app.update();

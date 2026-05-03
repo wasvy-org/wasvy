@@ -61,9 +61,9 @@ use wasvy::prelude::*;
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        // Adding the [`ModloaderPlugin`] is all you need 😉
+        // Adding the [`ModLoaderPlugin`] is all you need 😉
         // Optionally, enable the devtools for CLI access ⚡
-        .add_plugins(ModloaderPlugin::default().devtools("My moddable Bevy app"))
+        .add_plugins(ModLoaderPlugin::default().devtools("My moddable Bevy app"))
         .run();
 }
 ```
@@ -219,14 +219,25 @@ Hint: The binary must be in your game's assets library for it to be visible to B
 
 ## Examples
 
-Check out the examples directory for more detailed usage:
+### Apps
 
-- [`examples/host_example`](examples/host_example): Basic example on how to use the [`ModloaderPlugin`](https://docs.rs/wasvy/latest/wasvy/plugin/struct.ModloaderPlugin.html) to enable modding with bevy.
-- [`examples/simple`](examples/simple): Basic WASM component in Rust.
-- [`examples/python_example`](examples/python_example): Basic WASM component in Python.
-- [`examples/go_example`](examples/go_example): Basic WASM component in Go.
-- [`examples/host_wit_example`](examples/guest_wit_example): A Bevy app that exposes bindings to invoke methods on components (such as `Health`) defined in game via automatically generated wit
-- [`examples/guest_wit_example`](examples/guest_wit_example): A more complex WASM component in Rust with automatically generated bindings to invoke methods defined in the game on a component
+Wasvy offers some example host apps to get started:
+
+- [**Basic**](examples/apps/basic): Demonstrates how to use the [`ModLoaderPlugin`](https://docs.rs/wasvy/latest/wasvy/plugin/struct.ModLoaderPlugin.html) and the devtools to enable modding with Bevy. This also serves as a good sandbox for testing your mods.
+- [**Components**](examples/apps/components): A Bevy app that exposes component bindings in wit. This allows mods to directly call methods within the host to mutate components/resources.
+- [**Custom Codec**](examples/apps/custom_codec): A Bevy app that demonstrates using a custom codec implementation for Wasvy.
+
+### Mods
+
+Since wasvy is built on the wasm component model, mods can be written in almost any language. We provide a few examples to get started:
+
+- **Rust 🦀**
+  - [**Basic**](examples/mods/rust/basic): Spins transforms with a `MyMarker` component. Spawns a custom component. Intended to be run with the [Basic example app](examples/apps/basic).
+  - [**Components**](examples/mods/rust/components): A more complex WASM component with automatically generated bindings to invoke methods defined in the game on a component. Intended to be run with the [Components example app](examples/apps/components).
+- [**Python 🐍**](examples/python_example): Spins transforms with a `MyMarker` component. Spawns a custom component. Intended to be run with the [Basic example app](examples/apps/basic).
+- [**Go 🐹**](examples/go_example): Spins transforms with a `MyMarker` component. Spawns a custom component. Intended to be run with the [Basic example app](examples/apps/basic).
+
+Don't see an example in your favorite language? **Consider contributing it to our repo!** See the guidelines below.
 
 ## Contributing
 

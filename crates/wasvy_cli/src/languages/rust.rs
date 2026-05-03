@@ -227,19 +227,19 @@ mod tests {
 
     #[test]
     fn identify() {
-        let path = Path::new("../../examples/simple");
+        let path = Path::new("../../examples/mods/rust/basic");
         let info = Rust::default().identify(path).expect("valid source");
         assert_eq!(
             info,
             SourceInfo {
-                name: Some("simple".into())
+                name: Some("basic_example_mod".into())
             }
         );
     }
 
     #[test]
     fn identify_invalid() {
-        let path = Path::new("../../examples/python_example");
+        let path = Path::new("../../examples/mods/python");
         assert!(Rust::default().identify(path).is_err());
     }
 

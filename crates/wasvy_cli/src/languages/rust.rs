@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, anyhow, bail};
+use error_collection::Errors;
 use semver::Version;
 use tracing::warn;
 
@@ -58,6 +59,8 @@ impl Language for Rust {
     }
 
     fn create(&self, source: &Source) -> Result<()> {
+        let mut errors = Errors::new();
+
         let path = source.path();
         let name = source.name();
         let rust_version = &self.rust_version.to_string();
@@ -75,14 +78,16 @@ impl Language for Rust {
             name: &'a str,
             rust_version: &'a str,
         }
-        let file1 = CargoToml { name, rust_version }.write(path);
+        let file = CargoToml { name, rust_version };
+        errors.collect(file.write(path));
 
         #[derive(askama::Template)]
         #[template(path = "./rust/src/lib.rs")]
         struct Lib<'a> {
             name: &'a str,
         }
-        let file2 = Lib { name }.write(path);
+        let file = Lib { name };
+        errors.collect(file.write(path));
 
         #[derive(askama::Template)]
         #[template(path = "./rust/src/bindings.rs")]
@@ -90,18 +95,13 @@ impl Language for Rust {
             world_name: &'a str,
             wasvy_wit_version: &'a str,
         }
-        let file3 = Bindings {
+        let file = Bindings {
             world_name,
             wasvy_wit_version,
-        }
-        .write(path);
+        };
+        errors.collect(file.write(path));
 
-        // Avoid exiting before all files are written
-        file1?;
-        file2?;
-        file3?;
-
-        Ok(())
+        errors.as_result()
     }
 
     fn build(&self, source: &Source, stdio: Stdio) -> Result<Source> {
@@ -172,7 +172,8 @@ fn build(mode: BuildMode, source: &Source, stdio: Stdio) -> Result<Source> {
         .join("wasm32-wasip2")
         .join("release")
         .join(format!("{name}.wasm"));
-    Source::identify_file(file, source.runtime()).context("identifying build artifact")
+    Source::identify_file(&file, source.runtime())
+        .with_context(|| anyhow!("identifying build artifact {file:?}"))
 }
 
 fn build_directory(path: impl AsRef<Path>) -> Result<PathBuf> {

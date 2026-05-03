@@ -3012,6 +3012,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dea2df4cf52843e0452895c455a1a2cfbb842a1e7329671acf418fdc53ed4c59"
 
 [[package]]
+name = "error-collection"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a39966852754e29077f740c08e5818ebf2ee61918679d7072ebdf4aa7eb7a494"
+dependencies = [
+ "anyhow",
+ "derive_more",
+]
+
+[[package]]
 name = "euclid"
 version = "0.22.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7193,6 +7203,7 @@ dependencies = [
  "anyhow",
  "askama",
  "derive_more",
+ "error-collection",
  "glob",
  "semver",
  "serde_json",

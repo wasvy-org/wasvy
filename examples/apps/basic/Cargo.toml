@@ -1,0 +1,24 @@
+[package]
+name = "basic_example_app"
+description = "A wasvy basic example + sandbox for experimentation with wasvy"
+authors.workspace = true
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+publish = false
+
+[dependencies]
+# Replace in your own project:
+wasvy.workspace = true # wasvy = "0.0"
+
+bevy = { version = "0.18.0", features = [
+    "wayland",
+    "dynamic_linking",
+    "bevy_dev_tools",
+] }
+bevy_egui = "0.39.0"
+bevy-inspector-egui = "0.36.0"

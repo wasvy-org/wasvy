@@ -315,31 +315,31 @@ mod tests {
     }
 
     #[test]
-    fn identify_simple() {
+    fn identify_basic() {
         let builder = runtime(MockLang { identify: true });
-        let source = Source::identify("../../examples/simple", &builder)
-            .expect("Should identify the simple example as a valid source");
-        assert_eq!(&source.path, Path::new("../../examples/simple"));
+        let source = Source::identify("../../examples/mods/rust/basic", &builder)
+            .expect("Should identify the basic example as a valid source");
+        assert_eq!(&source.path, Path::new("../../examples/mods/rust/basic"));
         assert!(source.language.is_some());
-        assert_eq!(source.world_name(), "component:simple/example");
+        assert_eq!(source.world_name(), "component:basic/example");
     }
 
     #[test]
-    fn identify_simple_without_deps() {
+    fn identify_basic_without_deps() {
         let builder = runtime(MockLang { identify: true });
 
         // Make a test directory just containing guest.wit without deps
-        let target = artifact_path("simple_without_deps");
+        let target = artifact_path("basic_without_deps");
         fs::create_dir(target.join("wit")).expect("create wit directory");
         fs::copy(
-            "../../examples/simple/wit/guest.wit",
+            "../../examples/mods/rust/basic/wit/guest.wit",
             target.join("wit/guest.wit"),
         )
         .expect("copy wit file");
 
         let source = Source::identify(target, &builder)
-            .expect("Should identify simple_without_deps as a valid source");
-        assert_eq!(source.world_name(), "component:simple/example");
+            .expect("Should identify basic_without_deps as a valid source");
+        assert_eq!(source.world_name(), "component:basic/example");
     }
 
     #[test]
@@ -351,7 +351,7 @@ mod tests {
     #[test]
     fn identify_lang_fail() {
         let builder = runtime(MockLang { identify: false });
-        Source::identify("../../examples/simple", &builder)
+        Source::identify("../../examples/mods/rust/basic", &builder)
             .expect_err("root was not identified as any language");
     }
 }

@@ -35,7 +35,7 @@ impl Health {
 
 fn new_app() -> App {
     let mut app = App::new();
-    app.add_plugins(WasvyAutoRegistrationPlugin);
+    app.add_plugins(AutoRegistrationPlugin);
     app.insert_resource(CodecResource::default());
     app
 }

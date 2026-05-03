@@ -72,9 +72,9 @@ use crate::{cleanup::DisableSystemSet, mods::ModSystemSet, schedule::ModSchedule
 ///
 /// /// Use the Mods SystemParam to alter a mod's access
 /// fn load_mods(mut mods: Mods, sandboxes: Res<Sandboxes>) {
-///     let simple = mods.spawn("mods/simple.wasm");
-///     mods.enable_access(simple, ModAccess::Sandbox(sandboxes.sandbox_rust));
-///     mods.enable_access(simple, ModAccess::Sandbox(sandboxes.sandbox_all));
+///     let basic = mods.spawn("mods/basic_example_mod.wasm");
+///     mods.enable_access(basic, ModAccess::Sandbox(sandboxes.sandbox_rust));
+///     mods.enable_access(basic, ModAccess::Sandbox(sandboxes.sandbox_all));
 ///
 ///     let python = mods.spawn("mods/python.wasm");
 ///     mods.enable_access(python, ModAccess::Sandbox(sandboxes.sandbox_python));

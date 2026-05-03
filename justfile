@@ -1,33 +1,29 @@
 # TIP: run the command `just -l` to get an overview
 
-# Build an example rust crate to Wasm and copy it into host assets.
+# Run an example host app
 [group("examples")]
-[arg("example", pattern="^(simple|guest_wit_example)$")]
-build-example example:
-	cargo build --release --target wasm32-wasip2 -p {{example}}
-	mkdir -p ./examples/host_example/assets/mods
-	cp ./target/wasm32-wasip2/release/{{example}}.wasm ./examples/host_example/assets/mods
+[arg("app", pattern="^(basic|components|custom_codec)$")]
+run-example app:
+	cargo run -p {{app}}_example_app --features bevy/file_watcher
 
-# Run the host example app.
+# Build an example guest rust mod to wasm and place it in the shared assets directory
 [group("examples")]
-run-host-example:
-	cargo run -p host_example --features bevy/file_watcher
-
-# Run the host wit example app.
-[group("examples")]
-run-host-wit-example:
-	cargo run -p host_example --features bevy/file_watcher
+[arg("mod", pattern="^(basic|components)$")]
+build-example-rust mod:
+	cargo build --release --target wasm32-wasip2 -p {{mod}}_example_mod
+	mkdir -p ./examples/assets/mods
+	mv ./target/wasm32-wasip2/release/{{mod}}_example_mod.wasm ./examples/assets/mods/{{mod}}_example_mod.wasm
 
 # Build the Python example mod.
 [group("examples")]
-[working-directory("examples/python_example/src")]
+[working-directory("examples/mods/python/src")]
 build-example-python:
-	poetry run componentize-py --wit-path ../wit/ --world example componentize app -o ../../host_example/assets/mods/python.wasm
+	poetry run componentize-py --wit-path ../wit/ --world example componentize app -o ../../../assets/mods/python.wasm
 
-# Generate Python bindings for example mod.
+# Generate bindings for the Python example mod.
 [group("examples")]
 [working-directory("examples/python_example")]
-example-bindings-python:
+generate-bindings-python:
 	rm -rf ./src/componentize_py_async_support
 	rm -rf ./src/wit_world
 	rm -f ./src/componentize_py_runtime.pyi
@@ -37,7 +33,7 @@ example-bindings-python:
 
 # Build the Go example mod.
 [group("examples")]
-[working-directory("examples/go_example/src")]
+[working-directory("examples/mods/go/src")]
 [env("GOARCH", "wasm")]
 [env("GOOS", "wasip1")]
 build-example-go:
@@ -45,16 +41,11 @@ build-example-go:
 	wasm-tools component embed -w example ../wit/ core.wasm -o core-with-wit.wasm
 	wasm-tools component new --adapt ../wasi_snapshot_preview1.reactor.wasm core-with-wit.wasm -o go.wasm
 
-# Generate Go bindings for example mod.
+# Generate bindings for the Go example mod.
 [group("examples")]
-[working-directory("examples/go_example/src")]
-example-bindings-go:
+[working-directory("examples/mods/go/src")]
+generate-bindings-go:
 	wit-bindgen go -w example ../wit/
-
-# Fetch WIT dependencies for one example (deprecated, use cli instead).
-[group("examples")]
-example-fetch-deps example:
-	cd examples/{{example}} && wkg wit fetch
 
 # Enable repository git hooks.
 [group("setup")]
@@ -65,7 +56,7 @@ enable-git-hooks:
 # Build the ECS WIT package.
 [group("chores")]
 build-wasvy-ecs:
-	wkg wit build --wit-dir ./wit/ecs/
+	wkg wit build --wit-dir ./wit/
 
 # Publish the ECS package to wa.dev.
 [group("chores")]
@@ -97,11 +88,12 @@ bump-version new:
 [confirm]
 publish:
 	# CI
-	cargo test
-	cargo clippy -- -D warnings
+	cargo test --workspace --all-features
+	cargo clippy --workspace --all-targets --all-features -- -D warnings
 	cargo fmt --all -- --check
-	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features --exclude guest_wit_example --exclude host_wit_example --exclude simple
+	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features
 
 	# Publish
 	cargo publish -p wasvy_macros
+	sleep 5 # Give crate.io a few seconds to update
 	cargo publish -p wasvy

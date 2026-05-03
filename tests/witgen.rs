@@ -4,7 +4,7 @@ use bevy_ecs::prelude::{AppFunctionRegistry, AppTypeRegistry, ReflectComponent};
 use bevy_reflect::Reflect;
 
 use wasvy::WasvyComponent;
-use wasvy::prelude::WasvyAutoRegistrationPlugin;
+use wasvy::prelude::AutoRegistrationPlugin;
 use wasvy::witgen::{self, WitGeneratorSettings};
 
 #[derive(Component, Reflect, Default, WasvyComponent)]
@@ -50,7 +50,7 @@ struct Marker;
 #[test]
 fn generates_wit_resources() {
     let mut app = App::new();
-    app.add_plugins(WasvyAutoRegistrationPlugin);
+    app.add_plugins(AutoRegistrationPlugin);
 
     let settings = WitGeneratorSettings::default();
     let type_registry = app
@@ -79,7 +79,7 @@ fn generates_wit_resources() {
 #[test]
 fn wit_handles_collisions_and_empty_methods() {
     let mut app = App::new();
-    app.add_plugins(WasvyAutoRegistrationPlugin);
+    app.add_plugins(AutoRegistrationPlugin);
 
     let type_registry = app
         .world()

@@ -9,7 +9,7 @@ use bevy_log::prelude::*;
 
 use crate::{
     asset::{ModAsset, ModAssetLoader},
-    authoring::WasvyAutoRegistrationPlugin,
+    authoring::AutoRegistrationPlugin,
     cleanup::{DespawnModEntities, DisableSystemSet, disable_mod_system_sets},
     component::WasmComponentRegistry,
     devtools,
@@ -22,7 +22,7 @@ use crate::{
     setup::run_setup,
 };
 
-/// This plugin adds Wasvy modding support to [`App`]
+/// This plugin adds Wasvy modding support to the [`App`]
 ///
 /// ```no_run
 /// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
@@ -33,7 +33,7 @@ use crate::{
 ///
 /// App::new()
 ///    .add_plugins(DefaultPlugins)
-///    .add_plugins(ModloaderPlugin::default())
+///    .add_plugins(ModLoaderPlugin::default())
 /// #  .run();
 ///    // etc
 /// ```
@@ -61,7 +61,7 @@ use crate::{
 ///
 /// app.add_plugins(
 ///   // We don't want mods to run systems in any other schedules
-///   ModloaderPlugin::unscheduled()
+///   ModLoaderPlugin::unscheduled()
 ///     .enable_schedule(ModSchedule::FixedUpdate)
 ///     .enable_schedule(ModSchedule::new_custom("simulation-start", SimulationStart))
 /// );
@@ -79,7 +79,7 @@ use crate::{
 ///    app.add_systems(&Schedule::PreUpdate, vec![..]);
 /// }
 /// ```
-pub struct ModloaderPlugin(Mutex<Option<Inner>>);
+pub struct ModLoaderPlugin(Mutex<Option<Inner>>);
 
 struct Inner {
     engine: Engine,
@@ -87,17 +87,17 @@ struct Inner {
     schedules: ModSchedules,
     setup_schedule: Interned<dyn ScheduleLabel>,
     despawn_behaviour: ModDespawnBehaviour,
-    devtools_config: Option<devtools::Config>,
+    devtools_config: Option<devtools::Devtools>,
     codec: Option<CodecResource>,
 }
 
-impl Default for ModloaderPlugin {
+impl Default for ModLoaderPlugin {
     fn default() -> Self {
         Self::new(ModSchedules::default())
     }
 }
 
-impl ModloaderPlugin {
+impl ModLoaderPlugin {
     /// Creates a new modloader that will schedule mods be run during the provided Schedules
     pub fn new(schedules: ModSchedules) -> Self {
         let engine = Engine::new();
@@ -126,14 +126,14 @@ impl ModloaderPlugin {
             codec: None,
         };
 
-        ModloaderPlugin(Mutex::new(Some(inner)))
+        ModLoaderPlugin(Mutex::new(Some(inner)))
     }
 
     /// Creates plugin with no schedules.
     ///
-    /// This means that by default loaded mods will not run unless you enable schedules manually using [ModloaderPlugin::enable_schedule]
+    /// This means that by default loaded mods will not run unless you enable schedules manually using [ModLoaderPlugin::enable_schedule]
     ///
-    /// If you want wasvy to run on all schedules use `ModloaderPlugin::default()` or [ModloaderPlugin::new]
+    /// If you want wasvy to run on all schedules use `ModLoaderPlugin::default()` or [ModLoaderPlugin::new]
     pub fn unscheduled() -> Self {
         Self::new(ModSchedules::empty())
     }
@@ -144,20 +144,19 @@ impl ModloaderPlugin {
     /// Disable the "devtools" feature to disable it completely.
     ///
     /// ```
-    /// # use wasvy::prelude::ModloaderPlugin;
-    /// # use wasvy::devtools::Config;
-    /// # let mut modloader = ModloaderPlugin::default();
+    /// # use wasvy::prelude::*;
+    /// # let mut modloader = ModLoaderPlugin::default();
     /// // Enable and use a custom name
     /// modloader.devtools("My Bevy app");
     ///
-    /// # let mut modloader = ModloaderPlugin::default();
+    /// # let mut modloader = ModLoaderPlugin::default();
     /// // Host a custom wit interface:
-    /// modloader.devtools(Config {
+    /// modloader.devtools(Devtools {
     ///     program_name: "Expose anything that you can dream of".into(),
     ///     interfaces: vec![],
     /// });
     /// ```
-    pub fn devtools(mut self, config: impl Into<devtools::Config>) -> Self {
+    pub fn devtools(mut self, config: impl Into<devtools::Devtools>) -> Self {
         let inner = self.inner();
         inner.devtools_config = Some(config.into());
         self
@@ -219,13 +218,13 @@ impl ModloaderPlugin {
     fn inner(&mut self) -> &mut Inner {
         self.0
             .get_mut()
-            .expect("ModloaderPlugin is not locked")
+            .expect("ModLoaderPlugin is not locked")
             .as_mut()
-            .expect("ModloaderPlugin is not built")
+            .expect("ModLoaderPlugin is not built")
     }
 }
 
-impl Plugin for ModloaderPlugin {
+impl Plugin for ModLoaderPlugin {
     fn build(&self, app: &mut App) {
         let Inner {
             engine,
@@ -238,9 +237,9 @@ impl Plugin for ModloaderPlugin {
         } = self
             .0
             .lock()
-            .expect("ModloaderPlugin is not locked")
+            .expect("ModLoaderPlugin is not locked")
             .take()
-            .expect("ModloaderPlugin is not built");
+            .expect("ModLoaderPlugin is not built");
 
         if despawn_behaviour == ModDespawnBehaviour::DespawnEntities {
             // Registers a component that tracks mod entities and despawns them when the mod despawns
@@ -258,35 +257,33 @@ impl Plugin for ModloaderPlugin {
             .add_schedule(ModStartup::new_schedule())
             .add_message::<DisableSystemSet>()
             .add_systems(setup_schedule, (run_setup, disable_mod_system_sets))
-            .add_plugins(WasvyAutoRegistrationPlugin);
+            .add_plugins(AutoRegistrationPlugin);
 
         if let Some(config) = devtools_config {
             app.add_plugins(devtools::DevtoolsPlugin(config));
         } else if cfg!(all(not(debug_assertions), feature = "devtools")) {
             warn!(
-                "consider disabling the unused \"devtools\" feature of the wasvy crate to reduce build size"
+                "consider disabling the unused \"devtools\" feature of the wasvy dependency to reduce build size"
             );
         }
 
-        let function_index = {
-            let type_registry = app
-                .world()
+        app.insert_resource(FunctionIndex::build(
+            app.world()
                 .get_resource::<AppTypeRegistry>()
-                .expect("AppTypeRegistry to be initialized");
-            let function_registry = app
-                .world()
+                .expect("AppTypeRegistry to be initialized"),
+            app.world()
                 .get_resource::<AppFunctionRegistry>()
-                .expect("AppFunctionRegistry to be initialized");
-            FunctionIndex::build(type_registry, function_registry)
-        };
-        app.insert_resource(function_index);
+                .expect("AppFunctionRegistry to be initialized"),
+        ));
 
         app.world_mut().register_component::<Sandboxed>();
+    }
 
+    fn finish(&self, app: &mut App) {
         let asset_plugins = app.get_added_plugins::<AssetPlugin>();
         let asset_plugin = asset_plugins
             .first()
-            .expect("ModloaderPlugin requires AssetPlugin to be loaded.");
+            .expect("ModLoaderPlugin requires AssetPlugin to be loaded.");
 
         // Warn a user running the App in debug; they probably want hot-reloading
         if cfg!(debug_assertions) {
@@ -294,7 +291,7 @@ impl Plugin for ModloaderPlugin {
             let resolved_watch_setting = app
                 .world()
                 .get_resource::<AssetServer>()
-                .expect("ModloaderPlugin requires AssetPlugin to be loaded.")
+                .expect("ModLoaderPlugin requires AssetPlugin to be loaded.")
                 .watching_for_changes();
 
             if !user_overrode_watch_setting && !resolved_watch_setting {

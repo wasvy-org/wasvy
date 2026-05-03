@@ -1,0 +1,32 @@
+[package]
+name = "components_example_app"
+authors.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme = "README.md"
+publish = false
+build = "build.rs"
+
+[dependencies]
+# Replace in your own project:
+wasvy.workspace = true # wasvy = { version = "0.0.8" }
+
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_ecs.workspace = true
+bevy_log.workspace = true
+bevy_reflect.workspace = true
+serde_json.workspace = true
+wasmtime.workspace = true
+
+[build-dependencies]
+wasvy.workspace = true
+bevy_app.workspace = true
+bevy_ecs.workspace = true
+bevy_reflect.workspace = true

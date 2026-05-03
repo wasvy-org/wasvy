@@ -38,7 +38,7 @@ impl Mods<'_, '_> {
             .and_then(|s| s.to_str())
             .map(|s| s.to_string())
             .unwrap_or("unknown".to_string());
-        let asset = self.asset_server.load::<ModAsset>(path);
+        let asset = self.asset_server.load(path);
 
         info!("Loading mod \"{name}\"");
 
@@ -62,7 +62,7 @@ impl Mods<'_, '_> {
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
-    /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
+    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
     pub fn despawn(&mut self, entity: Entity) {
         debug_assert!(self.mods.contains(entity));
         self.commands.entity(entity).despawn();
@@ -74,7 +74,7 @@ impl Mods<'_, '_> {
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
-    /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
+    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
     pub fn enable_access(&mut self, mod_id: Entity, access: ModAccess) {
         #[cfg(debug_assertions)]
         if let ModAccess::Sandbox(entity) = access {
@@ -96,7 +96,7 @@ impl Mods<'_, '_> {
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
-    /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
+    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
     pub fn disable_access(&mut self, mod_id: Entity, access: ModAccess) {
         #[cfg(debug_assertions)]
         if let ModAccess::Sandbox(entity) = access {
@@ -159,7 +159,7 @@ impl Mod {
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
-    /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
+    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
     pub fn enable_access(&mut self, access: ModAccess) -> bool {
         self.access.insert(access)
     }
@@ -170,7 +170,7 @@ impl Mod {
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
-    /// [ModloaderPlugin::set_setup_schedule](crate::plugin::ModloaderPlugin::set_setup_schedule)) runs.
+    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
     pub fn disable_access(&mut self, access: &ModAccess) -> bool {
         self.access.remove(access)
     }
@@ -251,7 +251,7 @@ impl ModSystemSet {
 /// An enum that defines what happens when a mod is despawned (or reloaded)
 ///
 /// Set this value during plugin instantiation via
-/// [ModloaderPlugin::set_despawn_behaviour](crate::plugin::ModloaderPlugin::set_despawn_behaviour).
+/// [ModLoaderPlugin::set_despawn_behaviour](crate::plugin::ModLoaderPlugin::set_despawn_behaviour).
 ///
 /// The default behaviour is to despawn all entities this mod spawned.
 /// See [DespawnEntities](ModDespawnBehaviour::DespawnEntities).

@@ -13,19 +13,12 @@ readme.workspace = true
 publish = true
 
 [workspace]
-members = [
-    "crates/*",
-    "examples/guest_wit_example",
-    "examples/host_example",
-    "examples/host_wit_example",
-    "examples/simple",
-    "examples/custom_codec",
-]
+members = ["crates/*", "examples/apps/*", "examples/mods/rust/*"]
 resolver = "2"
 
 [workspace.package]
 authors = ["EngoDev", "MarcGuiselin"]
-categories = ["wasm", "game-development"]
+categories = ["wasm", "game-development", "development-tools"]
 rust-version = "1.92.0"
 version = "0.0.8"
 edition = "2024"
@@ -109,7 +102,7 @@ trybuild = "1.0.111"
 
 # These lints may be important signals about code quality, but normal Bevy code
 # commonly triggers them and the CI workflow treats them as errors, so we've
-# chosen to allow them in this template.
+# chosen to allow them.
 [lints.clippy]
 too_many_arguments = "allow"
 type_complexity = "allow"

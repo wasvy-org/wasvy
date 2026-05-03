@@ -6,7 +6,7 @@ use bevy_remote::{
 };
 use serde_json::Value;
 
-use crate::devtools::{Config, DevtoolsPlugin, mods::*};
+use crate::devtools::{Devtools, DevtoolsPlugin, mods::*};
 
 impl Plugin for DevtoolsPlugin {
     fn build(&self, app: &mut App) {
@@ -23,7 +23,7 @@ impl Plugin for DevtoolsPlugin {
     }
 }
 
-pub fn metadata(_: In<Option<Value>>, config: Res<Config>) -> Result<Value> {
+pub fn metadata(_: In<Option<Value>>, config: Res<Devtools>) -> Result<Value> {
     Ok(serde_json::to_value(&*config)?)
 }
 

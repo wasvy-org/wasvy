@@ -1,5 +1,5 @@
 [toolchain]
-channel = "1.92.0" # Track same rust version as Bevy
+channel = "1.95.0" # Track same rust version as Bevy
 components = [
     "cargo",
     "llvm-tools",

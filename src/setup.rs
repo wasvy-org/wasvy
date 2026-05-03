@@ -26,12 +26,12 @@ pub(crate) fn run_setup(
     world: &mut World,
     param: &mut SystemState<Setup>,
     mut ran_with: Local<HashSet<RanWith>>,
-) {
+) -> Result<(), BevyError> {
     let Setup {
         mut events,
         assets,
         mods,
-    } = param.get_mut(world);
+    } = param.get_mut(world)?;
 
     // Mod ids who's asset has been loaded (or hot-reloaded)
     let mut loaded_mods = Vec::new();
@@ -115,4 +115,6 @@ pub(crate) fn run_setup(
     if run_startup_schedule {
         ModStartup::run(world);
     }
+
+    Ok(())
 }

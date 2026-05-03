@@ -51,6 +51,8 @@ struct InsertWasmComponent {
 }
 
 impl Command for InsertWasmComponent {
+    type Out = ();
+
     fn apply(self, world: &mut World) {
         let component_id = get_wasm_component_id(&self.type_path, world);
 

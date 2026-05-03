@@ -141,7 +141,7 @@ use crate::{cleanup::DisableSystemSet, mods::ModSystemSet, schedule::ModSchedule
 #[derive(Component)]
 #[require(Name::new("Sandbox"))]
 #[component(clone_behavior = Ignore, immutable)]
-#[component(on_insert = Self::on_insert, on_replace = Self::on_replace, on_remove = Self::on_remove, on_despawn = Self::on_despawn)]
+#[component(on_insert = Self::on_insert, on_discard = Self::on_discard, on_remove = Self::on_remove, on_despawn = Self::on_despawn)]
 pub struct Sandbox {
     /// Responsible for tagging all [Sandboxed] entities as belonging to this Sandbox
     ///
@@ -279,8 +279,8 @@ impl Sandbox {
         Sandboxed::add_children(ctx.entity, ctx.entity, &mut world);
     }
 
-    /// [On replace](bevy_ecs::lifecycle::ComponentHooks::on_replace) for [Sandbox]
-    fn on_replace(mut world: DeferredWorld, ctx: HookContext) {
+    /// [On discard](bevy_ecs::lifecycle::ComponentHooks::on_discard) for [Sandbox]
+    fn on_discard(mut world: DeferredWorld, ctx: HookContext) {
         let component_id = world
             .entity(ctx.entity)
             .get::<Self>()
@@ -335,7 +335,7 @@ pub struct SandboxedEntities(EntityHashSet);
 /// An entity that belongs to a sandbox
 #[derive(Component, Clone, PartialEq, Eq, Debug)]
 #[component(immutable, clone_behavior = Ignore)]
-#[component(on_insert = Self::on_insert, on_replace = Self::on_replace)]
+#[component(on_insert = Self::on_insert, on_discard = Self::on_discard)]
 pub struct Sandboxed(Entity);
 
 // Manually implement due to compile error "Custom on_insert hooks are not supported as relationships already define an on_insert hook"
@@ -394,8 +394,8 @@ impl Sandboxed {
         <Self as Relationship>::on_insert(world, ctx);
     }
 
-    /// [On replace](bevy_ecs::lifecycle::ComponentHooks::on_replace) for [Sandboxed]
-    fn on_replace(mut world: DeferredWorld, ctx: HookContext) {
+    /// [On discard](bevy_ecs::lifecycle::ComponentHooks::on_discard) for [Sandboxed]
+    fn on_discard(mut world: DeferredWorld, ctx: HookContext) {
         let Self(sandbox) = world.entity(ctx.entity).get().expect("Component was added");
 
         // Might be none if the Sandbox was deleted

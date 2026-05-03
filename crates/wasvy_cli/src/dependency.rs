@@ -73,7 +73,7 @@ impl Dependency {
     }
 
     pub fn resolve(&self, path: impl AsRef<Path>, resolve: &mut Resolve) -> Result<PackageId> {
-        let path = path.as_ref().join(&self.file_name());
+        let path = path.as_ref().join(self.file_name());
         resolve.push_str(path, &self.interface)
     }
 
@@ -109,7 +109,7 @@ impl Dependency {
 
 impl WriteTo for Dependency {
     fn write(&self, path: impl AsRef<Path>) -> Result<()> {
-        let path = path.as_ref().join(&self.file_name());
+        let path = path.as_ref().join(self.file_name());
         write(&path, self.interface.as_bytes())
     }
 }

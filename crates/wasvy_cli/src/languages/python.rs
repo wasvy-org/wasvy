@@ -105,7 +105,7 @@ impl Language for Python {
 }
 
 fn get_name(path: &Path) -> Option<String> {
-    let contents = fs::read_to_string(&path).ok()?;
+    let contents = fs::read_to_string(path).ok()?;
     let value = contents.parse::<toml::Table>().ok()?;
     value
         .get("project")?

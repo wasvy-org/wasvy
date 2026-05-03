@@ -37,12 +37,12 @@ fi
 
 echo "🔎 pre-push: running checks that mirror GitHub CI"
 echo "• cargo test"
-cargo test
+cargo test --workspace --all-features
 
-echo "• cargo clippy -- -D warnings"
-cargo clippy -- -D warnings
+echo "• cargo clippy"
+cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-echo "• cargo fmt --all -- --check"
+echo "• cargo fmt"
 cargo fmt --all -- --check
 
 echo "✅ pre-push: all checks passed"

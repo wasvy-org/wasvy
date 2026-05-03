@@ -15,7 +15,7 @@ fn main() {
     // Create the CLI runtime
     let runtime = {
         let mut config = Config::default();
-        for dep in remote.dependencies {
+        for dep in remote.dependencies.iter() {
             let name = format!("{dep}");
             if let Err(err) = config.add_dependency(dep) {
                 println!("Could not resolve remote dependency {name} because: {err:?}");

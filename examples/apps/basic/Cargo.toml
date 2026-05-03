@@ -15,7 +15,7 @@ publish = false
 # Replace in your own project:
 wasvy.workspace = true # wasvy = "0.0"
 
-bevy = { version = "0.18.0", features = [
+bevy = { git = "https://github.com/bevyengine/bevy", rev = "ce2bf99b6a001161924770a7855f4024b67138eb", features = [
     "wayland",
     "dynamic_linking",
     "bevy_dev_tools",

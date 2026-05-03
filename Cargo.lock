@@ -8552,6 +8552,8 @@ version = "0.0.8"
 dependencies = [
  "anyhow",
  "bevy_app 0.19.0-dev",
+ "bevy_asset 0.19.0-dev",
+ "bevy_derive 0.19.0-dev",
  "bevy_ecs 0.19.0-dev",
  "bevy_log 0.19.0-dev",
  "bevy_platform 0.19.0-dev",

@@ -83,6 +83,8 @@ serde_json = ["dep:serde_json"]
 [dependencies]
 anyhow.workspace = true
 bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_derive.workspace = true
 bevy_ecs.workspace = true
 bevy_log.workspace = true
 bevy_platform.workspace = true

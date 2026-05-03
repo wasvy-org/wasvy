@@ -24,7 +24,9 @@ pub(crate) struct DisableSystemSet {
     pub(crate) schedules: ModSchedules,
 }
 
-impl Command<()> for DisableSystemSet {
+impl Command for DisableSystemSet {
+    type Out = ();
+
     fn apply(self, world: &mut World) {
         if !self.schedules.0.is_empty() {
             world.write_message(self);
@@ -35,8 +37,8 @@ impl Command<()> for DisableSystemSet {
 pub(crate) fn disable_mod_system_sets(
     world: &mut World,
     param: &mut SystemState<MessageReader<DisableSystemSet>>,
-) {
-    let mut messages = param.get_mut(world);
+) -> Result<(), BevyError> {
+    let mut messages = param.get_mut(world)?;
 
     // Collect a map of unique bevy schedule labels and the sets that need to be removed from them
     let mut remove = HashMap::new();
@@ -78,6 +80,8 @@ pub(crate) fn disable_mod_system_sets(
             .expect("Running in a bevy App")
             .insert(schedule);
     }
+
+    Ok(())
 }
 
 /// A component that tracks all of the entities spawned by a mod (and considered belonging to it).

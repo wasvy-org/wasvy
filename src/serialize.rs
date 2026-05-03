@@ -7,7 +7,7 @@ use bevy_reflect::{PartialReflect, TypeRegistration, TypeRegistry};
 use serde::de::DeserializeSeed;
 
 #[derive(Resource, Deref, DerefMut)]
-pub struct CodecResource(#[deref] pub Box<dyn WasvyCodec>);
+pub struct CodecResource(pub Box<dyn WasvyCodec>);
 
 impl CodecResource {
     pub fn new(codec: impl WasvyCodec) -> Self {

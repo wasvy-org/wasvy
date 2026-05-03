@@ -69,7 +69,7 @@ impl ModAsset {
         let mut assets = world
             .get_resource_mut::<Assets<Self>>()
             .expect("ModAssets be registered");
-        let asset = assets.get_mut(*asset_id).ok_or(AssetNotFound)?;
+        let mut asset = assets.get_mut(*asset_id).ok_or(AssetNotFound)?;
 
         // Gets the version of this asset or assign a new one if it doesn't exist yet
         let asset_version = match asset.version {
@@ -82,6 +82,7 @@ impl ModAsset {
 
         // This is very cheap, since it's just Arcs
         let instance_pre = asset.instance_pre.clone();
+        drop(asset);
 
         // The mod might have reloaded. It's necessary we perform cleanup
         // if the mod has spawned entities before.

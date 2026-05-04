@@ -13,7 +13,7 @@
 [![CI](https://github.com/wasvy-org/wasvy/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/wasvy-org/wasvy/actions)
 [![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.com/channels/691052431525675048/1492230910383357992/1492230910383357992)
 
-> 🪺 **Just hatched**: This project in in the process of stabilization. Some features are still missing and breaking API changes are likely to happen as we approach a 1.0 release. Use at your own risk!
+> 🪺 **Just hatched**: This project is in the process of stabilization. Some features are still missing and breaking API changes are likely to happen as we approach a 1.0 release. Use at your own risk!
 
 > 🎯 **Community Feedback**: Your ideas, suggestions, and contributions are highly valued! Come and talk with us in the [Bevy Discord](https://discord.com/channels/691052431525675048/1492230910383357992/1492230910383357992). Report bugs and discuss new features on [Github](https://github.com/wasvy-org/wasvy/issues). Together, we can shape this into something great!
 
@@ -336,8 +336,8 @@ Please make sure to:
 - [Wasmtime Examples](https://github.com/bytecodealliance/wasmtime/tree/main/examples/component)
 - [Component Model Examples](https://github.com/bytecodealliance/component-docs/tree/main/component-model/examples/example-host)
 - [Cargo Component](https://github.com/bytecodealliance/cargo-component) - I used that for making the WASM component examples.
-- [WASM Package Tools](https://github.com/bytecodealliance/wasm-pkg-tools) - How to publish and retreive WIT files for use in projects.
-- [WebAssembly Coponents Registry](https://wa.dev/) - The WIT registry I'm using.
+- [WASM Package Tools](https://github.com/bytecodealliance/wasm-pkg-tools) - How to publish and retrieve WIT files for use in projects.
+- [WebAssembly Components Registry](https://wa.dev/) - The WIT registry I'm using.
 - [WASI.dev](https://wasi.dev/)
 
 ## License
@@ -357,4 +357,4 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 
 - [Bevy](https://bevyengine.org/) for the amazing game engine
 - [Bytecode Alliance](https://bytecodealliance.org/) for all the amazing WASM tools
-- [WebAssembly Coponents Registry](https://wa.dev/) - for providing a simple way to publish WIT components
+- [WebAssembly Components Registry](https://wa.dev/) - for providing a simple way to publish WIT components

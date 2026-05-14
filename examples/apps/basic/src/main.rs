@@ -77,7 +77,9 @@ fn setup(
         ModDisclaimer,
         Node {
             display: Display::Flex,
-            justify_content: JustifyContent::End,
+            flex_direction: FlexDirection::Column,
+            justify_content: JustifyContent::Start,
+            align_items: AlignItems::End,
             width: percent(100),
             position_type: PositionType::Absolute,
             top: px(0),

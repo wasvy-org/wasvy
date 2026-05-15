@@ -1,5 +1,6 @@
 use bevy_ecs::{prelude::*, query::FilteredAccess};
 use bevy_reflect::Reflect;
+use serde::Deserialize;
 
 use crate::prelude::{ModSchedules, Sandbox};
 
@@ -8,8 +9,9 @@ use crate::prelude::{ModSchedules, Sandbox};
 /// Mods can run in the world and/or in [sandboxes](Sandbox) defined by their entity.
 ///
 /// See: [Mods::enable_access](crate::mods::Mods::enable_access)
-#[derive(Reflect, Debug, Eq, PartialEq, Hash, Clone, Copy)]
+#[derive(Reflect, Debug, Eq, PartialEq, Hash, Clone, Copy, Deserialize, Default)]
 pub enum ModAccess {
+    #[default]
     World,
     Sandbox(Entity),
 }

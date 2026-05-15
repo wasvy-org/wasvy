@@ -8178,6 +8178,7 @@ dependencies = [
  "bevy_platform",
  "bevy_reflect",
  "bevy_remote",
+ "error-collection",
  "inventory",
  "serde",
  "serde_json",

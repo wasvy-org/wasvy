@@ -10,7 +10,12 @@ use std::{
     process::exit,
 };
 
-use wasvy_cli::{named::Named, remote::Remote, runtime::Runtime, source::Source};
+use wasvy_cli::{
+    named::Named,
+    remote::{Remote, RemoteEndpoint},
+    runtime::Runtime,
+    source::Source,
+};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -86,7 +91,7 @@ pub fn main() {
 
 fn cli(args: Args) -> Result<()> {
     let Args { command, path, app } = &args;
-    let remote = Remote::connect(Default::default())
+    let remote = Remote::connect(RemoteEndpoint::default())
         .context("no remote found\nIs your Bevy app running with wasvy devtools enabled?")?;
 
     // Assert remote is the correct one
@@ -98,7 +103,7 @@ fn cli(args: Args) -> Result<()> {
     }
 
     // Create the cli runtime
-    let runtime = Runtime::new(remote.as_config()?);
+    let runtime = Runtime::new(&remote).context("initializing runtime")?;
 
     // Find and filter sources
     let sources = if let Some(Command::Search(args))

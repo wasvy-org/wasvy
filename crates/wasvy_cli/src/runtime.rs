@@ -4,7 +4,8 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
+use error_collection::Errors;
 use wit_parser::Resolve;
 
 use crate::{
@@ -12,6 +13,7 @@ use crate::{
     editor::BoxedEditor,
     id::Id,
     language::BoxedLanguage,
+    remote::Remote,
     source::Source,
 };
 
@@ -76,6 +78,35 @@ impl Config {
     }
 }
 
+impl TryFrom<Remote> for Config {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Remote) -> Result<Self> {
+        (&value).try_into()
+    }
+}
+
+impl TryFrom<&Remote> for Config {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &Remote) -> Result<Self> {
+        let Remote { name, dependencies } = value;
+
+        let mut config = Config::default();
+        config.namespace = name.to_string();
+
+        let mut errors = Errors::new();
+        for dep in dependencies.iter() {
+            errors.collect(config.add_dependency(dep));
+        }
+
+        errors
+            .as_result()
+            .with_context(|| format!("Loading remote config for \"{name}\""))
+            .map(|_| config)
+    }
+}
+
 /// A Wasvy Cli Runtime exposes an api for locating and building mods from source.
 ///
 /// Start with a [Config]
@@ -84,12 +115,14 @@ pub struct Runtime(Arc<Config>);
 
 impl Runtime {
     /// Produces a runtime from a config
-    pub fn new(config: Config) -> Self {
-        assert!(
-            !config.languages.is_empty(),
-            "must add languages to builder"
-        );
-        Self(Arc::new(config))
+    pub fn new(config: impl TryInto<Config, Error = impl Into<anyhow::Error>>) -> Result<Self> {
+        let config = config.try_into().map_err(Into::into)?;
+
+        if config.languages.is_empty() {
+            bail!("config requires 1 or more languages");
+        }
+
+        Ok(Self(Arc::new(config)))
     }
 
     /// Returns the wit namespace

@@ -301,7 +301,7 @@ mod tests {
             .add_dependency(include_str!("../../../wit/wasvy-ecs.wit"))
             .expect("valid dep");
         config.add_language(lang);
-        Runtime::new(config)
+        Runtime::new(config).expect("valid config")
     }
 
     fn artifact_path(path: impl AsRef<Path>) -> PathBuf {

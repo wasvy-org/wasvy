@@ -1,14 +1,17 @@
+use std::str::FromStr;
+
 use anyhow::{Context, Result, anyhow};
 use bevy_remote::{
     BrpPayload, BrpRequest,
     http::{DEFAULT_ADDR, DEFAULT_PORT},
 };
 use error_collection::Errors;
-use http::Uri;
+use http::{Uri, uri::InvalidUri};
 use serde::{Deserialize, Serialize};
 
-use crate::{dependency::Dependency, runtime::Config};
+use crate::dependency::Dependency;
 
+#[derive(Debug, Clone)]
 pub struct Remote {
     pub dependencies: Vec<Dependency>,
     pub name: String,
@@ -18,11 +21,9 @@ pub struct RemoteEndpoint(pub Uri);
 
 impl Default for RemoteEndpoint {
     fn default() -> Self {
-        Self(
-            format!("http://{}:{}", DEFAULT_ADDR, DEFAULT_PORT)
-                .parse()
-                .unwrap(),
-        )
+        format!("http://{}:{}", DEFAULT_ADDR, DEFAULT_PORT)
+            .parse()
+            .unwrap()
     }
 }
 
@@ -32,8 +33,24 @@ impl From<Uri> for RemoteEndpoint {
     }
 }
 
+impl FromStr for RemoteEndpoint {
+    type Err = InvalidUri;
+
+    #[inline]
+    fn from_str(s: &str) -> core::result::Result<Self, InvalidUri> {
+        let uri = Uri::from_str(s)?;
+        Ok(Self(uri))
+    }
+}
+
 impl Remote {
-    pub fn connect(endpoint: RemoteEndpoint) -> Result<Remote> {
+    pub fn connect<T>(endpoint: T) -> Result<Remote>
+    where
+        T: TryInto<RemoteEndpoint>,
+        T::Error: Into<anyhow::Error>,
+    {
+        let endpoint = endpoint.try_into().map_err(Into::into)?;
+
         let res = brp_request(endpoint, "wasvy/metadata", None)?;
 
         let mut errors = Errors::new();
@@ -55,25 +72,10 @@ impl Remote {
         let name = res
             .get("program_name")
             .and_then(|v| v.as_str())
-            .unwrap_or("unknown")
+            .context("unknown program_name")?
             .to_string();
 
         Ok(Remote { dependencies, name })
-    }
-
-    pub fn as_config(&self) -> Result<Config> {
-        let mut config = Config::default();
-        config.namespace = self.name.to_string();
-
-        let mut errors = Errors::new();
-        for dep in self.dependencies.iter() {
-            errors.collect(config.add_dependency(dep));
-        }
-
-        errors
-            .as_result()
-            .with_context(|| format!("Loading remote config for \"{}\"", &self.name))
-            .map(|_| config)
     }
 }
 

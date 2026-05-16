@@ -323,7 +323,7 @@ impl RemoteEndpoint {
 
 /// A response according to BRP.
 ///
-/// [bevy_remote::BrpResponse] is not deserializable. See https://github.com/bevyengine/bevy/pull/24305
+/// [bevy_remote::BrpResponse] is not deserializable. See <https://github.com/bevyengine/bevy/pull/24305>
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BrpResponse {
     #[serde(flatten)]

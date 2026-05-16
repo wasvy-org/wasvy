@@ -21,3 +21,6 @@ wit-bindgen.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 wasvy_macros.workspace = true
+
+[features]
+setup_only = []

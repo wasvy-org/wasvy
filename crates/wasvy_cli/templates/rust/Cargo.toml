@@ -14,3 +14,6 @@ wit-bindgen = "0.50.0"
 
 [lib]
 crate-type = ["cdylib"] # Needed for building to wasm
+
+[features]
+setup_only = []

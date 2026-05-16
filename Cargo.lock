@@ -3371,9 +3371,9 @@ checksum = "dea2df4cf52843e0452895c455a1a2cfbb842a1e7329671acf418fdc53ed4c59"
 
 [[package]]
 name = "error-collection"
-version = "1.0.2"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a39966852754e29077f740c08e5818ebf2ee61918679d7072ebdf4aa7eb7a494"
+checksum = "f50369ed2c47b08d8dd972eda44accf557cd6ccbaa1eb798931846e674863785"
 dependencies = [
  "anyhow",
  "derive_more",

@@ -22,6 +22,7 @@ impl Plugin for DevtoolsPlugin {
             .add_remote("wasvy.metadata", metadata)
             .add_remote("wasvy.mods.list", list)
             .add_remote("wasvy.mods.spawn", spawn)
-            .add_remote("wasvy.mods.despawn", despawn);
+            .add_remote("wasvy.mods.despawn", despawn)
+            .add_remote("wasvy.mods.despawn_all", despawn_all);
     }
 }

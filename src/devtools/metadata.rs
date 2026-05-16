@@ -12,17 +12,17 @@ use crate::devtools::Devtools;
 pub(super) struct Metadata {
     #[serde(flatten)]
     devtools: Devtools,
-    asset_file_path: PathBuf,
+    asset_dir: PathBuf,
 }
 
 impl Metadata {
     pub(super) fn new(devtools: Devtools, asset_plugin: &AssetPlugin) -> Self {
         let reader = FileAssetReader::new(&asset_plugin.file_path);
-        let asset_file_path =
+        let asset_dir =
             fs::canonicalize(reader.root_path()).expect("able to canonicalize asset file path");
         Self {
             devtools,
-            asset_file_path,
+            asset_dir,
         }
     }
 }

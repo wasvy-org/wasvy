@@ -1,10 +1,15 @@
+use std::fmt;
+
 use bevy_asset::{AssetPath, AssetServer, Handle};
-use bevy_ecs::{lifecycle::HookContext, prelude::*, system::SystemParam, world::DeferredWorld};
+use bevy_ecs::{
+    change_detection::MaybeLocation, error::warn, lifecycle::HookContext, prelude::*,
+    system::SystemParam, world::DeferredWorld,
+};
 use bevy_log::prelude::*;
 use bevy_platform::collections::HashSet;
 use bevy_reflect::Reflect;
 
-use crate::{access::ModAccess, asset::ModAsset, cleanup::DisableSystemSet, prelude::Sandbox};
+use crate::{access::ModAccess, asset::ModAsset, cleanup::DisableSystemSet};
 
 /// This system param provides an interface to load and manage Wasvy mods
 #[derive(SystemParam)]
@@ -12,8 +17,6 @@ pub struct Mods<'w, 's> {
     commands: Commands<'w, 's>,
     asset_server: Res<'w, AssetServer>,
     mods: Query<'w, 's, Entity, With<Mod>>,
-    #[cfg(debug_assertions)]
-    sandboxes: Query<'w, 's, Entity, With<Sandbox>>,
 }
 
 impl Mods<'_, '_> {
@@ -23,25 +26,25 @@ impl Mods<'_, '_> {
     ///
     /// The mod will be given access to the entire World. See [docs for Global Sandbox](Sandbox)
     pub fn load<'a>(&mut self, path: impl Into<AssetPath<'a>>) {
-        let mod_id = self.spawn(path);
+        let mod_id = self.spawn(path, None);
         self.enable_access(mod_id, ModAccess::World);
     }
 
     /// Spawns a new instance of a mod from the given path. By default this mod will do nothing once loaded.
     ///
     /// Next, you might want to give this mod access via [Self::enable_access].
-    pub fn spawn<'a>(&mut self, path: impl Into<AssetPath<'a>>) -> Entity {
+    pub fn spawn<'a>(&mut self, path: impl Into<AssetPath<'a>>, name: Option<String>) -> Entity {
         let path = path.into();
-        let name = path
-            .path()
-            .file_name()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_string())
-            .unwrap_or("unknown".to_string());
+        let name = name.unwrap_or_else(|| {
+            path.path()
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown")
+                .to_string()
+        });
         let asset = self.asset_server.load(path);
 
         info!("Loading mod \"{name}\"");
-
         self.commands.spawn((Mod::new(asset), Name::new(name))).id()
     }
 
@@ -63,9 +66,20 @@ impl Mods<'_, '_> {
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
-    pub fn despawn(&mut self, entity: Entity) {
-        debug_assert!(self.mods.contains(entity));
-        self.commands.entity(entity).despawn();
+    #[track_caller]
+    pub fn despawn(&mut self, mod_id: Entity) {
+        let caller = MaybeLocation::caller();
+        let command = move |world: &mut World| -> Result<(), BevyError> {
+            let entity = Mod::get_entity_mut(mod_id, world)
+                .map_err(|error| format!("{error}, could not despawn\n{caller}"))?;
+            let name = Mod::get_name(&entity);
+
+            info!("Unloading mod \"{name}\"");
+            entity.despawn();
+
+            Ok(())
+        };
+        self.commands.queue_handled(command, warn);
     }
 
     /// Enable a [Mod]'s access to entities.
@@ -75,19 +89,29 @@ impl Mods<'_, '_> {
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
+    #[track_caller]
     pub fn enable_access(&mut self, mod_id: Entity, access: ModAccess) {
-        #[cfg(debug_assertions)]
-        if let ModAccess::Sandbox(entity) = access {
-            assert!(
-                self.sandboxes.contains(entity),
-                "ModAccess::Sandbox should contain a valid entity"
-            );
-        }
-        self.commands.queue(move |world: &mut World| {
-            if let Some(mut mod_id) = world.get_mut::<Mod>(mod_id) {
-                mod_id.enable_access(access);
-            }
-        });
+        let caller = MaybeLocation::caller();
+        let command = move |world: &mut World| -> Result<(), BevyError> {
+            access
+                .validate(world)
+                .map_err(|error| format!("{error}\n{caller}"))?;
+
+            let access_display = access.display(world);
+            let mut entity = Mod::get_entity_mut(mod_id, world).map_err(|error| {
+                format!("{error}, could not enable access {access_display}\n{caller}")
+            })?;
+            let name = Mod::get_name(&entity);
+            info!("Enabling {access_display} access for mod \"{name}\"");
+
+            entity
+                .get_mut::<Mod>()
+                .expect("checked by get_entity_mut")
+                .enable_access(access);
+
+            Ok(())
+        };
+        self.commands.queue_handled(command, warn);
     }
 
     /// Removes a [Mod]'s access to entities.
@@ -97,19 +121,29 @@ impl Mods<'_, '_> {
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
     /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
+    #[track_caller]
     pub fn disable_access(&mut self, mod_id: Entity, access: ModAccess) {
-        #[cfg(debug_assertions)]
-        if let ModAccess::Sandbox(entity) = access {
-            assert!(
-                self.sandboxes.contains(entity),
-                "ModAccess::Sandbox should contain a valid entity"
-            );
-        }
-        self.commands.queue(move |world: &mut World| {
-            if let Some(mut mod_id) = world.get_mut::<Mod>(mod_id) {
-                mod_id.disable_access(&access);
-            }
-        });
+        let caller = MaybeLocation::caller();
+        let command = move |world: &mut World| -> Result<(), BevyError> {
+            access
+                .validate(world)
+                .map_err(|error| format!("{error}\n{caller}"))?;
+
+            let access_display = access.display(world);
+            let mut entity = Mod::get_entity_mut(mod_id, world).map_err(|error| {
+                format!("{error}, could not disable access {access_display}\n{caller}")
+            })?;
+            let name = Mod::get_name(&entity);
+            info!("Disabling {access_display} access for mod \"{name}\"");
+
+            entity
+                .get_mut::<Mod>()
+                .expect("checked by get_entity_mut")
+                .disable_access(&access);
+
+            Ok(())
+        };
+        self.commands.queue_handled(command, warn);
     }
 
     /// Unload all currently loaded mods.
@@ -178,6 +212,25 @@ impl Mod {
     /// Returns an iterator over the [Mod Accesses](ModAccess) of this mod
     pub fn accesses(&self) -> impl Iterator<Item = &ModAccess> {
         self.access.iter()
+    }
+
+    fn get_entity_mut<'a>(id: Entity, world: &'a mut World) -> Result<EntityWorldMut<'a>, String> {
+        let Some(entity) = world.get_entity_mut(id).ok() else {
+            return Err(format!("Entity ({id}) does not exist"));
+        };
+
+        if entity.get::<Mod>().is_none() {
+            return Err(format!("Entity ({id}) is not a Mod").into());
+        }
+
+        Ok(entity)
+    }
+
+    fn get_name<'a>(entity: &'a EntityWorldMut) -> ModName<'a> {
+        entity
+            .get::<Name>()
+            .map(|n| ModName::Named(n.as_str()))
+            .unwrap_or(ModName::Unknown(entity.id()))
     }
 
     /// [On despawn](bevy_ecs::lifecycle::ComponentHooks::on_despawn) for [Mod]
@@ -274,6 +327,20 @@ impl ModDespawnBehaviour {
         match world.get_resource() {
             None | Some(ModDespawnBehaviour::DespawnEntities) => true,
             Some(ModDespawnBehaviour::None) => false,
+        }
+    }
+}
+
+enum ModName<'a> {
+    Named(&'a str),
+    Unknown(Entity),
+}
+
+impl<'a> fmt::Display for ModName<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ModName::Named(name) => f.write_str(name),
+            ModName::Unknown(entity) => write!(f, "unknown ({entity})"),
         }
     }
 }

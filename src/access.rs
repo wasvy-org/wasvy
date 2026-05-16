@@ -45,4 +45,27 @@ impl ModAccess {
             Self::World => Sandbox::access_non_sandboxed(world),
         }
     }
+
+    /// Validates a ModAccess is valid before invoking it
+    pub fn validate(&self, world: &World) -> Result<(), String> {
+        if let ModAccess::Sandbox(entity) = self
+            && world.get::<Sandbox>(*entity).is_none()
+        {
+            let display = self.display(world);
+            Err(format!("ModAccess {display} is not valid"))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Like [std::fmt::Display] but requires world access
+    pub fn display(&self, world: &World) -> String {
+        match self {
+            ModAccess::World => "Main World".into(),
+            ModAccess::Sandbox(entity) => match world.get(*entity).map(Name::as_str) {
+                Some(name) => format!("Sandbox \"{name}\""),
+                None => format!("Sandbox ({entity})"),
+            },
+        }
+    }
 }

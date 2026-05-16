@@ -2,8 +2,7 @@ use std::{
     env, fs,
     iter::once,
     path::{Path, PathBuf},
-    process::{Command, Stdio},
-    thread,
+    process, thread,
 };
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -12,6 +11,7 @@ use semver::Version;
 use tracing::warn;
 
 use crate::{
+    command::{Command, CommandType, Logging},
     fs::WriteTo,
     language::{Language, SourceInfo},
     named::Named,
@@ -27,7 +27,7 @@ impl Rust {
     /// Gets the rust version from cargo
     pub fn new() -> Result<Self> {
         let path = env::current_dir().context("could not get working directory")?;
-        let output = Command::new("cargo")
+        let output = process::Command::new("cargo")
             .arg("--version")
             .current_dir(path)
             .output()
@@ -58,7 +58,7 @@ impl Language for Rust {
         })
     }
 
-    fn create(&self, source: &Source) -> Result<()> {
+    fn create(&self, source: &Source, _logging: Logging) -> Result<()> {
         let mut errors = Errors::new();
 
         let path = source.path();
@@ -104,23 +104,40 @@ impl Language for Rust {
         errors.as_result()
     }
 
-    fn build(&self, source: &Source, stdio: Stdio) -> Result<Source> {
-        let result = build(Full, source, stdio);
-
-        // Since rust is strongly typed, compilation might fail if wit is outdated.
-        // Retry building setup only and generate wit from that if possible.
-        if let Err(_error) = result.as_ref()
-        // && error.to_string().contains("TODO")
-        {
+    fn build(&self, source: &Source, logging: Logging) -> Result<Source> {
+        if let Err(error) = Command::run(CargoBuild, source, logging) {
+            // Since rust is strongly typed, compilation might fail if wit is outdated.
+            // Retry building setup only and generate wit from that if possible.
+            // if error.to_string().contains("TODO") {
             let source = source.clone();
             thread::spawn(move || {
-                retry_witgen(source)
-                    .err()
-                    .map(|err| warn!("Failed generating wit: {err:?}"))
+                if let Err(err) = retry_witgen(&source) {
+                    warn!("Failed generating wit: {err:?}")
+                }
             });
+
+            return Err(error);
         }
 
-        result
+        get_build_artifact(source)
+    }
+}
+
+struct CargoBuild;
+
+impl CommandType for CargoBuild {
+    const PROGRAM: &str = "cargo";
+
+    fn setup(self, command: &mut Command, source: &Source) -> Result<()> {
+        command
+            .arg("build")
+            .arg("--release")
+            .arg("--target")
+            .arg("wasm32-wasip2")
+            .arg("-p")
+            .arg(source.name());
+
+        Ok(())
     }
 }
 
@@ -134,51 +151,30 @@ fn get_name(path: &Path) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-fn retry_witgen(source: Source) -> Result<()> {
-    let wit_source = build(SetupOnly, &source, Stdio::null())?;
-    write_guest_wit(&wit_source)
-}
-
-enum BuildMode {
-    /// Full build for the mod
-    Full,
-
-    /// Instruct the wasvy_setup macro to only export the setup method
-    SetupOnly,
-}
-use BuildMode::*;
-
-fn build(mode: BuildMode, source: &Source, stdio: Stdio) -> Result<Source> {
+fn get_build_artifact(source: &Source) -> Result<Source> {
     let name = source.name();
     let path = source.path();
-
-    let mut command = Command::new("cargo");
-    command
-        .arg("build")
-        .arg("--release")
-        .arg("--target")
-        .arg("wasm32-wasip2")
-        .arg("-p")
-        .arg(name)
-        .current_dir(path)
-        .stderr(stdio);
-
-    if matches!(mode, Full) {
-        command.arg("--feature").arg("setup_only");
-    }
-
     let file = build_directory(path)
         .with_context(|| format!("build_directory for path = {path:?}"))?
         .join("wasm32-wasip2")
         .join("release")
         .join(format!("{name}.wasm"));
-    Source::identify_file(&file, source.runtime())
+    Source::identify_file(&file, Some(name), source.runtime())
         .with_context(|| anyhow!("identifying build artifact {file:?}"))
+}
+
+fn retry_witgen(source: &Source) -> Result<()> {
+    let mut command = Command::new(CargoBuild, source, Logging::Ignore)?;
+    command.arg("--features").arg("setup_only");
+    command.execute()?;
+
+    let wit_source = get_build_artifact(source)?;
+    write_guest_wit(&wit_source)
 }
 
 fn build_directory(path: impl AsRef<Path>) -> Result<PathBuf> {
     let path = path.as_ref();
-    let output = Command::new("cargo")
+    let output = process::Command::new("cargo")
         .arg("metadata")
         .arg("--format-version")
         .arg("1")

@@ -4,13 +4,18 @@ use std::{
     fs,
     mem::replace,
     path::{Path, PathBuf},
-    process::Stdio,
 };
 
-use crate::{fs::WriteTo, id::Id, language::BoxedLanguage, named::Named, runtime::Runtime};
+use crate::{
+    command::Logging, fs::WriteTo, id::Id, language::BoxedLanguage, named::Named, runtime::Runtime,
+};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use wit_parser::{Package, PackageId, Resolve, UnresolvedPackageGroup, World};
+use error_collection::Errors;
+use wit_parser::{
+    Package, PackageId, Resolve, UnresolvedPackageGroup, World,
+    decoding::{DecodedWasm, decode},
+};
 
 /// A source
 #[derive(Clone)]
@@ -28,9 +33,9 @@ impl Source {
     pub fn identify(path: impl AsRef<Path>, runtime: &Runtime) -> Result<Self> {
         let path = path.as_ref();
         if path.is_file() && path.extension().unwrap_or_default() == "wasm" {
-            Self::identify_file(path, runtime)
+            Self::identify_file(path, None, runtime)
         } else if path.is_dir() {
-            Self::identify_dir(path, runtime)
+            Self::identify_dir(path, None, runtime)
         } else {
             Err(anyhow!("path is neither a file nor a directory"))
         }
@@ -38,19 +43,32 @@ impl Source {
     }
 
     /// Identifies a wasm file as a compatible [Source] for a Mod
-    pub fn identify_file(path: impl AsRef<Path>, runtime: &Runtime) -> Result<Self> {
+    pub fn identify_file(
+        path: impl AsRef<Path>,
+        name: Option<&str>,
+        runtime: &Runtime,
+    ) -> Result<Self> {
+        let name = name.as_ref().map(ToString::to_string);
         let path = path.as_ref();
 
-        let mut resolve = runtime.resolve().clone();
-        let package = resolve
-            .push_file(path)
-            .context("failed to resolve wasm file")?;
+        let bytes = fs::read(path).with_context(|| anyhow!("Reading {path:?}"))?;
 
-        Self::new_raw(None, path, runtime, None, resolve, package)
+        let decoded = decode(&bytes).with_context(|| anyhow!("Decoding wit from {path:?}"))?;
+        let package = decoded.package();
+        let resolve = match decoded {
+            DecodedWasm::WitPackage(resolve, _) => resolve,
+            DecodedWasm::Component(resolve, _) => resolve,
+        };
+
+        Self::new_raw(name, path, runtime, None, resolve, package)
     }
 
     /// Identifies a directory as a compatible [Source] (build files) for a Mod
-    pub fn identify_dir(path: impl AsRef<Path>, runtime: &Runtime) -> Result<Self> {
+    pub fn identify_dir(
+        path: impl AsRef<Path>,
+        name_override: Option<String>,
+        runtime: &Runtime,
+    ) -> Result<Self> {
         let path = path.as_ref();
 
         let mut resolve = runtime.resolve().clone();
@@ -73,25 +91,26 @@ impl Source {
             bail!("path was not identified as any language");
         };
 
-        Source::new_raw(info.name, path, runtime, Some(id.clone()), resolve, package)
+        let name = name_override.or(info.name);
+        Source::new_raw(name, path, runtime, Some(id.clone()), resolve, package)
     }
 
-    // Returns the path of this source
+    /// Returns the path of this source
     pub fn path(&self) -> &Path {
         &self.path
     }
 
-    // Returns the resolved wit definition
+    /// Returns the resolved wit definition
     pub fn resolve(&self) -> &Resolve {
         &self.resolve
     }
 
-    // Returns the runtime
+    /// Returns the runtime
     pub fn runtime(&self) -> &Runtime {
         &self.runtime
     }
 
-    // Returns the boxed language implementation
+    /// Returns the boxed language implementation
     pub fn language(&self) -> Option<&BoxedLanguage> {
         self.language.as_ref().map(|language| {
             self.runtime()
@@ -99,6 +118,11 @@ impl Source {
                 .get(language)
                 .expect("language exists in source")
         })
+    }
+
+    /// Returns true when this is a wasm file
+    pub fn is_wasm(&self) -> bool {
+        self.language.is_none()
     }
 
     /// Returns the world at the root directory
@@ -120,8 +144,8 @@ impl Source {
 
     /// Refresh the wit deps from the filesystem
     pub fn refresh(&mut self) -> Result<()> {
-        if self.language.is_some() {
-            let src = Self::identify_dir(self.path(), self.runtime())
+        if !self.is_wasm() {
+            let src = Self::identify_dir(self.path(), None, self.runtime())
                 .context("identifying exisitng source directory")?;
             let _ = replace(self, src);
         }
@@ -133,24 +157,31 @@ impl Source {
     ///
     /// Make sure to [Self::refresh] the source after calling this since it might be invalid
     pub fn update_deps(&self) -> Result<()> {
-        if self.language.is_some() {
-            let wit_path = self.path.join("wit");
-            let deps_path = wit_path.join("deps");
-
-            fs::create_dir_all(&deps_path)?;
-            for dependency in self.runtime.dependencies() {
-                dependency.write(&deps_path)?;
-            }
+        if self.is_wasm() {
+            return Ok(());
         }
 
-        Ok(())
+        let wit_path = self.path.join("wit");
+        let deps_path = wit_path.join("deps");
+
+        let mut errors = Errors::new();
+
+        for dependency in self.runtime.dependencies() {
+            errors.collect(
+                dependency
+                    .write(&deps_path)
+                    .with_context(|| anyhow!("Writing dependency {deps_path:?}")),
+            );
+        }
+
+        errors.as_result()
     }
 
     /// Builds the source, producing a new Wasm source
-    pub fn build(&self, stdio: Stdio) -> Result<Cow<'_, Source>> {
+    pub fn build(&self, logging: Logging) -> Result<Cow<'_, Source>> {
         if let Some(language) = self.language() {
             let source = language
-                .build(self, stdio)
+                .build(self, logging)
                 .with_context(|| format!("building with language {}", language.name()))?;
 
             Ok(Cow::Owned(source))
@@ -165,6 +196,7 @@ impl Source {
         path: impl AsRef<Path>,
         runtime: &Runtime,
         language: Id,
+        logging: Logging,
     ) -> Result<Self> {
         let boxed_language = runtime
             .languages()
@@ -184,7 +216,7 @@ impl Source {
         };
 
         boxed_language
-            .create(&source)
+            .create(&source, logging)
             .context("generating source")?;
         source.update_deps()?;
         source.refresh()?;
@@ -246,13 +278,14 @@ fn invalid_package_id() -> PackageId {
 
 impl fmt::Debug for Source {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut debug = f.debug_struct("Source");
-        debug.field("path", &self.path);
-        debug.field("name", &self.name);
-        if let Some(language) = &self.language {
-            debug.field("language", &language);
-        }
-        debug.finish()
+        f.debug_struct("Source")
+            .field("name", &self.name())
+            .field("path", &self.path)
+            .field(
+                "language",
+                &self.language().map(|l| l.name()).unwrap_or("Wasm"),
+            )
+            .finish()
     }
 }
 
@@ -286,11 +319,11 @@ mod tests {
             }
         }
 
-        fn create(&self, _source: &Source) -> Result<()> {
+        fn create(&self, _source: &Source, _logging: Logging) -> Result<()> {
             unreachable!()
         }
 
-        fn build(&self, _source: &Source, _stdio: Stdio) -> Result<Source> {
+        fn build(&self, _source: &Source, _logging: Logging) -> Result<Source> {
             unreachable!()
         }
     }

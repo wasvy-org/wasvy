@@ -9,6 +9,7 @@ use error_collection::Errors;
 use wit_parser::Resolve;
 
 use crate::{
+    command::Logging,
     dependency::{Dependency, Interface},
     editor::BoxedEditor,
     id::Id,
@@ -90,7 +91,13 @@ impl TryFrom<&Remote> for Config {
     type Error = anyhow::Error;
 
     fn try_from(value: &Remote) -> Result<Self> {
-        let Remote { name, dependencies } = value;
+        let Remote {
+            name,
+            endpoint: _,
+            asset_dir: _,
+            stdio: _,
+            dependencies,
+        } = value;
 
         let mut config = Config::default();
         config.namespace = name.to_string();
@@ -170,8 +177,16 @@ impl Runtime {
         let source_matches = search_glob(path.as_ref().join("**/wit/*.wit"))
             .filter_map(|p| p.parent().and_then(Path::parent).map(Path::to_path_buf));
 
-        // remove duplicate paths from source_matches
-        let paths: HashSet<_> = wasm_matches.chain(source_matches).collect();
+        // remove duplicates
+        let paths: HashSet<_> = wasm_matches
+            .chain(source_matches)
+            .filter(|path| {
+                // Omit hidden directories
+                !path
+                    .components()
+                    .any(|component| component.as_os_str().to_string_lossy().starts_with('.'))
+            })
+            .collect();
 
         let sources = paths
             .into_iter()
@@ -192,8 +207,9 @@ impl Runtime {
         name: impl AsRef<str>,
         path: impl AsRef<Path>,
         language: Id,
+        logging: Logging,
     ) -> Result<Source> {
-        Source::create(name, path, self, language)
+        Source::create(name, path, self, language, logging)
     }
 }
 

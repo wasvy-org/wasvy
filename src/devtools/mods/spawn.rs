@@ -16,11 +16,11 @@ use crate::{access::ModAccess, mods::Mods};
 /// Optional params:
 /// - **name** - A name for the mod
 /// - **access** - An array of ModAccess
-pub fn spawn(params: In<Option<Value>>, mut mods: Mods, mut commands: Commands) -> Result<Value> {
-    let values = match &*params {
-        Some(Value::Null) | None => bail!("expected at least one param"),
-        Some(Value::Array(values)) => values.clone(),
-        Some(value) => vec![value.clone()],
+pub fn spawn(mut params: In<Option<Value>>, mut mods: Mods) -> Result<Value> {
+    let values: Vec<Value> = match params.take().unwrap_or(Value::Null) {
+        Value::Null => bail!("expected at least one param"),
+        Value::Array(values) => values,
+        value => vec![value],
     };
 
     let mut errors = Errors::new();
@@ -28,15 +28,10 @@ pub fn spawn(params: In<Option<Value>>, mut mods: Mods, mut commands: Commands) 
         .into_iter()
         .filter_map(|value| errors.collect(serde_json::from_value(value)))
         .map(|Instance { path, name, access }| {
-            let mod_id = mods.spawn(path);
+            let mod_id = mods.spawn(path, name);
             for access in access {
                 mods.enable_access(mod_id, access);
             }
-
-            if let Some(name) = name {
-                commands.entity(mod_id).insert(Name::new(name));
-            }
-
             mod_id
         })
         .map(|entity| entity.to_bits().into())

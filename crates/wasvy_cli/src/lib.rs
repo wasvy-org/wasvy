@@ -1,3 +1,4 @@
+pub mod command;
 pub mod dependency;
 pub mod editor;
 pub mod editors;

@@ -1,21 +1,21 @@
-use std::{path::Path, process::Stdio};
+use std::path::Path;
 
 use anyhow::Result;
 use derive_more::Deref;
 
-use crate::{named::Named, source::Source};
+use crate::{command::Logging, named::Named, source::Source};
 
 pub trait Language: Named + Send + Sync {
     /// Given a path on the filesystem, determines whether it is a mod source and returns metadata.
     fn identify(&self, path: &Path) -> Result<SourceInfo>;
 
     /// Creates necessary files for a new source of this language type
-    fn create(&self, source: &Source) -> Result<()>;
+    fn create(&self, source: &Source, logging: Logging) -> Result<()>;
 
     /// Compiles this language to a source.
     ///
     /// See [Source::identify_file] to return a Source from a wasm file.
-    fn build(&self, source: &Source, stdio: Stdio) -> Result<Source>;
+    fn build(&self, source: &Source, logging: Logging) -> Result<Source>;
 }
 
 /// Information identified from a mod directory by a [Language] implementation.

@@ -57,7 +57,7 @@ derive_more = { version = "2", default-features = false, features = [
     "deref",
     "deref_mut",
 ] }
-error-collection = "1.0.2"
+error-collection = "1.0.4"
 glob = "0.3.3"
 http = { version = "1.1.0", default-features = false, features = ["std"] }
 inventory = "0.3.15"

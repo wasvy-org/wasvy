@@ -110,25 +110,25 @@ impl<'a> CommandType for Poetry<'a> {
     const PROGRAM: &'static str = "poetry";
 
     fn setup(self, command: &mut Command, source: &Source) -> Result<()> {
-        command
-            .arg("run")
-            .arg("componentize-py")
-            .arg("--world")
-            .arg(source.name());
+        command.arg("run").arg("componentize-py");
         match self {
             Poetry::Bindings => {
                 command
-                    .arg("bindings")
-                    .arg("src")
                     .arg("--wit-path")
-                    .arg("wit/");
+                    .arg("wit/")
+                    .arg("--world")
+                    .arg(source.world_name())
+                    .arg("bindings")
+                    .arg("src");
             }
             Poetry::Componentize { output } => {
                 command
-                    .arg("componentize")
-                    .arg("app")
                     .arg("--wit-path")
                     .arg("../wit/")
+                    .arg("--world")
+                    .arg(source.world_name())
+                    .arg("componentize")
+                    .arg("app")
                     .arg("-o")
                     .arg(output)
                     .current_dir(source.path().join("src"));

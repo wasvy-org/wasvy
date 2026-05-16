@@ -3,8 +3,8 @@
 # Run an example host app
 [group("examples")]
 [arg("app", pattern="^(basic|components|custom_codec)$")]
-run-example app:
-	cargo run -p {{app}}_example_app --features bevy/file_watcher
+run-example app *args:
+	cargo run -p {{app}}_example_app --features bevy/file_watcher {{args}}
 
 # Run the wasvy tui
 [group("examples")]

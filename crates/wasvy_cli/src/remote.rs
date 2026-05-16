@@ -5,6 +5,7 @@ use bevy_remote::{
     BrpPayload, BrpRequest,
     http::{DEFAULT_ADDR, DEFAULT_PORT},
 };
+use derive_more::{Deref, DerefMut};
 use error_collection::Errors;
 use http::{Uri, uri::InvalidUri};
 use serde::{Deserialize, Serialize};
@@ -267,7 +268,7 @@ impl Remote {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deref, DerefMut)]
 pub struct RemoteEndpoint(pub Uri);
 
 impl Default for RemoteEndpoint {

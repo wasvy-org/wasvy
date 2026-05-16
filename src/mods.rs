@@ -220,7 +220,7 @@ impl Mod {
         };
 
         if entity.get::<Mod>().is_none() {
-            return Err(format!("Entity ({id}) is not a Mod").into());
+            return Err(format!("Entity ({id}) is not a Mod"));
         }
 
         Ok(entity)

@@ -36,7 +36,7 @@ struct Args {
 #[derive(clap::Subcommand, Debug, Eq, PartialEq)]
 enum Command {
     /// Opens the Wasvy Terminal User Interface
-    TUI,
+    Tui,
 
     /// Creates a new mod source
     Create(CreateArgs),
@@ -77,13 +77,12 @@ mod tui;
 pub fn main() {
     let version = env!("CARGO_PKG_VERSION");
     println!("Wasvy CLI v{version} for Bevy v0.18.0");
-    println!("");
+    println!();
     let args = Args::parse();
 
-    if matches!(args.command, None | Some(Command::TUI)) {
+    if matches!(args.command, None | Some(Command::Tui)) {
         println!("Starting the TUI");
         tui::main();
-        return;
     } else if let Err(err) = cli(args) {
         eprintln!("Error: {err:?}");
         exit(1)
@@ -113,7 +112,7 @@ fn cli(args: Args) -> Result<()> {
         Command::Load(_) => remote.load(&sources, Logging::Inherit)?,
         Command::Unload(_) => remote.unload(&sources, Logging::Inherit)?,
         Command::Watch(_) => remote.watch(&sources)?,
-        Command::TUI => unreachable!(),
+        Command::Tui => unreachable!(),
     }
 
     Ok(())
@@ -130,10 +129,7 @@ fn get_sources(runtime: &Runtime, command: &Command, path: &Path) -> Result<Vec<
 
     let mut sources = runtime.search(path)?;
     if !mods.is_empty() {
-        sources = sources
-            .into_iter()
-            .filter(|source| mods.iter().any(|pattern| source.name().contains(pattern)))
-            .collect();
+        sources.retain(|source| mods.iter().any(|pattern| source.name().contains(pattern)));
     }
 
     Ok(sources)

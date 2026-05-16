@@ -83,7 +83,7 @@ impl Remote {
         let to = mods_dir.join(path.as_ref());
 
         // This is obviously quite naive, but for now assume the remote shares the same filesystem
-        fs::copy(&from, &to).with_context(|| anyhow!("Copying from {from:?} to {to:?}"))?;
+        fs::copy(from, &to).with_context(|| anyhow!("Copying from {from:?} to {to:?}"))?;
 
         Ok(format!("mods/{path}"))
     }
@@ -102,10 +102,10 @@ impl Remote {
         let to = mods_dir.join(path.as_ref());
 
         // This is obviously quite naive, but for now assume the remote shares the same filesystem
-        if let Err(error) = fs::remove_file(to) {
-            if error.kind() != std::io::ErrorKind::NotFound {
-                return Err(error.into());
-            }
+        if let Err(error) = fs::remove_file(to)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(error.into());
         }
 
         Ok(format!("mods/{path}"))

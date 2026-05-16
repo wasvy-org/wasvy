@@ -99,8 +99,10 @@ impl TryFrom<&Remote> for Config {
             dependencies,
         } = value;
 
-        let mut config = Config::default();
-        config.namespace = name.to_string();
+        let mut config = Config {
+            namespace: name.to_string(),
+            ..Default::default()
+        };
 
         let mut errors = Errors::new();
         for dep in dependencies.iter() {

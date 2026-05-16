@@ -50,7 +50,7 @@ fn ui_system(
 ) -> Result {
     context.draw(|frame| {
         let area = frame.area();
-        let frame_count = Line::from(format!("Frame Count")).right_aligned();
+        let frame_count = Line::from("Frame Count").right_aligned();
         frame.render_widget_ref(bg_color.as_ref(), area);
         frame.render_widget(frame_count, area);
         frame.render_widget_ref(counter.as_ref(), area);

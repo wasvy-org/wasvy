@@ -78,7 +78,7 @@ impl Language for Python {
         let name = source.name();
 
         let dest = &path.join("dest");
-        let _ = fs::create_dir_all(&dest);
+        let _ = fs::create_dir_all(dest);
 
         let output = &canonicalize(dest)
             .with_context(|| anyhow!("{dest:?}"))?
@@ -130,7 +130,7 @@ impl<'a> CommandType for Poetry<'a> {
                     .arg("--wit-path")
                     .arg("../wit/")
                     .arg("-o")
-                    .arg(&output)
+                    .arg(output)
                     .current_dir(source.path().join("src"));
             }
         }

@@ -4,13 +4,12 @@ use error_collection::Errors;
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Stdio,
 };
 
 use crate::{
     command::Logging,
     named::Named,
-    remote::{Remote, RemoteEndpoint},
+    remote::{Remote, RemoteUri},
     runtime::Runtime,
     source::Source,
 };
@@ -32,6 +31,21 @@ pub struct Args {
     /// An alternate remote address
     #[arg(long)]
     pub uri: Option<String>,
+}
+
+impl Default for Args {
+    fn default() -> Self {
+        Self::parse_from(["wasvy-cli"])
+    }
+}
+
+impl From<Command> for Args {
+    fn from(value: Command) -> Self {
+        Self {
+            command: Some(value),
+            ..Default::default()
+        }
+    }
 }
 
 #[derive(clap::Subcommand, Debug, Eq, PartialEq)]
@@ -66,7 +80,7 @@ pub struct CreateArgs {
     pub name: String,
 }
 
-#[derive(clap::Args, Debug, Eq, PartialEq)]
+#[derive(clap::Args, Debug, Eq, PartialEq, Default)]
 pub struct ModArgs {
     /// One or more patterns to filter sources
     #[arg(short, long)]
@@ -81,11 +95,11 @@ pub fn cli(args: Args) -> Result<()> {
         uri,
     } = &args;
     let command = command.as_ref().expect("unreachable");
-    let uri: RemoteEndpoint = uri
+    let uri: RemoteUri = uri
         .as_ref()
         .and_then(|a| a.parse().ok())
         .unwrap_or_default();
-    let remote = Remote::connect(uri, Stdio::inherit())
+    let remote = Remote::connect(uri)
         .context("No remote found!\nIs your Bevy app running with wasvy devtools enabled?")?;
 
     // Assert remote is the correct one

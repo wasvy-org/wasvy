@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, collections::HashMap, fs, path::PathBuf, process::Stdio, str::FromStr};
+use std::{borrow::Borrow, collections::HashMap, fs, path::PathBuf, str::FromStr};
 
 use anyhow::{Context, Result, anyhow, bail};
 use bevy_remote::{
@@ -10,35 +10,36 @@ use error_collection::Errors;
 use http::{Uri, uri::InvalidUri};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use wit_parser::Resolve;
 
 use crate::{command::Logging, dependency::Dependency, named::Named, source::Source};
 
 #[derive(Debug)]
 pub struct Remote {
     pub dependencies: Vec<Dependency>,
-    pub endpoint: RemoteEndpoint,
+    pub endpoint: RemoteUri,
     pub asset_dir: PathBuf,
-    pub stdio: Stdio,
     pub name: String,
 }
 
 impl Remote {
     pub fn connect(
-        endpoint: impl TryInto<RemoteEndpoint, Error = impl Into<anyhow::Error>>,
-        stdio: Stdio,
+        endpoint: impl TryInto<RemoteUri, Error = impl Into<anyhow::Error>>,
     ) -> Result<Remote> {
         let endpoint = endpoint.try_into().map_err(Into::into)?;
 
         let res = endpoint.send("wasvy.metadata", Value::Null)?;
 
         let mut errors = Errors::new();
+        let mut resolve = Resolve::new();
         let dependencies = res
             .get("interfaces")
             .and_then(|v| v.as_array())
             .map(|arr| {
                 arr.iter()
                     .filter_map(|v| v.as_str().map(ToString::to_string))
-                    .filter_map(|v| errors.collect(Dependency::new(v)))
+                    .filter_map(|v| errors.collect(Dependency::new_with_resolve(v, &mut resolve)))
+                    .map(|(dep, _)| dep)
                     .collect()
             })
             .unwrap_or_default();
@@ -66,7 +67,6 @@ impl Remote {
             dependencies,
             endpoint,
             name,
-            stdio,
         })
     }
 
@@ -269,23 +269,27 @@ impl Remote {
 }
 
 #[derive(Debug, Clone, Deref, DerefMut)]
-pub struct RemoteEndpoint(pub Uri);
+pub struct RemoteUri(pub Uri);
 
-impl Default for RemoteEndpoint {
+impl RemoteUri {
+    pub fn new(port: u16) -> Self {
+        format!("http://{}:{}", DEFAULT_ADDR, port).parse().unwrap()
+    }
+}
+
+impl Default for RemoteUri {
     fn default() -> Self {
-        format!("http://{}:{}", DEFAULT_ADDR, DEFAULT_PORT)
-            .parse()
-            .unwrap()
+        Self::new(DEFAULT_PORT)
     }
 }
 
-impl From<Uri> for RemoteEndpoint {
+impl From<Uri> for RemoteUri {
     fn from(value: Uri) -> Self {
-        RemoteEndpoint(value)
+        RemoteUri(value)
     }
 }
 
-impl FromStr for RemoteEndpoint {
+impl FromStr for RemoteUri {
     type Err = InvalidUri;
 
     #[inline]
@@ -295,7 +299,7 @@ impl FromStr for RemoteEndpoint {
     }
 }
 
-impl RemoteEndpoint {
+impl RemoteUri {
     /// Send a BRP JSON-RPC 2.0 request and return the result
     pub fn send(&self, method: impl Into<String>, params: Value) -> Result<Value> {
         let body = BrpRequest {
@@ -344,6 +348,6 @@ mod tests {
 
     #[test]
     fn default_remote_endpoint() {
-        let _ = RemoteEndpoint::default();
+        let _ = RemoteUri::default();
     }
 }

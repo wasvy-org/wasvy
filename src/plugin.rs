@@ -284,7 +284,7 @@ impl Plugin for ModLoaderPlugin {
         let asset_plugin: &AssetPlugin = app.plugin();
 
         // Warn a user running the App in debug; they probably want hot-reloading
-        if cfg!(debug_assertions) {
+        if cfg!(debug_assertions) && !cfg!(test) {
             let user_overrode_watch_setting = asset_plugin.watch_for_changes_override.is_some();
             let resolved_watch_setting = app
                 .world()

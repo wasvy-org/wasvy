@@ -95,7 +95,6 @@ impl TryFrom<&Remote> for Config {
             name,
             endpoint: _,
             asset_dir: _,
-            stdio: _,
             dependencies,
         } = value;
 
@@ -175,25 +174,36 @@ impl Runtime {
 
     /// Given a directory, searches its contents for compatible [Source]s (build files) for Mods
     pub fn search(&self, path: impl AsRef<Path>) -> Result<Vec<Source>> {
-        let wasm_matches = search_glob(path.as_ref().join("**/*.wasm"));
-        let source_matches = search_glob(path.as_ref().join("**/wit/*.wit"))
-            .filter_map(|p| p.parent().and_then(Path::parent).map(Path::to_path_buf));
-
-        // remove duplicates
-        let paths: HashSet<_> = wasm_matches
-            .chain(source_matches)
-            .filter(|path| {
-                // Omit hidden directories
-                !path
-                    .components()
-                    .any(|component| component.as_os_str().to_string_lossy().starts_with('.'))
-            })
-            .collect();
-
-        let sources = paths
+        // Resolve directories
+        let mut sources: Vec<Source> = search_glob(path.as_ref().join("**/wit/*.wit"))
+            .filter_map(|p| p.parent().and_then(Path::parent).map(Path::to_path_buf))
+            .collect::<HashSet<_>>() // Dedupe
             .into_iter()
-            .filter_map(|path| self.identify(path))
+            .filter_map(|path| Source::identify_dir(&path, None, self).ok())
             .collect();
+
+        // Resolve wasm files
+        let mut wasm = search_glob(path.as_ref().join("**/*.wasm"))
+            // Ignore wasm build artifacts located in source directories (such as dest directory for python)
+            .filter(|path| !sources.iter().any(|source| path.starts_with(source.path())))
+            // Ignore wasm files in rust build directory (**/target/wasm32-*/*/*.wasm )
+            .filter(|path| {
+                let mut components = path.components().rev().skip(2);
+                let target = components
+                    .next()
+                    .and_then(|part| part.as_os_str().to_str())
+                    .map(|part| part.starts_with("wasm32-"))
+                    .unwrap_or_default();
+                let dir = components
+                    .next()
+                    .map(|part| part.as_os_str() == "target")
+                    .unwrap_or_default();
+                !target || !dir
+            })
+            .filter_map(|path| Source::identify_file(path, None, self).ok())
+            .collect();
+
+        sources.append(&mut wasm);
 
         Ok(sources)
     }
@@ -220,4 +230,10 @@ fn search_glob(pattern: PathBuf) -> impl Iterator<Item = PathBuf> {
     glob::glob(pattern)
         .expect("valid glob")
         .filter_map(Result::ok)
+        .filter(|path| {
+            // Omit hidden directories
+            !path
+                .components()
+                .any(|component| component.as_os_str().to_string_lossy().starts_with('.'))
+        })
 }

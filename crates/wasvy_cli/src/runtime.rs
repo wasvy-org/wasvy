@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    iter,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -30,7 +31,7 @@ pub struct Config {
     pub editors: Editors,
 }
 
-type Languages = HashMap<Id, BoxedLanguage>;
+type Languages = HashMap<Id, (BoxedLanguage, Vec<String>)>;
 type Editors = HashMap<Id, BoxedEditor>;
 
 impl Default for Config {
@@ -63,10 +64,19 @@ impl Config {
     }
 
     /// Adds support for a new language
-    pub fn add_language(&mut self, language: impl Into<BoxedLanguage>) -> &mut Self {
+    pub fn add_language(
+        &mut self,
+        language: impl Into<BoxedLanguage>,
+        synonyms: &[&str],
+    ) -> &mut Self {
         let language = language.into();
         let id = Id::from(&language);
-        self.languages.insert(id, language);
+        let synonyms = synonyms
+            .iter()
+            .chain(iter::once(&language.name()))
+            .map(|synonym| synonym.to_lowercase())
+            .collect();
+        self.languages.insert(id, (language, synonyms));
         self
     }
 

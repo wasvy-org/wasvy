@@ -55,9 +55,8 @@ impl Source {
 
         let decoded = decode(&bytes).with_context(|| anyhow!("Decoding wit from {path:?}"))?;
         let package = decoded.package();
-        let resolve = match decoded {
-            DecodedWasm::WitPackage(resolve, _) => resolve,
-            DecodedWasm::Component(resolve, _) => resolve,
+        let DecodedWasm::Component(resolve, _) = decoded else {
+            bail!("Invalid wasm. Wasm is not a precompiled binary but a wit package.")
         };
 
         Self::new_raw(name, path, runtime, None, resolve, package)
@@ -86,7 +85,7 @@ impl Source {
         let Some((id, info)) = runtime
             .languages()
             .iter()
-            .find_map(|(id, language)| language.identify(path).ok().map(|info| (id, info)))
+            .find_map(|(id, (language, _))| language.identify(path).ok().map(|info| (id, info)))
         else {
             bail!("path was not identified as any language");
         };
@@ -113,10 +112,12 @@ impl Source {
     /// Returns the boxed language implementation
     pub fn language(&self) -> Option<&BoxedLanguage> {
         self.language.as_ref().map(|language| {
-            self.runtime()
+            &self
+                .runtime()
                 .languages()
                 .get(language)
                 .expect("language exists in source")
+                .0
         })
     }
 
@@ -198,33 +199,67 @@ impl Source {
         language: Id,
         logging: Logging,
     ) -> Result<Self> {
-        let boxed_language = runtime
+        let (boxed_language, _) = runtime
             .languages()
             .get(&language)
             .expect("language belongs to runtime");
-        let name = name.as_ref().to_string();
-        let path = path.as_ref().to_owned();
+        let namespace = runtime.namespace();
+        let name = name.as_ref();
+        let path = path.as_ref();
+        let wasvy_wit_version = runtime
+            .find_dependency("wasvy", "ecs")
+            .expect("wasvy:ecs is a dependecy of the runtime")
+            .version
+            .to_string();
 
-        // Now create the source and generate it's contents
-        let mut source = Self {
-            name: Some(name),
+        // Create a mock resolve
+        let wit = format!("package {namespace}:{name};\nworld guest {{}}");
+        let top_pkg = UnresolvedPackageGroup::parse_str(&path.to_string_lossy(), &wit)
+            .expect("valid mock wit");
+
+        let mut resolve = Resolve::new();
+        let span_offset = resolve.push_source_map(top_pkg.source_map);
+        let package = resolve
+            .push(top_pkg.main, span_offset)
+            .expect("valid mock wit");
+
+        let mut source = Self::new_raw(
+            Some(name.to_string()),
             path,
-            language: Some(language),
-            resolve: Resolve::default(),
-            package: invalid_package_id(),
-            runtime: runtime.clone(),
-        };
+            runtime,
+            Some(language),
+            resolve,
+            package,
+        )?;
 
+        let mut errors = Errors::new();
+
+        //errors.collect(
         boxed_language
             .create(&source, logging)
             .context("generating source")?;
-        source.update_deps()?;
-        source.refresh()?;
+        //);
 
-        // Ensure package is no longer invalid
-        debug_assert!(source.resolve.packages.get(source.package).is_some());
+        #[derive(askama::Template)]
+        #[template(path = "./wit/guest.wit")]
+        pub struct GuestWit<'a> {
+            namespace: &'a str,
+            name: &'a str,
+            wasvy_wit_version: String,
+        }
+        errors.collect(
+            GuestWit {
+                namespace,
+                name,
+                wasvy_wit_version,
+            }
+            .write(path),
+        );
 
-        Ok(source)
+        errors.collect(source.update_deps());
+        errors.collect(source.refresh());
+
+        errors.as_result().map(|_| source)
     }
 
     pub(crate) fn new_raw(
@@ -266,14 +301,6 @@ impl Named for Source {
             .as_ref()
             .unwrap_or_else(|| &self.resolve.packages[self.package].name.name)
     }
-}
-
-/// Create a mock package id
-///
-/// This id will panic when used as an index
-fn invalid_package_id() -> PackageId {
-    // SAFETY: there's nothing unsafe, this is workaround since Id has no constructor
-    unsafe { std::mem::transmute((usize::MAX, u32::MAX)) }
 }
 
 impl fmt::Debug for Source {
@@ -333,7 +360,7 @@ mod tests {
         config
             .add_dependency(include_str!("../../../wit/wasvy-ecs.wit"))
             .expect("valid dep");
-        config.add_language(lang);
+        config.add_language(lang, &[]);
         Runtime::new(config).expect("valid config")
     }
 

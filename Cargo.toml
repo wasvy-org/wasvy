@@ -13,7 +13,7 @@ readme.workspace = true
 publish = true
 
 [workspace]
-members = ["crates/*", "examples/apps/*", "examples/mods/rust/*"]
+members = ["crates/*", "examples/apps/*", "examples/mods/rust/*", "tests/cli/rust/crates/*"]
 resolver = "2"
 
 [workspace.package]

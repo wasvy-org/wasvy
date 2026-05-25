@@ -1,13 +1,14 @@
 use anyhow::{Context, Result, bail};
 use clap::Parser;
+use derive_more::Display;
 use error_collection::Errors;
 use std::{
-    fs,
+    fmt, fs,
     path::{Path, PathBuf},
 };
 
 use crate::{
-    command::Logging,
+    id::Id,
     named::Named,
     remote::{Remote, RemoteUri},
     runtime::Runtime,
@@ -116,8 +117,8 @@ pub fn cli(args: Args) -> Result<()> {
     match command {
         Command::Create(args) => create(path, args, &runtime)?,
         Command::Search(_) => search(sources)?,
-        Command::Load(_) => remote.load(&sources, Logging::Inherit)?,
-        Command::Unload(_) => remote.unload(&sources, Logging::Inherit)?,
+        Command::Load(_) => remote.load(&sources, Default::default())?,
+        Command::Unload(_) => remote.unload(&sources, Default::default())?,
         Command::Watch(_) => remote.watch(&sources)?,
         Command::Tui => unreachable!(),
     }
@@ -145,22 +146,23 @@ fn get_sources(runtime: &Runtime, command: &Command, path: &Path) -> Result<Vec<
 fn create(path: &Path, args: &CreateArgs, runtime: &Runtime) -> Result<()> {
     let mut errors = Errors::new();
 
-    let language = runtime
+    let language = args.language.to_lowercase();
+    let matches: Vec<Id> = runtime
         .languages()
         .iter()
-        .find(|(_, lang)| lang.name() == args.language)
-        .map(|(id, _)| id);
-    if language.is_none() {
-        errors.push(anyhow::anyhow!(
-            "Language {} is not a valid choice. Options include: {:?}",
-            args.language,
-            runtime
-                .languages()
-                .values()
-                .map(|lang| lang.name())
-                .collect::<Vec<_>>()
-        ));
-    }
+        .filter(|(_, (_, synonyms))| synonyms.contains(&language))
+        .map(|(id, _)| id)
+        .cloned()
+        .collect();
+    let language = if matches.len() == 1 {
+        matches.first()
+    } else {
+        errors.push(InvalidLanguageError {
+            language: args.language.clone(),
+            runtime: runtime.clone(),
+        });
+        None
+    };
 
     let directory = path.join(&args.name);
     if !path.is_dir() {
@@ -174,11 +176,39 @@ fn create(path: &Path, args: &CreateArgs, runtime: &Runtime) -> Result<()> {
         );
 
         if let Some(language) = language.cloned() {
-            errors.collect(runtime.create(&args.name, directory, language, Logging::Inherit));
+            errors.collect(runtime.create(&args.name, directory, language, Default::default()));
         }
     }
 
     errors.as_result()
+}
+
+#[derive(Display)]
+#[display("Language \"{language}\" is not a valid choice")]
+struct InvalidLanguageError {
+    language: String,
+    runtime: Runtime,
+}
+
+impl std::error::Error for InvalidLanguageError {}
+
+impl fmt::Debug for InvalidLanguageError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { language, runtime } = self;
+        write!(
+            f,
+            "Language \"{language}\" is not a valid choice. Options include:"
+        )?;
+
+        for (lang, synonyms) in runtime.languages().values() {
+            write!(f, "\n{}", lang.name())?;
+            if !synonyms.is_empty() {
+                write!(f, " ({})", synonyms.join(", "))?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 fn search(mut sources: Vec<Source>) -> Result<()> {

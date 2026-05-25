@@ -9,7 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use bevy_app::{PluginsState, SubApps, prelude::*};
+use bevy_app::{PluginsState, prelude::*};
 use bevy_asset::AssetPlugin;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
@@ -48,7 +48,7 @@ impl Host {
         let (ready_sender, ready_receiver) = mpsc::channel();
 
         // App cannot be moved between threads, but SubApps can be
-        let sub_apps = mem::replace(app.sub_apps_mut(), SubApps::default());
+        let sub_apps = mem::take(app.sub_apps_mut());
 
         let exit_clone = exit.clone();
         let join = thread::spawn(move || {
@@ -168,7 +168,7 @@ impl RunningHost {
 
     fn exit_inner(&mut self) -> World {
         self.exit.store(true, Ordering::Relaxed);
-        self.wait_inner(WAIT, true)
+        self.wait_inner(WAIT * 2, true)
     }
 
     fn wait_inner(&mut self, duration: Duration, last: bool) -> World {

@@ -47,10 +47,11 @@ impl Command {
 /// Logging mode for commands
 #[derive(Debug, Default, Clone)]
 pub enum Logging {
-    #[default]
+    #[cfg_attr(not(test), default)]
     Inherit,
-    Capture,
+    #[cfg_attr(test, default)]
     Ignore,
+    Capture,
 }
 
 impl Logging {

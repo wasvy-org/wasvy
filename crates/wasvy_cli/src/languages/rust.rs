@@ -152,14 +152,14 @@ fn get_name(path: &Path) -> Option<String> {
 }
 
 fn get_build_artifact(source: &Source) -> Result<Source> {
-    let name = source.name();
+    let name = source.name().replace("-", "_");
     let path = source.path();
     let file = build_directory(path)
         .with_context(|| format!("build_directory for path = {path:?}"))?
         .join("wasm32-wasip2")
         .join("release")
         .join(format!("{name}.wasm"));
-    Source::identify_file(&file, Some(name), source.runtime())
+    Source::identify_file(&file, Some(source.name()), source.runtime())
         .with_context(|| anyhow!("identifying build artifact {file:?}"))
 }
 

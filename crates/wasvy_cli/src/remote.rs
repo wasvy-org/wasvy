@@ -185,7 +185,7 @@ impl Remote {
     ) -> Result<()> {
         let mut errors = Errors::new();
 
-        // Build a list of built mod sources
+        // Build a list of mod sources
         let mut mods = Vec::new();
         for source in sources {
             let source = source.borrow();
@@ -213,14 +213,18 @@ impl Remote {
             .into_iter()
             .filter(|(path, _)| mods.iter().any(|(_, p)| path == p))
             .flat_map(|(_, ids)| ids.into_iter());
-        self.despawn(despawn)
-            .context("Despawning existing mods before loading new ones")?;
+        errors.collect(
+            self.despawn(despawn)
+                .context("Despawning existing mods before loading new ones"),
+        );
 
         let sources = mods.iter().map(|(source, _)| source);
-        self.spawn(sources, [Access::World], logging)
-            .context("Spawining loaded mods")?;
+        errors.collect(
+            self.spawn(sources, [Access::World], logging)
+                .context("Spawining loaded mods"),
+        );
 
-        Ok(())
+        errors.as_result()
     }
 
     pub fn unload(

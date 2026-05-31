@@ -1,0 +1,10 @@
+[workspace]
+host = "crates/game_host"
+api = "crates/game_api"
+
+[[module]]
+name = "counter"
+path = "crates/modules/counter"
+
+[world]
+modules = ["counter"]

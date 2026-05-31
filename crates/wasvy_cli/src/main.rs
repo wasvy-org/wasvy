@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use wasvy::workspace::parse_workspace_manifest;
 use wasvy_cli::{
+    dev::{load_dev_session, render_dev_plan, run_dev},
     remote::Remote,
     runtime::{Config, Runtime},
     source::Source,
@@ -9,13 +9,20 @@ use wasvy_cli::{
 
 fn main() {
     match parse_args(&std::env::args().skip(1).collect::<Vec<_>>()) {
-        Command::Dev { native, manifest } => match render_dev_plan(&manifest, native) {
-            Ok(plan) => println!("{plan}"),
-            Err(err) => {
+        Command::Dev { native, manifest } => {
+            if std::env::var_os("WASVY_DEV_PLAN_ONLY").is_some() {
+                match load_dev_session(&manifest) {
+                    Ok(session) => println!("{}", render_dev_plan(&session, native)),
+                    Err(err) => {
+                        eprintln!("{err:#}");
+                        std::process::exit(1);
+                    }
+                }
+            } else if let Err(err) = run_dev(&manifest, native) {
                 eprintln!("{err:#}");
                 std::process::exit(1);
             }
-        },
+        }
         Command::Remote => run_remote_workflow(),
     }
 }
@@ -45,28 +52,6 @@ fn parse_args(args: &[String]) -> Command {
     } else {
         Command::Remote
     }
-}
-
-fn render_dev_plan(manifest_path: &PathBuf, native: bool) -> anyhow::Result<String> {
-    let manifest = parse_workspace_manifest(manifest_path)?;
-    let mode = if native { "native" } else { "guest" };
-    let modules = manifest
-        .default_world
-        .active_modules
-        .iter()
-        .map(|id| id.as_str().to_string())
-        .collect::<Vec<_>>()
-        .join(", ");
-
-    Ok(format!(
-        "wasvy dev\nmode: {mode}\nmanifest: {}\nmodules: {}",
-        manifest_path.display(),
-        if modules.is_empty() {
-            "<none>"
-        } else {
-            &modules
-        }
-    ))
 }
 
 fn run_remote_workflow() {
@@ -141,11 +126,15 @@ mod tests {
     fn render_dev_plan_uses_manifest_modules() {
         let dir = std::env::temp_dir().join(format!("wasvy-cli-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).unwrap();
+        fs::create_dir_all(dir.join("crates/modules/combat/src")).unwrap();
+        fs::create_dir_all(dir.join("crates/game_host")).unwrap();
         let manifest = dir.join("wasvy.toml");
         fs::write(
             &manifest,
             r#"
+[workspace]
+host = "crates/game_host"
+
 [[module]]
 name = "combat"
 path = "crates/modules/combat"
@@ -155,8 +144,19 @@ modules = ["combat"]
 "#,
         )
         .unwrap();
+        fs::write(
+            dir.join("crates/game_host/Cargo.toml"),
+            "[package]\nname=\"host\"\nversion=\"0.1.0\"\nedition=\"2024\"\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.join("crates/modules/combat/Cargo.toml"),
+            "[package]\nname=\"combat\"\nversion=\"0.1.0\"\nedition=\"2024\"\n",
+        )
+        .unwrap();
 
-        let plan = render_dev_plan(&manifest, true).unwrap();
+        let session = load_dev_session(&manifest).unwrap();
+        let plan = render_dev_plan(&session, true);
         assert!(plan.contains("mode: native"));
         assert!(plan.contains("modules: combat"));
     }

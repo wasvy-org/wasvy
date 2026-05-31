@@ -1,0 +1,16 @@
+[package]
+name = "hot_reload_counter"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "counter"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+bevy_ecs.workspace = true
+bevy_reflect.workspace = true
+game_api.workspace = true
+serde.workspace = true
+wasvy.workspace = true
+wit-bindgen.workspace = true

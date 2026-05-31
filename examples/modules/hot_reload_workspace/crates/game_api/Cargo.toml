@@ -1,0 +1,9 @@
+[package]
+name = "hot_reload_game_api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bevy_ecs.workspace = true
+bevy_reflect.workspace = true
+serde.workspace = true

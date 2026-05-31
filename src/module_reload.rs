@@ -78,7 +78,7 @@ struct PreparedModuleReload {
 /// Asset-event-driven module reload entry point.
 ///
 /// Phase 1 behavior:
-/// - if a module asset loads (or the module component changes while the asset is present), queue a new generation
+/// - if a module asset loads (or a newly spawned module points at an already-loaded asset), queue a new generation
 /// - process queued reloads transactionally
 /// - preserve world state on success
 /// - keep the old generation active on failure
@@ -98,7 +98,8 @@ pub(crate) fn run_module_reload(world: &mut World, param: &mut SystemState<Modul
 
     let mut to_queue = Vec::new();
     for (entity, module, name) in modules.iter().filter(|(_, module, _)| {
-        module.is_changed() || loaded_assets.contains(&module.asset().id())
+        let asset_loaded_now = loaded_assets.contains(&module.asset().id());
+        asset_loaded_now || (module.is_added() && assets.get(module.asset().id()).is_some())
     }) {
         let asset_id = module.asset().id();
         if assets.get(asset_id).is_none() {
@@ -218,6 +219,24 @@ fn prepare_module_reload(
 }
 
 fn commit_module_reload(world: &mut World, prepared: PreparedModuleReload) -> Result<()> {
+    if let Some(module) = world.get::<Module>(prepared.module_entity) {
+        if module.active_content_hash() == Some(prepared.planned.content_hash) {
+            let generation = module
+                .active_generation()
+                .unwrap_or(prepared.new_generation);
+            let schema = module.active_schema().cloned().unwrap_or_default();
+            if let Some(mut module) = world.get_mut::<Module>(prepared.module_entity) {
+                module.activate_generation(
+                    generation,
+                    schema,
+                    prepared.planned.asset_version,
+                    prepared.planned.content_hash,
+                );
+            }
+            return Ok(());
+        }
+    }
+
     if let Some(module) = world.get::<Module>(prepared.module_entity)
         && let Some(active_schema) = module.active_schema()
     {
@@ -275,6 +294,8 @@ fn commit_module_reload(world: &mut World, prepared: PreparedModuleReload) -> Re
     module.activate_generation(
         prepared.new_generation,
         prepared.planned.schema_snapshot.clone(),
+        prepared.planned.asset_version,
+        prepared.planned.content_hash,
     );
 
     Ok(())
@@ -367,10 +388,11 @@ mod tests {
                 Handle::<ModAsset>::default(),
             ))
             .id();
+        let tick = world.change_tick();
         world
             .get_mut::<Module>(module_entity)
             .expect("module exists")
-            .activate_generation(ModuleGeneration(1), ModuleSchemaSnapshot::default());
+            .activate_generation(ModuleGeneration(1), ModuleSchemaSnapshot::default(), tick, 1);
 
         world
             .resource_mut::<ModuleReloadQueue>()
@@ -406,10 +428,11 @@ mod tests {
                 Handle::<ModAsset>::default(),
             ))
             .id();
+        let tick = world.change_tick();
         world
             .get_mut::<Module>(module_entity)
             .expect("module exists")
-            .activate_generation(ModuleGeneration(1), ModuleSchemaSnapshot::default());
+            .activate_generation(ModuleGeneration(1), ModuleSchemaSnapshot::default(), tick, 1);
 
         let preserved_entity = world.spawn_empty().id();
 
@@ -421,7 +444,8 @@ mod tests {
             new_generation: ModuleGeneration(2),
             accesses: vec![ModAccess::World],
             planned: PlannedModuleSystems {
-                asset_version: world.change_tick(),
+                asset_version: bevy_ecs::change_detection::Tick::new(world.change_tick().get() + 1),
+                content_hash: 2,
                 systems: crate::system::PlannedSystems::default(),
                 schema_snapshot: ModuleSchemaSnapshot::default(),
             },
@@ -438,6 +462,48 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_asset_event_does_not_bump_generation() {
+        let mut world = World::new();
+        world.insert_resource(ModSchedules::default());
+        world.init_resource::<Schedules>();
+
+        let module_entity = world
+            .spawn(Module::new(
+                ModuleId::new("combat"),
+                Handle::<ModAsset>::default(),
+            ))
+            .id();
+        let tick = world.change_tick();
+        world
+            .get_mut::<Module>(module_entity)
+            .expect("module exists")
+            .activate_generation(ModuleGeneration(1), ModuleSchemaSnapshot::default(), tick, 1);
+
+        let prepared = PreparedModuleReload {
+            module_entity,
+            asset_id: Handle::<ModAsset>::default().id(),
+            module_id: ModuleId::new("combat"),
+            old_generation: Some(ModuleGeneration(1)),
+            new_generation: ModuleGeneration(2),
+            accesses: vec![ModAccess::World],
+            planned: PlannedModuleSystems {
+                asset_version: tick,
+                content_hash: 1,
+                systems: crate::system::PlannedSystems::default(),
+                schema_snapshot: ModuleSchemaSnapshot::default(),
+            },
+        };
+
+        commit_module_reload(&mut world, prepared).expect("duplicate event is ignored");
+
+        let module = world
+            .get::<Module>(module_entity)
+            .expect("module still exists");
+        assert_eq!(module.active_generation(), Some(ModuleGeneration(1)));
+        assert_eq!(module.reload_status(), &ModuleReloadStatus::Active);
+    }
+
+    #[test]
     fn compatibility_failure_keeps_old_generation_active() {
         let mut world = World::new();
         world.insert_resource(ModSchedules::default());
@@ -449,6 +515,7 @@ mod tests {
                 Handle::<ModAsset>::default(),
             ))
             .id();
+        let tick = world.change_tick();
         world
             .get_mut::<Module>(module_entity)
             .expect("module exists")
@@ -458,6 +525,8 @@ mod tests {
                     type_path: "combat::State".to_string(),
                     fields: Some(vec!["value".to_string()]),
                 }]),
+                tick,
+                1,
             );
 
         let prepared = PreparedModuleReload {
@@ -468,7 +537,8 @@ mod tests {
             new_generation: ModuleGeneration(2),
             accesses: vec![ModAccess::World],
             planned: PlannedModuleSystems {
-                asset_version: world.change_tick(),
+                asset_version: bevy_ecs::change_detection::Tick::new(world.change_tick().get() + 1),
+                content_hash: 2,
                 systems: crate::system::PlannedSystems::default(),
                 schema_snapshot: ModuleSchemaSnapshot::from_type_schemas(vec![ModuleTypeSchema {
                     type_path: "combat::State".to_string(),

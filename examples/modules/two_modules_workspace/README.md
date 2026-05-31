@@ -21,16 +21,19 @@ Example **Wasvy Modules** workspace with:
 From the repo root:
 
 ```bash
-just run-two-modules-workspace
+cargo run -p wasvy_cli -- dev examples/modules/two_modules_workspace/wasvy.toml
 ```
 
-Equivalent manual steps:
+Or via `just`:
 
 ```bash
-cargo build --manifest-path examples/modules/two_modules_workspace/Cargo.toml --target wasm32-wasip2 -p two_modules_combat -p two_modules_ai
-mkdir -p examples/modules/two_modules_workspace/assets/modules
-cp examples/modules/two_modules_workspace/target/wasm32-wasip2/debug/combat.wasm examples/modules/two_modules_workspace/assets/modules/combat.wasm
-cp examples/modules/two_modules_workspace/target/wasm32-wasip2/debug/ai.wasm examples/modules/two_modules_workspace/assets/modules/ai.wasm
+just dev-two-modules-workspace
+```
+
+Lower-level manual build/stage steps are still available if you want to inspect the raw guest artifacts:
+
+```bash
+just build-two-modules-workspace-guests
 cargo run --manifest-path examples/modules/two_modules_workspace/crates/game_host/Cargo.toml
 ```
 
@@ -46,6 +49,7 @@ just run-two-modules-workspace-native
 - one Module Crate per Module with no parallel `*_guest` crates
 - the same module source running in guest and native modes
 - guest mode as the default run path for the example
+- `wasvy dev` building/staging guest artifacts and watching for module changes
 - manifest-driven guest activation by stable module name
 - one-time first-load initialization in guest and native paths
 - shared API state mutated by both modules in one shared world

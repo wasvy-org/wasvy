@@ -1,5 +1,6 @@
 use std::{
     fmt,
+    hash::{DefaultHasher, Hash, Hasher},
     path::{Path, PathBuf},
 };
 
@@ -27,6 +28,7 @@ use crate::{
 pub struct ModAsset {
     path: PathBuf,
     version: Option<Tick>,
+    content_hash: u64,
     instance_pre: InstancePre<WasmHost>,
 }
 
@@ -36,6 +38,7 @@ const ON_FIRST_LOAD: &str = "on-first-load";
 
 pub(crate) struct PlannedModuleSystems {
     pub(crate) asset_version: Tick,
+    pub(crate) content_hash: u64,
     pub(crate) systems: PlannedSystems,
     pub(crate) schema_snapshot: crate::modules::ModuleSchemaSnapshot,
 }
@@ -51,10 +54,13 @@ impl ModAsset {
 
         let component = Component::from_binary(loader.linker.engine(), &bytes)?;
         let instance_pre = loader.linker.instantiate_pre(&component)?;
+        let mut hasher = DefaultHasher::new();
+        bytes.hash(&mut hasher);
 
         Ok(Self {
             path: path.into(),
             version: None,
+            content_hash: hasher.finish(),
             instance_pre,
         })
     }
@@ -63,8 +69,12 @@ impl ModAsset {
         &self.path
     }
 
-    pub(crate) fn version(&self) -> Option<Tick> {
-        self.version
+    pub(crate) fn content_hash(&self) -> u64 {
+        self.content_hash
+    }
+
+    pub(crate) fn instance_pre(&self) -> InstancePre<WasmHost> {
+        self.instance_pre.clone()
     }
 
     /// Plans systems for the Wasvy Modules runtime by running the guest setup/registration function
@@ -88,6 +98,7 @@ impl ModAsset {
             }
         };
 
+        let content_hash = asset.content_hash();
         let instance_pre = asset.instance_pre.clone();
 
         let engine = world
@@ -119,6 +130,7 @@ impl ModAsset {
 
         Ok(PlannedModuleSystems {
             asset_version,
+            content_hash,
             systems,
             schema_snapshot,
         })
@@ -261,16 +273,17 @@ impl ModAsset {
         Ok(ran)
     }
 
-    pub(crate) fn run_system<'a>(
-        &self,
-        runner: &mut Runner,
-        name: &str,
-        config: ConfigRunSystem<'a>,
-        params: &[Val],
-    ) -> Result<()> {
-        let config = Config::RunSystem(config);
-        call(runner, &self.instance_pre, config, name, params, &mut [])
-    }
+}
+
+pub(crate) fn run_system_instance_pre<'a>(
+    instance_pre: &InstancePre<WasmHost>,
+    runner: &mut Runner,
+    name: &str,
+    config: ConfigRunSystem<'a>,
+    params: &[Val],
+) -> Result<()> {
+    let config = Config::RunSystem(config);
+    call(runner, instance_pre, config, name, params, &mut [])
 }
 
 #[derive(Debug)]

@@ -1,0 +1,10 @@
+[package]
+name = "hot_reload_game_host"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+bevy.workspace = true
+counter.workspace = true
+game_api.workspace = true
+wasvy.workspace = true

@@ -9,7 +9,7 @@
 use std::fmt;
 
 use bevy_asset::{AssetPath, AssetServer, Handle};
-use bevy_ecs::{prelude::*, reflect::AppTypeRegistry, system::SystemParam};
+use bevy_ecs::{change_detection::Tick, prelude::*, reflect::AppTypeRegistry, system::SystemParam};
 use bevy_platform::collections::HashSet;
 use bevy_reflect::{Reflect, TypeInfo};
 
@@ -106,6 +106,8 @@ pub struct Module {
     reload_status: ModuleReloadStatus,
     access: HashSet<ModAccess>,
     active_schema: Option<ModuleSchemaSnapshot>,
+    active_asset_version: Option<u32>,
+    active_content_hash: Option<u64>,
 }
 
 impl ModuleSchemaSnapshot {
@@ -226,6 +228,8 @@ impl Module {
             reload_status: ModuleReloadStatus::Pending,
             access,
             active_schema: None,
+            active_asset_version: None,
+            active_content_hash: None,
         }
     }
 
@@ -253,6 +257,14 @@ impl Module {
         self.active_schema.as_ref()
     }
 
+    pub fn active_asset_version(&self) -> Option<u32> {
+        self.active_asset_version
+    }
+
+    pub fn active_content_hash(&self) -> Option<u64> {
+        self.active_content_hash
+    }
+
     pub fn set_pending_generation(&mut self, generation: ModuleGeneration) {
         self.pending_generation = Some(generation);
         self.reload_status = ModuleReloadStatus::Pending;
@@ -262,11 +274,15 @@ impl Module {
         &mut self,
         generation: ModuleGeneration,
         schema: ModuleSchemaSnapshot,
+        asset_version: Tick,
+        content_hash: u64,
     ) {
         self.active_generation = Some(generation);
         self.pending_generation = None;
         self.reload_status = ModuleReloadStatus::Active;
         self.active_schema = Some(schema);
+        self.active_asset_version = Some(asset_version.get());
+        self.active_content_hash = Some(content_hash);
     }
 
     pub fn block_reload(&mut self, reason: ReloadBlockedReason) {

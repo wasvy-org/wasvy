@@ -12,12 +12,12 @@ use bevy_ecs::{
     world::{FilteredEntityMut, FilteredResourcesMut},
 };
 use bevy_log::prelude::*;
-use wasmtime::component::{Resource, Val};
+use wasmtime::component::{InstancePre, Resource, Val};
 use wasmtime_wasi::ResourceTable;
 
 use crate::{
     access::ModAccess,
-    asset::ModAsset,
+    asset::{ModAsset, run_system_instance_pre},
     bindings::wasvy::ecs::app::{QueryFor, Schedule},
     cleanup::InsertDespawnComponent,
     component::WasmComponentRegistry,
@@ -143,7 +143,7 @@ impl AddSystems {
         mod_id: Entity,
         mod_name: &str,
         asset_id: &AssetId<ModAsset>,
-        asset_version: &Tick,
+        _asset_version: &Tick,
         access: &ModAccess,
     ) -> Result<ScheduleConfigs<BoxedSystem>> {
         // The input struct contains various data used at runtime
@@ -151,11 +151,16 @@ impl AddSystems {
         let query_resolver = QueryResolver::new(&sys.params, world)?;
         let resource_resolver = ResourceResolver::new(&sys.params, world)?;
         let insert_despawn_component = InsertDespawnComponent::new(mod_id, world);
+        let instance_pre = world
+            .resource::<Assets<ModAsset>>()
+            .get(*asset_id)
+            .expect("mod asset exists while registering systems")
+            .instance_pre();
         let input = Input {
             mod_name: mod_name.to_string(),
             system_name: sys.name.clone(),
             asset_id: *asset_id,
-            asset_version: *asset_version,
+            instance_pre,
             built_params,
             query_resolver,
             resource_resolver,
@@ -207,7 +212,7 @@ struct Input {
     mod_name: String,
     system_name: String,
     asset_id: AssetId<ModAsset>,
-    asset_version: Tick,
+    instance_pre: InstancePre<crate::host::WasmHost>,
     built_params: Vec<BuiltParam>,
     query_resolver: QueryResolver,
     resource_resolver: ResourceResolver,
@@ -242,10 +247,7 @@ fn dynamic_system(
         return Ok(());
     };
 
-    // Skip mismatching system versions
-    if asset.version() != Some(input.asset_version) {
-        return Ok(());
-    }
+    let _ = asset;
 
     let mut runner = Runner::new(&engine);
     initialize_params(&mut params, &input.built_params, &mut runner)?;
@@ -254,7 +256,8 @@ fn dynamic_system(
         "Running system \"{}\" from \"{}\"",
         input.system_name, input.mod_name
     );
-    asset.run_system(
+    run_system_instance_pre(
+        &input.instance_pre,
         &mut runner,
         &input.system_name,
         ConfigRunSystem {

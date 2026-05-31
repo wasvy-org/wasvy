@@ -121,12 +121,14 @@ path = "crates/modules/combat"
 modules = ["combat"]
 ```
 
-The CLI now understands this manifest via:
+The CLI now uses this manifest to drive the guest workflow:
 
 ```bash
 wasvy dev
 wasvy dev --native
 ```
+
+In guest mode, `wasvy dev` builds the active module crates for `wasm32-wasip2`, stages them into `assets/modules/{module-name}.wasm`, runs the host with asset watching enabled, and rebuilds/restages module artifacts when module code changes.
 
 ## Creating Mods
 
@@ -281,7 +283,8 @@ Hint: The binary must be in your game's assets library for it to be visible to B
 
 ### Wasvy Modules
 
-- [**Two Modules Workspace**](examples/modules/two_modules_workspace): a full workspace example with one host crate, one shared API crate, and two Wasvy Module crates (`combat` and `ai`) wired through `wasvy.toml` and generated native adapters.
+- [**Two Modules Workspace**](examples/modules/two_modules_workspace): a full workspace example with one host crate, one shared API crate, and two Wasvy Module crates (`combat` and `ai`) wired through `wasvy.toml`, generated native adapters, and `wasvy dev` guest workflow support.
+- [**Hot Reload Workspace**](examples/modules/hot_reload_workspace): a focused Wasvy Modules demo for `wasvy dev`, showing auto rebuild/restage plus preserve-state guest hot reload when a module crate changes.
 
 ### Apps
 

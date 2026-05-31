@@ -12,7 +12,13 @@ pub(crate) struct Engine(wasmtime::Engine);
 
 impl Engine {
     pub(crate) fn new() -> Self {
-        let engine = wasmtime::Engine::default();
+        let mut config = wasmtime::Config::new();
+        config.cache(Some(wasmtime::Cache::from_file(None).unwrap()));
+        config.strategy(wasmtime::Strategy::Winch);
+
+        config.parallel_compilation(true);
+
+        let engine = wasmtime::Engine::new(&config).unwrap();
         Self(engine)
     }
 

@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "crates/game_api",
+    "crates/game_host",
+    "crates/modules/counter",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+bevy = "0.18.0"
+bevy_ecs = "0.18.0"
+bevy_reflect = "0.18.0"
+serde = { version = "1.0", features = ["derive"] }
+wit-bindgen = "0.50.0"
+wasvy = { path = "../../.." }
+game_api = { path = "crates/game_api", package = "hot_reload_game_api" }
+counter = { path = "crates/modules/counter", package = "hot_reload_counter" }

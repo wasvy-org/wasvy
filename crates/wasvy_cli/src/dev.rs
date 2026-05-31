@@ -24,6 +24,15 @@ const DEBOUNCE_WINDOW: Duration = Duration::from_millis(250);
 const HOST_EXIT_POLL: Duration = Duration::from_millis(100);
 const STATUS_SPINNER_INTERVAL: Duration = Duration::from_millis(80);
 const STATUS_SPINNER_FRAMES: [&str; 8] = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
+const ANSI_RESET: &str = "\x1b[0m";
+const ANSI_BOLD: &str = "\x1b[1m";
+const ANSI_DIM: &str = "\x1b[2m";
+const ANSI_CYAN: &str = "\x1b[36m";
+const ANSI_BLUE: &str = "\x1b[34m";
+const ANSI_GREEN: &str = "\x1b[32m";
+const ANSI_YELLOW: &str = "\x1b[33m";
+const ANSI_MAGENTA: &str = "\x1b[35m";
+const ANSI_RED: &str = "\x1b[31m";
 
 #[derive(Debug, Clone)]
 pub struct DevSession {
@@ -62,6 +71,7 @@ struct ReloadTracker {
     modules: BTreeSet<String>,
     waiting_for_swap: BTreeSet<String>,
     phase: ReloadPhase,
+    started_at: Instant,
 }
 
 impl ReloadTracker {
@@ -70,6 +80,7 @@ impl ReloadTracker {
             waiting_for_swap: modules.clone(),
             modules,
             phase: ReloadPhase::Building,
+            started_at: Instant::now(),
         }
     }
 
@@ -94,23 +105,47 @@ impl ReloadTracker {
         self.modules.iter().cloned().collect::<Vec<_>>().join(", ")
     }
 
-    fn status_line(&self) -> String {
+    fn phase_emoji(&self) -> &'static str {
         match self.phase {
-            ReloadPhase::Building => format!(
-                "wasvy dev | reloading {} | building guest module(s)",
-                self.label()
-            ),
-            ReloadPhase::Staging => format!(
-                "wasvy dev | reloading {} | staging guest module artifact(s)",
-                self.label()
-            ),
+            ReloadPhase::Building => "🔨",
+            ReloadPhase::Staging => "📦",
+            ReloadPhase::WaitingForSwap => "🔄",
+        }
+    }
+
+    fn phase_color(&self) -> &'static str {
+        match self.phase {
+            ReloadPhase::Building => ANSI_YELLOW,
+            ReloadPhase::Staging => ANSI_BLUE,
+            ReloadPhase::WaitingForSwap => ANSI_MAGENTA,
+        }
+    }
+
+    fn phase_text(&self) -> String {
+        match self.phase {
+            ReloadPhase::Building => "building guest module(s)".to_string(),
+            ReloadPhase::Staging => "staging guest module artifact(s)".to_string(),
             ReloadPhase::WaitingForSwap => format!(
-                "wasvy dev | reloading {} | waiting for host swap ({}/{})",
-                self.label(),
+                "waiting for host swap ({}/{})",
                 self.modules.len().saturating_sub(self.waiting_for_swap.len()),
                 self.modules.len(),
             ),
         }
+    }
+
+    fn elapsed_secs(&self) -> f32 {
+        self.started_at.elapsed().as_secs_f32()
+    }
+
+    fn status_line(&self) -> String {
+        format!(
+            "{ANSI_BOLD}{ANSI_CYAN}wasvy dev{ANSI_RESET} {ANSI_DIM}│{ANSI_RESET} {} {color}reloading{ANSI_RESET} {ANSI_BOLD}{}{ANSI_RESET} {ANSI_DIM}│{ANSI_RESET} {color}{}{ANSI_RESET} {ANSI_DIM}│{ANSI_RESET} ⏱ {ANSI_BOLD}{:.1}s{ANSI_RESET}",
+            self.phase_emoji(),
+            self.label(),
+            self.phase_text(),
+            self.elapsed_secs(),
+            color = self.phase_color(),
+        )
     }
 }
 
@@ -137,11 +172,27 @@ impl AnimatedStatusLine {
         }
     }
 
+    fn set_message(&mut self, message: String) {
+        self.message = message;
+    }
+
+    fn spinner_color(&self) -> &'static str {
+        match self.frame_index % 4 {
+            0 => ANSI_CYAN,
+            1 => ANSI_BLUE,
+            2 => ANSI_MAGENTA,
+            _ => ANSI_GREEN,
+        }
+    }
+
     fn rendered(&self) -> String {
         format!(
-            "{} {}",
+            "{}{}{} {}{}",
+            self.spinner_color(),
             STATUS_SPINNER_FRAMES[self.frame_index],
-            self.message
+            ANSI_RESET,
+            self.message,
+            ANSI_RESET,
         )
     }
 
@@ -181,6 +232,18 @@ impl DevTerminal {
 
     fn set_status_line(&mut self, line: Option<String>) {
         self.status_line = line.map(AnimatedStatusLine::new);
+        let mut stdout = io::stdout().lock();
+        self.redraw_status(&mut stdout);
+        let _ = stdout.flush();
+    }
+
+    fn update_status_line(&mut self, line: impl Into<String>) {
+        let line = line.into();
+        match self.status_line.as_mut() {
+            Some(status_line) => status_line.set_message(line),
+            None => self.status_line = Some(AnimatedStatusLine::new(line)),
+        }
+
         let mut stdout = io::stdout().lock();
         self.redraw_status(&mut stdout);
         let _ = stdout.flush();
@@ -287,6 +350,7 @@ pub fn run_dev(manifest_path: impl AsRef<Path>, native: bool) -> Result<()> {
     terminal.println("watching for changes...");
 
     loop {
+        refresh_reload_status_line(&mut terminal, &reload_tracker);
         drain_host_output(&mut host, &mut terminal, &mut reload_tracker);
 
         if let Some(status) = host.try_wait()? {
@@ -301,6 +365,7 @@ pub fn run_dev(manifest_path: impl AsRef<Path>, native: bool) -> Result<()> {
             Ok(event) => event?,
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 terminal.tick_status_line();
+                refresh_reload_status_line(&mut terminal, &reload_tracker);
                 continue;
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
@@ -349,7 +414,7 @@ pub fn run_dev(manifest_path: impl AsRef<Path>, native: bool) -> Result<()> {
 
         if !reload_modules.is_empty() {
             reload_tracker = Some(ReloadTracker::building(reload_modules));
-            terminal.set_status_line(reload_tracker.as_ref().map(ReloadTracker::status_line));
+            refresh_reload_status_line(&mut terminal, &reload_tracker);
         }
 
         if changes.rebuild_all_guest_modules {
@@ -397,7 +462,7 @@ pub fn run_dev(manifest_path: impl AsRef<Path>, native: bool) -> Result<()> {
             && let Some(reload) = reload_tracker.as_mut()
         {
             reload.waiting_for_swap();
-            terminal.set_status_line(Some(reload.status_line()));
+            refresh_reload_status_line(&mut terminal, &reload_tracker);
         }
 
         if changes.restart_host {
@@ -485,6 +550,8 @@ fn rebuild_and_stage_modules(
     let mut command = Command::new("cargo");
     command
         .arg("build")
+        .arg("--color")
+        .arg("always")
         .arg("--manifest-path")
         .arg(&workspace_cargo)
         .arg("--target")
@@ -493,6 +560,8 @@ fn rebuild_and_stage_modules(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    command.env("CARGO_TERM_COLOR", "always");
+    command.env("CLICOLOR_FORCE", "1");
 
     for spec in specs {
         command.arg("-p").arg(&spec.package_name);
@@ -511,7 +580,7 @@ fn rebuild_and_stage_modules(
 
     if let Some(reload_tracker) = reload_tracker.as_mut() {
         reload_tracker.staging();
-        terminal.set_status_line(Some(reload_tracker.status_line()));
+        terminal.update_status_line(reload_tracker.status_line());
     }
     if let Some(host) = host.as_deref_mut() {
         drain_host_output(host, terminal, reload_tracker);
@@ -671,6 +740,7 @@ fn run_command_with_terminal_output(
     drop(tx);
 
     loop {
+        refresh_reload_status_line(terminal, reload_tracker);
         if let Some(host) = host.as_deref_mut() {
             drain_host_output(host, terminal, reload_tracker);
         }
@@ -678,12 +748,14 @@ fn run_command_with_terminal_output(
         match rx.recv_timeout(HOST_EXIT_POLL) {
             Ok(line) => {
                 terminal.println(line);
+                refresh_reload_status_line(terminal, reload_tracker);
                 if let Some(host) = host.as_deref_mut() {
                     drain_host_output(host, terminal, reload_tracker);
                 }
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 terminal.tick_status_line();
+                refresh_reload_status_line(terminal, reload_tracker);
                 if let Some(status) = child.try_wait().context("failed to poll command")? {
                     while let Ok(line) = rx.try_recv() {
                         terminal.println(line);
@@ -702,6 +774,15 @@ fn run_command_with_terminal_output(
                 return Ok(status);
             }
         }
+    }
+}
+
+fn refresh_reload_status_line(
+    terminal: &mut DevTerminal,
+    reload_tracker: &Option<ReloadTracker>,
+) {
+    if let Some(reload_tracker) = reload_tracker.as_ref() {
+        terminal.update_status_line(reload_tracker.status_line());
     }
 }
 
@@ -733,11 +814,14 @@ fn handle_host_output_line(
             reload.mark_complete(&module);
             if reload.is_complete() {
                 let label = reload.label();
+                let elapsed_secs = reload.elapsed_secs();
                 terminal.set_status_line(None);
-                terminal.println(format!("reload complete: {label}"));
+                terminal.println(format!(
+                    "{ANSI_GREEN}✅ reload complete{ANSI_RESET} {ANSI_DIM}│{ANSI_RESET} {ANSI_BOLD}{label}{ANSI_RESET} {ANSI_DIM}│{ANSI_RESET} ⏱ {ANSI_BOLD}{elapsed_secs:.1}s{ANSI_RESET}"
+                ));
                 *reload_tracker = None;
             } else {
-                terminal.set_status_line(Some(reload.status_line()));
+                refresh_reload_status_line(terminal, reload_tracker);
             }
         }
         Some(HostReloadSignal::ModuleReloadFailed)
@@ -750,7 +834,9 @@ fn handle_host_output_line(
             }
 
             terminal.set_status_line(None);
-            terminal.println("reload failed; see host output above");
+            terminal.println(format!(
+                "{ANSI_RED}❌ reload failed{ANSI_RESET} {ANSI_DIM}│{ANSI_RESET} see host output above"
+            ));
             *reload_tracker = None;
         }
         None => terminal.println(line),
@@ -811,6 +897,8 @@ impl HostProcess {
         let mut command = Command::new("cargo");
         command
             .arg("run")
+            .arg("--color")
+            .arg("always")
             .arg("--manifest-path")
             .arg(&session.host_manifest_path)
             .current_dir(&session.manifest.root)
@@ -824,6 +912,9 @@ impl HostProcess {
             Err(_) => "info,bevy_asset::server=warn".to_string(),
         };
         command.env("RUST_LOG", rust_log);
+        command.env("CARGO_TERM_COLOR", "always");
+        command.env("CLICOLOR_FORCE", "1");
+        command.env("RUST_LOG_STYLE", "always");
 
         if !native {
             command.arg("--features").arg("bevy/file_watcher");

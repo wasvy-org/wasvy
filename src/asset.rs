@@ -5,18 +5,21 @@ use std::{
 
 use anyhow::{Context, Result, anyhow};
 use bevy_asset::{Asset, AssetId, AssetLoader, Assets, LoadContext, io::Reader};
-use bevy_ecs::{change_detection::Tick, prelude::*};
 use bevy_reflect::TypePath;
 use wasmtime::component::{Component, InstancePre, Val};
+
+use bevy_ecs::{change_detection::Tick, prelude::*, reflect::AppTypeRegistry, world::CommandQueue};
 
 use crate::{
     access::ModAccess,
     cleanup::DespawnModEntities,
+    component::WasmComponentRegistry,
     engine::{Engine, Linker},
-    host::{WasmApp, WasmHost},
+    host::{WasmApp, WasmCommands, WasmHost},
     mods::ModDespawnBehaviour,
-    runner::{Config, ConfigRunSystem, ConfigSetup, Runner},
-    system::AddSystems,
+    runner::{Config, ConfigInit, ConfigRunSystem, ConfigSetup, Runner},
+    serialize::CodecResource,
+    system::{AddSystems, PlannedSystems},
 };
 
 /// An asset representing a loaded wasvy Mod
@@ -28,6 +31,14 @@ pub struct ModAsset {
 }
 
 const SETUP: &str = "setup";
+const REGISTER: &str = "register";
+const ON_FIRST_LOAD: &str = "on-first-load";
+
+pub(crate) struct PlannedModuleSystems {
+    pub(crate) asset_version: Tick,
+    pub(crate) systems: PlannedSystems,
+    pub(crate) schema_snapshot: crate::modules::ModuleSchemaSnapshot,
+}
 
 impl ModAsset {
     pub(crate) async fn new(
@@ -54,6 +65,63 @@ impl ModAsset {
 
     pub(crate) fn version(&self) -> Option<Tick> {
         self.version
+    }
+
+    /// Plans systems for the Wasvy Modules runtime by running the guest setup/registration function
+    /// without performing mod-style entity cleanup.
+    pub(crate) fn plan_systems(
+        world: &mut World,
+        asset_id: &AssetId<ModAsset>,
+    ) -> Result<PlannedModuleSystems> {
+        let change_tick = world.change_tick();
+
+        let mut assets = world
+            .get_resource_mut::<Assets<Self>>()
+            .expect("ModAssets be registered");
+        let asset = assets.get_mut(*asset_id).ok_or(AssetNotFound)?;
+
+        let asset_version = match asset.version {
+            Some(version) => version,
+            None => {
+                asset.version = Some(change_tick);
+                change_tick
+            }
+        };
+
+        let instance_pre = asset.instance_pre.clone();
+
+        let engine = world
+            .get_resource::<Engine>()
+            .expect("Engine should never be removed from world");
+
+        let mut runner = Runner::new(engine);
+        let mut systems = AddSystems::default();
+        let config = Config::Setup(ConfigSetup {
+            world,
+            add_systems: &mut systems,
+        });
+
+        let app = runner.new_resource(WasmApp).expect("Table has space left");
+        call_first_available(
+            &mut runner,
+            &instance_pre,
+            config,
+            &[REGISTER, SETUP],
+            &[Val::Resource(app)],
+            &mut [],
+        )?;
+
+        let systems = systems.into_planned(runner.table())?;
+        let schema_snapshot = crate::modules::ModuleSchemaSnapshot::from_type_paths(
+            world,
+            systems.referenced_type_paths(),
+        );
+
+        Ok(PlannedModuleSystems {
+            asset_version,
+            systems,
+            schema_snapshot,
+        })
     }
 
     /// Initiates mods by running their "setup" function
@@ -136,11 +204,68 @@ impl ModAsset {
         Ok(())
     }
 
-    pub(crate) fn run_system<'a, 'b, 'c, 'd, 'e, 'f, 'g>(
+    pub(crate) fn run_first_load(
+        world: &mut World,
+        asset_id: &AssetId<ModAsset>,
+        access: ModAccess,
+    ) -> Result<bool> {
+        let instance_pre = {
+            let assets = world
+                .get_resource::<Assets<Self>>()
+                .expect("ModAssets be registered");
+            let asset = assets.get(*asset_id).ok_or(AssetNotFound)?;
+            asset.instance_pre.clone()
+        };
+
+        let engine = world
+            .get_resource::<Engine>()
+            .expect("Engine should never be removed from world");
+        let type_registry = world
+            .get_resource::<AppTypeRegistry>()
+            .expect("AppTypeRegistry initialized");
+        let codec = world
+            .get_resource::<CodecResource>()
+            .expect("CodecResource initialized");
+        let wasm_registry = world
+            .get_resource::<WasmComponentRegistry>()
+            .expect("WasmComponentRegistry initialized");
+
+        let mut command_queue = CommandQueue::default();
+        let mut commands = Commands::new(&mut command_queue, world);
+        let mut runner = Runner::new(engine);
+        let commands_resource = runner
+            .new_resource(WasmCommands)
+            .expect("Table has space left");
+
+        let ran = call_optional(
+            &mut runner,
+            &instance_pre,
+            Config::Init(ConfigInit {
+                commands: &mut commands,
+                type_registry,
+                codec,
+                wasm_registry,
+                access,
+                insert_despawn_component: crate::cleanup::InsertDespawnComponent(None),
+            }),
+            ON_FIRST_LOAD,
+            &[Val::Resource(commands_resource)],
+            &mut [],
+        )?;
+
+        drop(commands);
+        if ran {
+            command_queue.apply(world);
+        }
+
+        Ok(ran)
+    }
+
+    pub(crate) fn run_system<'a>(
         &self,
         runner: &mut Runner,
         name: &str,
-        config: ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g>,
+        config: ConfigRunSystem<'a>,
         params: &[Val],
     ) -> Result<()> {
         let config = Config::RunSystem(config);
@@ -176,10 +301,74 @@ fn call(
             .get_func(&mut store, name)
             .ok_or(anyhow!("Missing {name} function"))?;
 
-        func.call(&mut store, params, results)
-            .context("Failed to run the desired wasm function")?;
+        if let Err(err) = func.call(&mut store, params, results) {
+            return Err(anyhow!(
+                "Failed to run the desired wasm function `{name}`: {err:#}"
+            ));
+        }
 
         Ok(())
+    })
+}
+
+fn call_first_available(
+    runner: &mut Runner,
+    instance_pre: &InstancePre<WasmHost>,
+    config: Config,
+    names: &[&str],
+    params: &[Val],
+    results: &mut [Val],
+) -> Result<()> {
+    runner.use_store(config, move |mut store| {
+        let instance = instance_pre
+            .instantiate(&mut store)
+            .context("Failed to instantiate component")?;
+
+        let Some((name, func)) = names.iter().find_map(|name| {
+            instance
+                .get_func(&mut store, name)
+                .map(|func| (*name, func))
+        }) else {
+            return Err(anyhow!(
+                "Missing registration export; expected one of {}",
+                names.join(", ")
+            ));
+        };
+
+        if let Err(err) = func.call(&mut store, params, results) {
+            return Err(anyhow!(
+                "Failed to run the desired wasm function `{name}`: {err:#}"
+            ));
+        }
+
+        Ok(())
+    })
+}
+
+fn call_optional(
+    runner: &mut Runner,
+    instance_pre: &InstancePre<WasmHost>,
+    config: Config,
+    name: &str,
+    params: &[Val],
+    results: &mut [Val],
+) -> Result<bool> {
+    runner.use_store(config, move |mut store| {
+        let instance = instance_pre
+            .instantiate(&mut store)
+            .context("Failed to instantiate component")?;
+
+        let Some(func) = instance.get_func(&mut store, name) else {
+            return Ok(false);
+        };
+
+        if let Err(err) = func.call(&mut store, params, results) {
+            return Err(anyhow!(
+                "Failed to run the desired wasm function `{name}`: {err:#}"
+            ));
+        }
+
+        Ok(true)
     })
 }
 

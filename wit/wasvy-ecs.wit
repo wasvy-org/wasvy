@@ -58,6 +58,12 @@ interface app {
 		/// Adds a query system-param
 		add-query: func(query: list<query-for>);
 
+		/// Adds a read-only resource system-param
+		add-res: func(type-path: type-path);
+
+		/// Adds a mutable resource system-param
+		add-res-mut: func(type-path: type-path);
+
 		/// Schedules this system be run after another system
 		after: func(other: borrow<system>);
 
@@ -81,6 +87,12 @@ interface app {
 		/// Spawns a new `entity` with the given components
 		/// and returns the entity's corresponding `entity-commands`.
 		spawn: func(bundle: bundle) -> entity-commands;
+
+		/// Queues insertion or replacement of a resource.
+		insert-resource: func(type-path: type-path, value: serialized-component);
+
+		/// Queues removal of a resource if present.
+		remove-resource: func(type-path: type-path);
 
 		/// Returns the `entity-commands` for the given `entity`.
 		///
@@ -156,6 +168,17 @@ interface app {
 		///
 		/// `params` must be a JSON array string. The return value is JSON.
 		invoke: func(method: string, params: serialized-component) -> serialized-component;
+	}
+
+	/// A resource system param.
+	resource world-resource {
+		/// Gets the value of a resource.
+		get: func() -> serialized-component;
+
+		/// Sets the value of a resource.
+		///
+		/// Traps if this resource was not declared as mutable.
+		set: func(value: serialized-component);
 	}
 
 	/// A fully-qualified type name

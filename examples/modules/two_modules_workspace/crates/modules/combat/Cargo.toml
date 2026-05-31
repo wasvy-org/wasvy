@@ -1,0 +1,16 @@
+[package]
+name = "two_modules_combat"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "combat"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+bevy_ecs.workspace = true
+bevy_reflect.workspace = true
+game_api.workspace = true
+serde.workspace = true
+wasvy.workspace = true
+wit-bindgen.workspace = true

@@ -1,0 +1,14 @@
+[workspace]
+host = "crates/game_host"
+api = "crates/game_api"
+
+[[module]]
+name = "combat"
+path = "crates/modules/combat"
+
+[[module]]
+name = "ai"
+path = "crates/modules/ai"
+
+[world]
+modules = ["combat", "ai"]

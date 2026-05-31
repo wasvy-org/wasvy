@@ -21,7 +21,12 @@
 
 ## Overview
 
-Wasvy is an experimental Bevy modding engine, enabling the execution of WebAssembly (WASM) binaries within Bevy applications. It's powered by WebAssembly System Interface (WASI), enabling full access to the Bevy ECS, network, filesystem, system clock and more!
+Wasvy now exposes two distinct product surfaces:
+
+- **Wasvy Modules**: internal Rust-first modular game development with preserve-state hot reload, crate-root `wasvy::module!`, `#[wasvy::system(...)]`, `#[wasvy::on_first_load]`, and generated native adapters.
+- **Mods**: the public externally authored WASM add-on workflow documented below.
+
+Wasvy is an experimental Bevy runtime for loading gameplay code through WebAssembly (WASM) while also supporting an internal modular workflow. It's powered by WebAssembly System Interface (WASI), enabling full access to the Bevy ECS, network, filesystem, system clock and more!
 
 ## Features
 
@@ -51,21 +56,76 @@ cargo add wasvy
 
 ## Quick Start
 
+### Wasvy Modules
+
 ```rust,ignore
 use bevy::prelude::*;
-use bevy::{DefaultPlugins, app::App};
-
-// Get started by importing the prelude
 use wasvy::prelude::*;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        // Adding the [`ModLoaderPlugin`] is all you need 😉
-        // Optionally, enable the devtools for CLI access ⚡
+        .add_plugins(WasvyWorkspacePlugin::new("wasvy.toml").with_modules(["combat"]))
+        .add_plugins(combat::NativeAdapterPlugin)
+        .run();
+}
+```
+
+```rust,ignore
+use bevy::prelude::*;
+
+wasvy::module! {
+    name: "combat"
+}
+
+#[wasvy::on_first_load]
+fn init(mut commands: Commands) {
+    commands.insert_resource(CombatState::default());
+}
+
+#[wasvy::system(Update)]
+fn tick(mut state: ResMut<CombatState>) {
+    state.frame += 1;
+}
+```
+
+### Mods
+
+```rust,ignore
+use bevy::prelude::*;
+use bevy::{DefaultPlugins, app::App};
+use wasvy::prelude::*;
+
+fn main() {
+    App::new()
+        .add_plugins(DefaultPlugins)
         .add_plugins(ModLoaderPlugin::default().devtools("My moddable Bevy app"))
         .run();
 }
+```
+
+## Wasvy Modules Workspace
+
+A minimal `wasvy.toml` looks like:
+
+```toml
+[workspace]
+host = "crates/game_host"
+api = "crates/game_api"
+
+[[module]]
+name = "combat"
+path = "crates/modules/combat"
+
+[world]
+modules = ["combat"]
+```
+
+The CLI now understands this manifest via:
+
+```bash
+wasvy dev
+wasvy dev --native
 ```
 
 ## Creating Mods
@@ -218,6 +278,10 @@ Hint: The binary must be in your game's assets library for it to be visible to B
 - The WIT registry at [WebAssembly Components Registry](https://wa.dev/) contains many useful interfaces
 
 ## Examples
+
+### Wasvy Modules
+
+- [**Two Modules Workspace**](examples/modules/two_modules_workspace): a full workspace example with one host crate, one shared API crate, and two Wasvy Module crates (`combat` and `ai`) wired through `wasvy.toml` and generated native adapters.
 
 ### Apps
 

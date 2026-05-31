@@ -16,6 +16,7 @@ mod entity;
 mod entity_commands;
 mod query;
 mod query_result;
+mod resource;
 mod serialize;
 mod system;
 
@@ -26,6 +27,7 @@ pub use entity::*;
 pub use entity_commands::*;
 pub use query::*;
 pub use query_result::*;
+pub use resource::*;
 pub use serialize::*;
 pub use system::*;
 

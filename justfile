@@ -63,6 +63,30 @@ build-wasvy-ecs:
 publish-wasvy-ecs file_path version:
 	wkg publish --package wasvy:ecs@{{version}} {{file_path}} --registry wa.dev
 
+# Run the Wasvy Modules runtime prototype.
+[group("prototypes")]
+prototype-wasvy-modules:
+	cargo run --example wasvy_modules_runtime_prototype
+
+# Build guest artifacts for the two-module Wasvy Modules workspace example.
+[group("examples")]
+build-two-modules-workspace-guests:
+	cargo build --manifest-path examples/modules/two_modules_workspace/Cargo.toml --target wasm32-wasip2 -p two_modules_combat -p two_modules_ai
+	mkdir -p examples/modules/two_modules_workspace/assets/modules
+	cp examples/modules/two_modules_workspace/target/wasm32-wasip2/debug/combat.wasm examples/modules/two_modules_workspace/assets/modules/combat.wasm
+	cp examples/modules/two_modules_workspace/target/wasm32-wasip2/debug/ai.wasm examples/modules/two_modules_workspace/assets/modules/ai.wasm
+
+# Run the two-module Wasvy Modules workspace example in guest mode.
+[group("examples")]
+run-two-modules-workspace:
+	just build-two-modules-workspace-guests
+	cargo run --manifest-path examples/modules/two_modules_workspace/crates/game_host/Cargo.toml
+
+# Run the two-module Wasvy Modules workspace example in native mode.
+[group("examples")]
+run-two-modules-workspace-native:
+	cargo run --manifest-path examples/modules/two_modules_workspace/crates/game_host/Cargo.toml -- --native
+
 # Replace the existing (1.92.0) rust toolchain version with a new one.
 [group("chores")]
 [arg("new", pattern="^\\d+\\.\\d+\\.\\d+$")]

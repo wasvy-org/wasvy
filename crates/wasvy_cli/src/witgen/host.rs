@@ -63,6 +63,27 @@ impl bindings::HostComponent for Host {
     }
 }
 
+impl bindings::HostWorldResource for Host {
+    fn get(
+        &mut self,
+        _: Resource<bindings::WorldResource>,
+    ) -> Result<bindings::SerializedComponent> {
+        bail!("Unexpected call to WorldResource::get");
+    }
+
+    fn set(
+        &mut self,
+        _: Resource<bindings::WorldResource>,
+        _: bindings::SerializedComponent,
+    ) -> Result<()> {
+        bail!("Unexpected call to WorldResource::set");
+    }
+
+    fn drop(&mut self, _: Resource<bindings::WorldResource>) -> Result<()> {
+        bail!("Unexpected call to WorldResource::drop");
+    }
+}
+
 impl bindings::HostCommands for Host {
     fn entity(
         &mut self,
@@ -74,6 +95,19 @@ impl bindings::HostCommands for Host {
 
     fn drop(&mut self, _: Resource<bindings::Commands>) -> Result<()> {
         bail!("Unexpected call to Commands::drop");
+    }
+
+    fn insert_resource(
+        &mut self,
+        _: Resource<bindings::Commands>,
+        _: String,
+        _: bindings::SerializedComponent,
+    ) -> Result<()> {
+        bail!("Unexpected call to Commands::insert_resource");
+    }
+
+    fn remove_resource(&mut self, _: Resource<bindings::Commands>, _: String) -> Result<()> {
+        bail!("Unexpected call to Commands::remove_resource");
     }
 
     fn spawn(

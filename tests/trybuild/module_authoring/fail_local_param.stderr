@@ -1,0 +1,19 @@
+error: unsupported Wasvy Module parameter; supported params are Commands, Query<...>, Res<T>, and ResMut<T>
+ --> tests/trybuild/module_authoring/fail_local_param.rs:9:23
+  |
+9 | fn bad_system(_local: Local<u32>) {}
+  |                       ^^^^^^^^^^
+
+warning: unused import: `bevy_app::Update`
+ --> tests/trybuild/module_authoring/fail_local_param.rs:1:5
+  |
+1 | use bevy_app::Update;
+  |     ^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `bevy_ecs::prelude::*`
+ --> tests/trybuild/module_authoring/fail_local_param.rs:2:5
+  |
+2 | use bevy_ecs::prelude::*;
+  |     ^^^^^^^^^^^^^^^^^^^^

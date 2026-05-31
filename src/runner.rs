@@ -1,7 +1,7 @@
 use std::ptr::NonNull;
 
 use anyhow::Result;
-use bevy_ecs::{prelude::*, reflect::AppTypeRegistry, world::FilteredEntityMut};
+use bevy_ecs::{prelude::*, reflect::AppTypeRegistry, world::FilteredResourcesMut};
 use wasmtime::component::ResourceAny;
 use wasmtime_wasi::ResourceTable;
 
@@ -13,6 +13,7 @@ use crate::{
     host::WasmHost,
     methods::FunctionIndex,
     query::{Queries, QueryResolver},
+    resource::ResourceResolver,
     send_sync_ptr::SendSyncPtr,
     serialize::CodecResource,
     system::AddSystems,
@@ -45,11 +46,7 @@ impl Runner {
         resource.try_into_resource_any(&mut self.store)
     }
 
-    pub(crate) fn use_store<'a, 'b, 'c, 'd, 'e, 'f, 'g, F, R>(
-        &mut self,
-        config: Config<'a, 'b, 'c, 'd, 'e, 'f, 'g>,
-        mut f: F,
-    ) -> R
+    pub(crate) fn use_store<'a, 'b, 'c, F, R>(&mut self, config: Config<'a, 'b, 'c>, mut f: F) -> R
     where
         F: FnMut(&mut Store) -> R,
     {
@@ -61,6 +58,21 @@ impl Runner {
                 world: SendSyncPtr::new(world.into()),
                 add_systems: SendSyncPtr::new(systems.into()),
             },
+            Config::Init(ConfigInit {
+                commands,
+                type_registry,
+                codec,
+                wasm_registry,
+                access,
+                insert_despawn_component,
+            }) => Inner::Init {
+                commands: SendSyncPtr::new(NonNull::from_mut(commands).cast()),
+                type_registry: SendSyncPtr::new(NonNull::from_ref(type_registry)),
+                codec: SendSyncPtr::new(NonNull::from_ref(codec)),
+                wasm_registry: SendSyncPtr::new(NonNull::from_ref(wasm_registry)),
+                access,
+                insert_despawn_component,
+            },
             Config::RunSystem(ConfigRunSystem {
                 commands,
                 type_registry,
@@ -69,16 +81,20 @@ impl Runner {
                 function_index,
                 queries,
                 query_resolver,
+                resources,
+                resource_resolver,
                 access,
                 insert_despawn_component,
             }) => Inner::RunSystem {
-                commands: SendSyncPtr::new(NonNull::from_mut(commands).cast()),
+                commands,
                 type_registry: SendSyncPtr::new(NonNull::from_ref(type_registry)),
                 codec: SendSyncPtr::new(NonNull::from_ref(codec)),
                 wasm_registry: SendSyncPtr::new(NonNull::from_ref(wasm_registry)),
                 function_index: SendSyncPtr::new(NonNull::from_ref(function_index)),
-                queries: SendSyncPtr::new(NonNull::from_ref(queries).cast()),
+                queries,
                 query_resolver: SendSyncPtr::new(NonNull::from_ref(query_resolver)),
+                resources,
+                resource_resolver: SendSyncPtr::new(NonNull::from_ref(resource_resolver)),
                 access,
                 insert_despawn_component,
             },
@@ -103,14 +119,24 @@ enum Inner {
         world: SendSyncPtr<World>,
         add_systems: SendSyncPtr<AddSystems>,
     },
+    Init {
+        commands: SendSyncPtr<()>,
+        type_registry: SendSyncPtr<AppTypeRegistry>,
+        codec: SendSyncPtr<CodecResource>,
+        wasm_registry: SendSyncPtr<WasmComponentRegistry>,
+        access: ModAccess,
+        insert_despawn_component: InsertDespawnComponent,
+    },
     RunSystem {
-        commands: SendSyncPtr<Commands<'static, 'static>>,
+        commands: SendSyncPtr<()>,
         type_registry: SendSyncPtr<AppTypeRegistry>,
         codec: SendSyncPtr<CodecResource>,
         wasm_registry: SendSyncPtr<WasmComponentRegistry>,
         function_index: SendSyncPtr<FunctionIndex>,
-        queries: SendSyncPtr<Queries<'static, 'static>>,
+        queries: SendSyncPtr<()>,
         query_resolver: SendSyncPtr<QueryResolver>,
+        resources: SendSyncPtr<()>,
+        resource_resolver: SendSyncPtr<ResourceResolver>,
         access: ModAccess,
         insert_despawn_component: InsertDespawnComponent,
     },
@@ -136,6 +162,24 @@ impl Data {
                 table,
                 add_systems: unsafe { systems.as_mut() },
             }),
+            Inner::Init {
+                commands,
+                type_registry,
+                codec,
+                wasm_registry,
+                access,
+                insert_despawn_component,
+            } => unsafe {
+                Some(State::Init {
+                    commands: commands.cast::<Commands<'static, 'static>>().as_mut(),
+                    type_registry: type_registry.as_ref(),
+                    codec: codec.as_ref(),
+                    wasm_registry: wasm_registry.as_ref(),
+                    insert_despawn_component,
+                    access,
+                    table,
+                })
+            },
             Inner::RunSystem {
                 commands,
                 type_registry,
@@ -144,6 +188,8 @@ impl Data {
                 function_index,
                 queries,
                 query_resolver,
+                resources,
+                resource_resolver,
                 access,
                 insert_despawn_component,
             } =>
@@ -151,13 +197,17 @@ impl Data {
             // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
             unsafe {
                 Some(State::RunSystem {
-                    commands: commands.cast().as_mut(),
+                    commands: commands.cast::<Commands<'static, 'static>>().as_mut(),
                     type_registry: type_registry.as_ref(),
                     codec: codec.as_ref(),
                     wasm_registry: wasm_registry.as_ref(),
                     function_index: function_index.as_ref(),
-                    queries: queries.cast().as_mut(),
+                    queries: queries.cast::<Queries<'static, 'static>>().as_mut(),
                     query_resolver: query_resolver.as_ref(),
+                    resources: resources
+                        .cast::<FilteredResourcesMut<'static, 'static>>()
+                        .as_mut(),
+                    resource_resolver: resource_resolver.as_ref(),
                     insert_despawn_component,
                     access,
                     table,
@@ -174,6 +224,15 @@ pub(crate) enum State<'a> {
         table: &'a mut ResourceTable,
         add_systems: &'a mut AddSystems,
     },
+    Init {
+        table: &'a mut ResourceTable,
+        commands: &'a mut Commands<'a, 'a>,
+        type_registry: &'a AppTypeRegistry,
+        codec: &'a CodecResource,
+        wasm_registry: &'a WasmComponentRegistry,
+        access: &'a ModAccess,
+        insert_despawn_component: &'a InsertDespawnComponent,
+    },
     RunSystem {
         table: &'a mut ResourceTable,
         commands: &'a mut Commands<'a, 'a>,
@@ -183,14 +242,17 @@ pub(crate) enum State<'a> {
         function_index: &'a FunctionIndex,
         queries: &'a mut Queries<'a, 'a>,
         query_resolver: &'a QueryResolver,
+        resources: &'a mut FilteredResourcesMut<'a, 'a>,
+        resource_resolver: &'a ResourceResolver,
         access: &'a ModAccess,
         insert_despawn_component: &'a InsertDespawnComponent,
     },
 }
 
-pub(crate) enum Config<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
+pub(crate) enum Config<'a, 'b, 'c> {
     Setup(ConfigSetup<'a>),
-    RunSystem(ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g>),
+    Init(ConfigInit<'a, 'b, 'c>),
+    RunSystem(ConfigRunSystem<'a>),
 }
 
 pub(crate) struct ConfigSetup<'a> {
@@ -198,15 +260,25 @@ pub(crate) struct ConfigSetup<'a> {
     pub(crate) add_systems: &'a mut AddSystems,
 }
 
-pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
+pub(crate) struct ConfigInit<'a, 'b, 'c> {
     pub(crate) commands: &'a mut Commands<'b, 'c>,
     pub(crate) type_registry: &'a AppTypeRegistry,
     pub(crate) codec: &'a CodecResource,
     pub(crate) wasm_registry: &'a WasmComponentRegistry,
+    pub(crate) access: ModAccess,
+    pub(crate) insert_despawn_component: InsertDespawnComponent,
+}
+
+pub(crate) struct ConfigRunSystem<'a> {
+    pub(crate) commands: SendSyncPtr<()>,
+    pub(crate) type_registry: &'a AppTypeRegistry,
+    pub(crate) codec: &'a CodecResource,
+    pub(crate) wasm_registry: &'a WasmComponentRegistry,
     pub(crate) function_index: &'a FunctionIndex,
-    pub(crate) queries:
-        &'a mut ParamSet<'d, 'e, Vec<Query<'f, 'g, FilteredEntityMut<'static, 'static>>>>,
+    pub(crate) queries: SendSyncPtr<()>,
     pub(crate) query_resolver: &'a QueryResolver,
+    pub(crate) resources: SendSyncPtr<()>,
+    pub(crate) resource_resolver: &'a ResourceResolver,
     pub(crate) access: ModAccess,
     pub(crate) insert_despawn_component: InsertDespawnComponent,
 }

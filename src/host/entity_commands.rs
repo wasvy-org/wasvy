@@ -73,11 +73,16 @@ fn access(
     host: &mut WasmHost,
     entity_commands: Resource<WasmEntityCommands>,
 ) -> Result<EntityCommands<'_>> {
-    let State::RunSystem {
-        table, commands, ..
-    } = host.access()
-    else {
-        bail!("EntityCommands resource is only accessible when running systems")
+    let (table, commands) = match host.access() {
+        State::Init {
+            table, commands, ..
+        }
+        | State::RunSystem {
+            table, commands, ..
+        } => (table, commands),
+        _ => bail!(
+            "EntityCommands resource is only accessible when running systems or first-load init"
+        ),
     };
 
     let entity_commands = table.get(&entity_commands)?;

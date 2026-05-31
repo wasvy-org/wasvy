@@ -4,7 +4,10 @@ use proc_macro::TokenStream;
 use proc_macro_crate::{FoundCrate, crate_name};
 use quote::{format_ident, quote};
 use std::path::{Path, PathBuf};
-use syn::{Attribute, DeriveInput, Ident, ImplItem, Item, ItemImpl, ItemStruct, Type, TypePath};
+use syn::{
+    Attribute, DeriveInput, FnArg, GenericArgument, Ident, ImplItem, Item, ItemFn, ItemImpl,
+    ItemStruct, PathArguments, ReturnType, Type, TypePath,
+};
 use wit_parser::{FunctionKind, Resolve, TypeDefKind, WorldItem};
 
 /// Attribute used to skip exporting a method in a `#[wasvy::methods]` impl.
@@ -352,6 +355,237 @@ pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
         err.to_compile_error().into()
     } else {
         expanded.into()
+    }
+}
+
+/// Declare crate-level Wasvy Module metadata and generate the native adapter plugin.
+#[proc_macro]
+pub fn module(input: TokenStream) -> TokenStream {
+    let args = syn::parse_macro_input!(input as ModuleDeclarationArgs);
+    let wasvy_path = wasvy_path();
+    let name = args.name;
+
+    let guest_source = match guest_module_source() {
+        Ok(source) => source,
+        Err(err) => return err.to_compile_error().into(),
+    };
+    let guest_wit = generate_guest_wit(&guest_source.systems);
+    let guest_wit_lit = syn::LitStr::new(&guest_wit, proc_macro2::Span::call_site());
+    let guest_wit_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../wit/wasvy-ecs.wit");
+    let guest_wit_path_lit = syn::LitStr::new(
+        &guest_wit_path.to_string_lossy(),
+        proc_macro2::Span::call_site(),
+    );
+
+    let guest_register_systems = match guest_source
+        .systems
+        .iter()
+        .map(|system| {
+            let export_name = system.ident.to_string();
+            let schedule = guest_schedule_tokens(&system.schedule)?;
+            let param_registration = system.params.iter().map(|param| match param {
+                GuestSourceParam::Commands => quote!(system.add_commands();),
+                GuestSourceParam::Res(ty) => {
+                    quote!(system.add_res(<#ty as ::bevy_reflect::TypePath>::type_path());)
+                }
+                GuestSourceParam::ResMut(ty) => {
+                    quote!(system.add_res_mut(<#ty as ::bevy_reflect::TypePath>::type_path());)
+                }
+                GuestSourceParam::Query(items) => {
+                    let items = guest_query_for_tokens(items);
+                    quote!(system.add_query(&[#(#items),*]);)
+                }
+            });
+            Ok::<_, syn::Error>(quote! {
+                let system = __wasvy_guest_bindings::wasvy::ecs::app::System::new(#export_name);
+                #(#param_registration)*
+                app.add_systems(&#schedule, &[&system]);
+            })
+        })
+        .collect::<syn::Result<Vec<_>>>()
+    {
+        Ok(tokens) => tokens,
+        Err(err) => return err.to_compile_error().into(),
+    };
+
+    let guest_system_exports = guest_source.systems.iter().map(|system| {
+        let ident = &system.ident;
+        let export_ident = format_ident!("__wasvy_guest_export_{}", ident);
+        let args = system.params.iter().enumerate().map(|(index, param)| {
+            let ident = format_ident!("arg{index}");
+            let ty = match param {
+                GuestSourceParam::Commands => {
+                    quote!(__wasvy_guest_bindings::wasvy::ecs::app::Commands)
+                }
+                GuestSourceParam::Query(_) => {
+                    quote!(__wasvy_guest_bindings::wasvy::ecs::app::Query)
+                }
+                GuestSourceParam::Res(_) | GuestSourceParam::ResMut(_) => {
+                    quote!(__wasvy_guest_bindings::wasvy::ecs::app::WorldResource)
+                }
+            };
+            quote!(#ident: #ty)
+        });
+        let call_args = (0..system.params.len()).map(|index| format_ident!("arg{index}"));
+        quote! {
+            fn #ident(#(#args),*) {
+                #export_ident(#(#call_args),*);
+            }
+        }
+    });
+
+    let guest_first_load = if let Some(ident) = guest_source.first_load {
+        let export_ident = format_ident!("__wasvy_guest_export_{}", ident);
+        quote! {
+            fn on_first_load(commands: __wasvy_guest_bindings::wasvy::ecs::app::Commands) {
+                #export_ident(commands);
+            }
+        }
+    } else {
+        quote! {
+            fn on_first_load(_commands: __wasvy_guest_bindings::wasvy::ecs::app::Commands) {}
+        }
+    };
+
+    let expanded = quote! {
+        pub const MODULE_NAME: &str = #name;
+
+        #[derive(Default)]
+        pub struct NativeAdapterPlugin;
+
+        impl #wasvy_path::authoring::Plugin for NativeAdapterPlugin {
+            fn build(&self, app: &mut #wasvy_path::authoring::App) {
+                let scope = module_path!();
+                for registration in #wasvy_path::authoring::inventory::iter::<#wasvy_path::authoring::WasvyModuleSystemRegistration> {
+                    if #wasvy_path::authoring::module_scope_matches(scope, registration.scope) {
+                        (registration.register_native)(app);
+                    }
+                }
+                for registration in #wasvy_path::authoring::inventory::iter::<#wasvy_path::authoring::WasvyModuleFirstLoadRegistration> {
+                    if #wasvy_path::authoring::module_scope_matches(scope, registration.scope) {
+                        (registration.register_native)(app);
+                    }
+                }
+            }
+        }
+
+        impl #wasvy_path::module_plugin::NativeAdapterPlugin for NativeAdapterPlugin {}
+
+        #[cfg(target_arch = "wasm32")]
+        mod __wasvy_guest_bindings {
+            wit_bindgen::generate!({
+                path: [#guest_wit_path_lit],
+                inline: #guest_wit_lit,
+                world: "guest",
+                pub_export_macro: true,
+                with: {
+                    "wasvy:ecs/app@0.0.7": generate,
+                }
+            });
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        impl #wasvy_path::module_guest::GuestCommandsBinding for __wasvy_guest_bindings::wasvy::ecs::app::Commands {
+            fn insert_resource(&self, type_path: &str, value: &[u8]) {
+                __wasvy_guest_bindings::wasvy::ecs::app::Commands::insert_resource(self, type_path, value);
+            }
+
+            fn remove_resource(&self, type_path: &str) {
+                __wasvy_guest_bindings::wasvy::ecs::app::Commands::remove_resource(self, type_path);
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        impl #wasvy_path::module_guest::GuestWorldResourceBinding for __wasvy_guest_bindings::wasvy::ecs::app::WorldResource {
+            fn get(&self) -> Vec<u8> {
+                __wasvy_guest_bindings::wasvy::ecs::app::WorldResource::get(self)
+            }
+
+            fn set(&self, value: &[u8]) {
+                __wasvy_guest_bindings::wasvy::ecs::app::WorldResource::set(self, value);
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        impl #wasvy_path::module_guest::GuestComponentBinding for __wasvy_guest_bindings::wasvy::ecs::app::Component {
+            fn get(&self) -> Vec<u8> {
+                __wasvy_guest_bindings::wasvy::ecs::app::Component::get(self)
+            }
+
+            fn set(&self, value: &[u8]) {
+                __wasvy_guest_bindings::wasvy::ecs::app::Component::set(self, value);
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        impl #wasvy_path::module_guest::GuestQueryResultBinding for __wasvy_guest_bindings::wasvy::ecs::app::QueryResult {
+            type Component = __wasvy_guest_bindings::wasvy::ecs::app::Component;
+
+            fn component(&self, index: u8) -> Self::Component {
+                __wasvy_guest_bindings::wasvy::ecs::app::QueryResult::component(self, index)
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        impl #wasvy_path::module_guest::GuestQueryBinding for __wasvy_guest_bindings::wasvy::ecs::app::Query {
+            type QueryResult = __wasvy_guest_bindings::wasvy::ecs::app::QueryResult;
+
+            fn next(&mut self) -> Option<Self::QueryResult> {
+                __wasvy_guest_bindings::wasvy::ecs::app::Query::iter(self)
+            }
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        struct __WasvyModuleGuest;
+
+        #[cfg(target_arch = "wasm32")]
+        impl __wasvy_guest_bindings::Guest for __WasvyModuleGuest {
+            fn register(app: __wasvy_guest_bindings::wasvy::ecs::app::App) {
+                #(#guest_register_systems)*
+            }
+
+            #guest_first_load
+
+            #(#guest_system_exports)*
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        __wasvy_guest_bindings::export!(__WasvyModuleGuest with_types_in __wasvy_guest_bindings);
+
+        #[doc(hidden)]
+        #[used]
+        #[unsafe(export_name = concat!("__wasvy_module_decl_guard__", module_path!()))]
+        static __WASVY_MODULE_DECL_GUARD: u8 = 0;
+
+        #wasvy_path::__wasvy_submit_module_declaration!(
+            #wasvy_path::authoring::WasvyModuleDeclaration {
+                scope: module_path!(),
+                name: #name,
+            }
+        );
+    };
+
+    expanded.into()
+}
+
+/// Mark a function as a Wasvy Module system on a specific schedule.
+#[proc_macro_attribute]
+pub fn system(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let schedule_tokens = proc_macro2::TokenStream::from(attr);
+    let input = syn::parse_macro_input!(item as ItemFn);
+    match expand_module_system(input, schedule_tokens) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
+    }
+}
+
+/// Mark a function as Wasvy Module first-load initialization.
+#[proc_macro_attribute]
+pub fn on_first_load(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(item as ItemFn);
+    match expand_first_load(input) {
+        Ok(tokens) => tokens.into(),
+        Err(err) => err.to_compile_error().into(),
     }
 }
 
@@ -933,6 +1167,1005 @@ fn ty_to_tokens(
         },
         wit_parser::Type::ErrorContext => quote!(String),
     }
+}
+
+struct ModuleDeclarationArgs {
+    name: syn::LitStr,
+}
+
+impl syn::parse::Parse for ModuleDeclarationArgs {
+    fn parse(input: syn::parse::ParseStream<'_>) -> syn::Result<Self> {
+        let key: Ident = input.parse()?;
+        if key != "name" {
+            return Err(syn::Error::new(key.span(), "expected `name`"));
+        }
+        let _: syn::Token![:] = input.parse()?;
+        let name: syn::LitStr = input.parse()?;
+        if input.peek(syn::Token![,]) {
+            let _: syn::Token![,] = input.parse()?;
+        }
+        if !input.is_empty() {
+            return Err(input.error("unexpected extra tokens in wasvy::module! declaration"));
+        }
+        Ok(Self { name })
+    }
+}
+
+fn expand_module_system(
+    input: ItemFn,
+    schedule_tokens: proc_macro2::TokenStream,
+) -> syn::Result<proc_macro2::TokenStream> {
+    if schedule_tokens.is_empty() {
+        return Err(syn::Error::new_spanned(
+            &input.sig.ident,
+            "#[wasvy::system(...)] requires a schedule, e.g. #[wasvy::system(Update)]",
+        ));
+    }
+
+    validate_fn_shape(&input)?;
+    let referenced_types = validate_system_params(&input.sig.inputs)?;
+    let wasvy_path = wasvy_path();
+    let ident = input.sig.ident.clone();
+    let register_ident = format_ident!("__wasvy_register_module_system_{}", ident);
+    let export_name = syn::LitStr::new(&ident.to_string(), ident.span());
+    let metadata_ident = format_ident!("__wasvy_module_system_types_{}", ident);
+    let guest_impl_ident = format_ident!("__wasvy_guest_impl_{}", ident);
+    let guest_export_ident = format_ident!("__wasvy_guest_export_{}", ident);
+    let type_lits: Vec<syn::LitStr> = referenced_types
+        .iter()
+        .map(|name| syn::LitStr::new(name, proc_macro2::Span::call_site()))
+        .collect();
+    let guest_params = input
+        .sig
+        .inputs
+        .iter()
+        .map(|arg| {
+            let FnArg::Typed(arg) = arg else {
+                unreachable!("validated above")
+            };
+            let pat = &arg.pat;
+            let ty = guest_param_wrapper_tokens(arg, &wasvy_path)?;
+            Ok::<_, syn::Error>(quote!(#pat: #ty))
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+    let guest_raw_params = input
+        .sig
+        .inputs
+        .iter()
+        .enumerate()
+        .map(|(index, arg)| {
+            let FnArg::Typed(arg) = arg else {
+                unreachable!("validated above")
+            };
+            let raw_ident = format_ident!("__wasvy_arg_{index}");
+            let ty = guest_raw_param_type_tokens(arg)?;
+            Ok::<_, syn::Error>(quote!(#raw_ident: #ty))
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+    let guest_wrappers = input
+        .sig
+        .inputs
+        .iter()
+        .enumerate()
+        .map(|(index, arg)| {
+            let FnArg::Typed(arg) = arg else {
+                unreachable!("validated above")
+            };
+            let pat = &arg.pat;
+            let raw_ident = format_ident!("__wasvy_arg_{index}");
+            let ctor = guest_wrapper_ctor_tokens(arg, &raw_ident, &wasvy_path)?;
+            Ok::<_, syn::Error>(quote!(let #pat = #ctor;))
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+    let guest_call_args = input
+        .sig
+        .inputs
+        .iter()
+        .map(|arg| {
+            let FnArg::Typed(arg) = arg else {
+                unreachable!("validated above")
+            };
+            let syn::Pat::Ident(pat_ident) = arg.pat.as_ref() else {
+                return Err(syn::Error::new_spanned(
+                    &arg.pat,
+                    "Wasvy Module parameters must use identifier bindings",
+                ));
+            };
+            let ident = &pat_ident.ident;
+            Ok::<_, syn::Error>(quote!(#ident))
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+    let body = &input.block;
+
+    Ok(quote! {
+        #input
+
+        #[allow(non_upper_case_globals)]
+        const #metadata_ident: &[&str] = &[#(#type_lits),*];
+
+        #[allow(non_snake_case)]
+        fn #register_ident(app: &mut #wasvy_path::authoring::App) {
+            app.add_systems(#schedule_tokens, #ident);
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        fn #guest_impl_ident(#(#guest_params),*) #body
+
+        #[cfg(target_arch = "wasm32")]
+        fn #guest_export_ident(#(#guest_raw_params),*) {
+            #(#guest_wrappers)*
+            #guest_impl_ident(#(#guest_call_args),*);
+        }
+
+        #wasvy_path::__wasvy_submit_module_system_registration!(
+            #wasvy_path::authoring::WasvyModuleSystemRegistration {
+                scope: module_path!(),
+                export_name: #export_name,
+                register_native: #register_ident,
+                referenced_types: #metadata_ident,
+            }
+        );
+    })
+}
+
+fn expand_first_load(input: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
+    validate_fn_shape(&input)?;
+    let referenced_types = validate_first_load_params(&input.sig.inputs)?;
+    let wasvy_path = wasvy_path();
+    let ident = input.sig.ident.clone();
+    let register_ident = format_ident!("__wasvy_register_module_first_load_{}", ident);
+    let export_name = syn::LitStr::new(&ident.to_string(), ident.span());
+    let metadata_ident = format_ident!("__wasvy_module_first_load_types_{}", ident);
+    let guest_impl_ident = format_ident!("__wasvy_guest_impl_{}", ident);
+    let guest_export_ident = format_ident!("__wasvy_guest_export_{}", ident);
+    let type_lits: Vec<syn::LitStr> = referenced_types
+        .iter()
+        .map(|name| syn::LitStr::new(name, proc_macro2::Span::call_site()))
+        .collect();
+    let guest_params = input
+        .sig
+        .inputs
+        .iter()
+        .map(|arg| {
+            let FnArg::Typed(arg) = arg else {
+                unreachable!("validated above")
+            };
+            let pat = &arg.pat;
+            let ty = guest_param_wrapper_tokens(arg, &wasvy_path)?;
+            Ok::<_, syn::Error>(quote!(#pat: #ty))
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+    let guest_raw_params = input
+        .sig
+        .inputs
+        .iter()
+        .enumerate()
+        .map(|(index, arg)| {
+            let FnArg::Typed(arg) = arg else {
+                unreachable!("validated above")
+            };
+            let raw_ident = format_ident!("__wasvy_arg_{index}");
+            let ty = guest_raw_param_type_tokens(arg)?;
+            Ok::<_, syn::Error>(quote!(#raw_ident: #ty))
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+    let guest_wrappers = input
+        .sig
+        .inputs
+        .iter()
+        .enumerate()
+        .map(|(index, arg)| {
+            let FnArg::Typed(arg) = arg else {
+                unreachable!("validated above")
+            };
+            let pat = &arg.pat;
+            let raw_ident = format_ident!("__wasvy_arg_{index}");
+            let ctor = guest_wrapper_ctor_tokens(arg, &raw_ident, &wasvy_path)?;
+            Ok::<_, syn::Error>(quote!(let #pat = #ctor;))
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+    let guest_call_args = input
+        .sig
+        .inputs
+        .iter()
+        .map(|arg| {
+            let FnArg::Typed(arg) = arg else {
+                unreachable!("validated above")
+            };
+            let syn::Pat::Ident(pat_ident) = arg.pat.as_ref() else {
+                return Err(syn::Error::new_spanned(
+                    &arg.pat,
+                    "Wasvy Module parameters must use identifier bindings",
+                ));
+            };
+            let ident = &pat_ident.ident;
+            Ok::<_, syn::Error>(quote!(#ident))
+        })
+        .collect::<syn::Result<Vec<_>>>()?;
+    let body = &input.block;
+
+    Ok(quote! {
+        #input
+
+        #[allow(non_upper_case_globals)]
+        const #metadata_ident: &[&str] = &[#(#type_lits),*];
+
+        #[allow(non_snake_case)]
+        fn #register_ident(app: &mut #wasvy_path::authoring::App) {
+            app.add_systems(#wasvy_path::module_guest::Startup, #ident);
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        fn #guest_impl_ident(#(#guest_params),*) #body
+
+        #[cfg(target_arch = "wasm32")]
+        fn #guest_export_ident(#(#guest_raw_params),*) {
+            #(#guest_wrappers)*
+            #guest_impl_ident(#(#guest_call_args),*);
+        }
+
+        #[doc(hidden)]
+        #[used]
+        #[unsafe(export_name = concat!("__wasvy_first_load_guard__", module_path!()))]
+        static __WASVY_FIRST_LOAD_GUARD: u8 = 0;
+
+        #wasvy_path::__wasvy_submit_module_first_load_registration!(
+            #wasvy_path::authoring::WasvyModuleFirstLoadRegistration {
+                scope: module_path!(),
+                export_name: #export_name,
+                register_native: #register_ident,
+                referenced_types: #metadata_ident,
+            }
+        );
+    })
+}
+
+fn validate_fn_shape(input: &ItemFn) -> syn::Result<()> {
+    if !input.sig.generics.params.is_empty() {
+        return Err(syn::Error::new_spanned(
+            &input.sig.generics,
+            "Wasvy Module functions cannot be generic",
+        ));
+    }
+    if input.sig.variadic.is_some() {
+        return Err(syn::Error::new_spanned(
+            &input.sig.variadic,
+            "Wasvy Module functions cannot be variadic",
+        ));
+    }
+    if !matches!(input.sig.output, ReturnType::Default) {
+        return Err(syn::Error::new_spanned(
+            &input.sig.output,
+            "Wasvy Module functions must return ()",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_system_params(
+    inputs: &syn::punctuated::Punctuated<FnArg, syn::Token![,]>,
+) -> syn::Result<Vec<String>> {
+    let mut referenced = Vec::new();
+    for arg in inputs {
+        let FnArg::Typed(arg) = arg else {
+            return Err(syn::Error::new_spanned(
+                arg,
+                "Wasvy Module systems cannot take self receivers",
+            ));
+        };
+        referenced.extend(classify_param(&arg.ty)?.referenced_type_paths());
+    }
+    Ok(referenced)
+}
+
+fn validate_first_load_params(
+    inputs: &syn::punctuated::Punctuated<FnArg, syn::Token![,]>,
+) -> syn::Result<Vec<String>> {
+    let referenced = Vec::new();
+    for arg in inputs {
+        let FnArg::Typed(arg) = arg else {
+            return Err(syn::Error::new_spanned(
+                arg,
+                "Wasvy Module first-load functions cannot take self receivers",
+            ));
+        };
+        match classify_param(&arg.ty)? {
+            ModuleParam::Commands => {}
+            ModuleParam::Res(_) | ModuleParam::ResMut(_) | ModuleParam::Query(_) => {
+                return Err(syn::Error::new_spanned(
+                    &arg.ty,
+                    "#[wasvy::on_first_load] currently supports Commands only",
+                ));
+            }
+        }
+    }
+    Ok(referenced)
+}
+
+#[derive(Clone)]
+enum ModuleParam {
+    Commands,
+    Query(ModuleQuerySignature),
+    Res(String),
+    ResMut(String),
+}
+
+#[derive(Clone)]
+struct ModuleQuerySignature {
+    items: Vec<ModuleQueryItem>,
+}
+
+#[derive(Clone)]
+enum ModuleQueryItem {
+    Ref(String),
+    Mut(String),
+    With(String),
+    Without(String),
+    Entity,
+}
+
+impl ModuleParam {
+    fn referenced_type_paths(&self) -> Vec<String> {
+        match self {
+            ModuleParam::Commands => Vec::new(),
+            ModuleParam::Res(name) | ModuleParam::ResMut(name) => vec![name.clone()],
+            ModuleParam::Query(signature) => signature
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    ModuleQueryItem::Ref(name)
+                    | ModuleQueryItem::Mut(name)
+                    | ModuleQueryItem::With(name)
+                    | ModuleQueryItem::Without(name) => Some(name.clone()),
+                    ModuleQueryItem::Entity => None,
+                })
+                .collect(),
+        }
+    }
+}
+
+fn classify_param(ty: &Type) -> syn::Result<ModuleParam> {
+    let Type::Path(path) = ty else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "unsupported Wasvy Module parameter type",
+        ));
+    };
+
+    let Some(segment) = path.path.segments.last() else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "unsupported Wasvy Module parameter type",
+        ));
+    };
+
+    match segment.ident.to_string().as_str() {
+        "Commands" => Ok(ModuleParam::Commands),
+        "Res" => Ok(ModuleParam::Res(extract_single_generic_type_path(segment)?)),
+        "ResMut" => Ok(ModuleParam::ResMut(extract_single_generic_type_path(
+            segment,
+        )?)),
+        "Query" => classify_query(segment),
+        _ => Err(syn::Error::new_spanned(
+            ty,
+            "unsupported Wasvy Module parameter; supported params are Commands, Query<...>, Res<T>, and ResMut<T>",
+        )),
+    }
+}
+
+fn classify_query(segment: &syn::PathSegment) -> syn::Result<ModuleParam> {
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "Query must use angle-bracketed arguments",
+        ));
+    };
+
+    let mut args_iter = args.args.iter();
+    let Some(GenericArgument::Type(data_ty)) = args_iter.next() else {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "Query must specify data, e.g. Query<&Health>",
+        ));
+    };
+
+    let mut items = Vec::new();
+    collect_query_data_types(data_ty, &mut items)?;
+
+    if let Some(GenericArgument::Type(filter_ty)) = args_iter.next() {
+        validate_query_filters(filter_ty, &mut items)?;
+    }
+
+    if args_iter.next().is_some() {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "Query supports at most data and filters type arguments",
+        ));
+    }
+
+    Ok(ModuleParam::Query(ModuleQuerySignature { items }))
+}
+
+fn collect_query_data_types(ty: &Type, out: &mut Vec<ModuleQueryItem>) -> syn::Result<()> {
+    match ty {
+        Type::Reference(reference) => {
+            let type_path = render_type_path(&reference.elem)?;
+            if reference.mutability.is_some() {
+                out.push(ModuleQueryItem::Mut(type_path));
+            } else {
+                out.push(ModuleQueryItem::Ref(type_path));
+            }
+            Ok(())
+        }
+        Type::Tuple(tuple) => {
+            for elem in &tuple.elems {
+                match elem {
+                    Type::Reference(reference) => {
+                        let type_path = render_type_path(&reference.elem)?;
+                        if reference.mutability.is_some() {
+                            out.push(ModuleQueryItem::Mut(type_path));
+                        } else {
+                            out.push(ModuleQueryItem::Ref(type_path));
+                        }
+                    }
+                    Type::Path(path)
+                        if path
+                            .path
+                            .segments
+                            .last()
+                            .is_some_and(|seg| seg.ident == "Entity") =>
+                    {
+                        out.push(ModuleQueryItem::Entity);
+                    }
+                    _ => {
+                        return Err(syn::Error::new_spanned(
+                            elem,
+                            "Query data only supports Entity, &T, &mut T, or tuples of those",
+                        ));
+                    }
+                }
+            }
+            Ok(())
+        }
+        Type::Path(path)
+            if path
+                .path
+                .segments
+                .last()
+                .is_some_and(|seg| seg.ident == "Entity") =>
+        {
+            out.push(ModuleQueryItem::Entity);
+            Ok(())
+        }
+        _ => Err(syn::Error::new_spanned(
+            ty,
+            "Query data only supports Entity, &T, &mut T, or tuples of those",
+        )),
+    }
+}
+
+fn validate_query_filters(ty: &Type, out: &mut Vec<ModuleQueryItem>) -> syn::Result<()> {
+    match ty {
+        Type::Tuple(tuple) => {
+            for elem in &tuple.elems {
+                validate_single_query_filter(elem, out)?;
+            }
+            Ok(())
+        }
+        other => validate_single_query_filter(other, out),
+    }
+}
+
+fn validate_single_query_filter(ty: &Type, out: &mut Vec<ModuleQueryItem>) -> syn::Result<()> {
+    let Type::Path(path) = ty else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "Query filters only support With<T> and Without<T>",
+        ));
+    };
+    let Some(segment) = path.path.segments.last() else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "Query filters only support With<T> and Without<T>",
+        ));
+    };
+    match segment.ident.to_string().as_str() {
+        "With" => {
+            out.push(ModuleQueryItem::With(extract_single_generic_type_path(
+                segment,
+            )?));
+            Ok(())
+        }
+        "Without" => {
+            out.push(ModuleQueryItem::Without(extract_single_generic_type_path(
+                segment,
+            )?));
+            Ok(())
+        }
+        _ => Err(syn::Error::new_spanned(
+            ty,
+            "Query filters only support With<T> and Without<T>",
+        )),
+    }
+}
+
+fn extract_single_generic_type_path(segment: &syn::PathSegment) -> syn::Result<String> {
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "expected angle-bracketed generic arguments",
+        ));
+    };
+    let Some(GenericArgument::Type(inner)) = args.args.first() else {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "expected a single type argument",
+        ));
+    };
+    if args.args.len() != 1 {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "expected a single type argument",
+        ));
+    }
+    render_type_path(inner)
+}
+
+fn extract_query_data_type(segment: &syn::PathSegment) -> syn::Result<Type> {
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "Query must use angle-bracketed arguments",
+        ));
+    };
+    let Some(GenericArgument::Type(inner)) = args.args.first() else {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "Query must specify data, e.g. Query<&Health>",
+        ));
+    };
+    Ok(inner.clone())
+}
+
+fn render_type_path(ty: &Type) -> syn::Result<String> {
+    match ty {
+        Type::Path(_) => Ok(quote!(#ty).to_string().replace(' ', "")),
+        _ => Err(syn::Error::new_spanned(ty, "expected a concrete type path")),
+    }
+}
+
+#[derive(Clone)]
+struct GuestModuleSource {
+    systems: Vec<GuestModuleSystem>,
+    first_load: Option<Ident>,
+}
+
+#[derive(Clone)]
+struct GuestModuleSystem {
+    ident: Ident,
+    schedule: String,
+    params: Vec<GuestSourceParam>,
+}
+
+#[derive(Clone)]
+enum GuestSourceParam {
+    Commands,
+    Query(Vec<GuestQueryItem>),
+    Res(Type),
+    ResMut(Type),
+}
+
+#[derive(Clone)]
+enum GuestQueryItem {
+    Ref(Type),
+    Mut(Type),
+    With(Type),
+    Without(Type),
+    Entity,
+}
+
+fn guest_module_source() -> syn::Result<GuestModuleSource> {
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").map_err(|_| {
+        syn::Error::new(proc_macro2::Span::call_site(), "CARGO_MANIFEST_DIR not set")
+    })?;
+    let manifest_dir = PathBuf::from(manifest_dir);
+    let source_path = if manifest_dir.join("src/lib.rs").exists() {
+        manifest_dir.join("src/lib.rs")
+    } else {
+        manifest_dir.join("src/main.rs")
+    };
+    let Ok(source) = std::fs::read_to_string(&source_path) else {
+        return Ok(GuestModuleSource {
+            systems: Vec::new(),
+            first_load: None,
+        });
+    };
+    let Ok(file) = syn::parse_file(&source) else {
+        return Ok(GuestModuleSource {
+            systems: Vec::new(),
+            first_load: None,
+        });
+    };
+
+    let mut systems = Vec::new();
+    let mut first_load = None;
+
+    for item in file.items {
+        let Item::Fn(function) = item else {
+            continue;
+        };
+
+        for attr in &function.attrs {
+            if is_wasvy_attr_named(attr, "system") {
+                let params = function
+                    .sig
+                    .inputs
+                    .iter()
+                    .map(|arg| match arg {
+                        FnArg::Typed(arg) => classify_guest_param(&arg.ty),
+                        FnArg::Receiver(receiver) => Err(syn::Error::new_spanned(
+                            receiver,
+                            "Wasvy Module systems cannot take self receivers",
+                        )),
+                    })
+                    .collect::<syn::Result<Vec<_>>>()?;
+                systems.push(GuestModuleSystem {
+                    ident: function.sig.ident.clone(),
+                    schedule: extract_wasvy_system_schedule(attr)?,
+                    params,
+                });
+            }
+
+            if is_wasvy_attr_named(attr, "on_first_load") {
+                first_load = Some(function.sig.ident.clone());
+            }
+        }
+    }
+
+    Ok(GuestModuleSource {
+        systems,
+        first_load,
+    })
+}
+
+fn classify_guest_param(ty: &Type) -> syn::Result<GuestSourceParam> {
+    let Type::Path(path) = ty else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "unsupported Wasvy Module parameter type",
+        ));
+    };
+    let Some(segment) = path.path.segments.last() else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "unsupported Wasvy Module parameter type",
+        ));
+    };
+
+    match segment.ident.to_string().as_str() {
+        "Commands" => Ok(GuestSourceParam::Commands),
+        "Res" => Ok(GuestSourceParam::Res(extract_single_generic_type(segment)?)),
+        "ResMut" => Ok(GuestSourceParam::ResMut(extract_single_generic_type(
+            segment,
+        )?)),
+        "Query" => classify_guest_query(segment),
+        _ => Err(syn::Error::new_spanned(
+            ty,
+            "unsupported Wasvy Module parameter; supported params are Commands, Query<...>, Res<T>, and ResMut<T>",
+        )),
+    }
+}
+
+fn classify_guest_query(segment: &syn::PathSegment) -> syn::Result<GuestSourceParam> {
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "Query must use angle-bracketed arguments",
+        ));
+    };
+    let mut args_iter = args.args.iter();
+    let Some(GenericArgument::Type(data_ty)) = args_iter.next() else {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "Query must specify data, e.g. Query<&Health>",
+        ));
+    };
+
+    let mut items = Vec::new();
+    collect_guest_query_data_types(data_ty, &mut items)?;
+    if let Some(GenericArgument::Type(filter_ty)) = args_iter.next() {
+        collect_guest_query_filters(filter_ty, &mut items)?;
+    }
+    if args_iter.next().is_some() {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "Query supports at most data and filters type arguments",
+        ));
+    }
+
+    Ok(GuestSourceParam::Query(items))
+}
+
+fn collect_guest_query_data_types(ty: &Type, out: &mut Vec<GuestQueryItem>) -> syn::Result<()> {
+    match ty {
+        Type::Reference(reference) => {
+            let inner = (*reference.elem).clone();
+            if reference.mutability.is_some() {
+                out.push(GuestQueryItem::Mut(inner));
+            } else {
+                out.push(GuestQueryItem::Ref(inner));
+            }
+            Ok(())
+        }
+        Type::Tuple(tuple) => {
+            for elem in &tuple.elems {
+                match elem {
+                    Type::Reference(reference) => {
+                        let inner = (*reference.elem).clone();
+                        if reference.mutability.is_some() {
+                            out.push(GuestQueryItem::Mut(inner));
+                        } else {
+                            out.push(GuestQueryItem::Ref(inner));
+                        }
+                    }
+                    Type::Path(path)
+                        if path
+                            .path
+                            .segments
+                            .last()
+                            .is_some_and(|seg| seg.ident == "Entity") =>
+                    {
+                        out.push(GuestQueryItem::Entity);
+                    }
+                    _ => {
+                        return Err(syn::Error::new_spanned(
+                            elem,
+                            "Query data only supports Entity, &T, &mut T, or tuples of those",
+                        ));
+                    }
+                }
+            }
+            Ok(())
+        }
+        Type::Path(path)
+            if path
+                .path
+                .segments
+                .last()
+                .is_some_and(|seg| seg.ident == "Entity") =>
+        {
+            out.push(GuestQueryItem::Entity);
+            Ok(())
+        }
+        _ => Err(syn::Error::new_spanned(
+            ty,
+            "Query data only supports Entity, &T, &mut T, or tuples of those",
+        )),
+    }
+}
+
+fn collect_guest_query_filters(ty: &Type, out: &mut Vec<GuestQueryItem>) -> syn::Result<()> {
+    match ty {
+        Type::Tuple(tuple) => {
+            for elem in &tuple.elems {
+                collect_guest_single_filter(elem, out)?;
+            }
+            Ok(())
+        }
+        other => collect_guest_single_filter(other, out),
+    }
+}
+
+fn collect_guest_single_filter(ty: &Type, out: &mut Vec<GuestQueryItem>) -> syn::Result<()> {
+    let Type::Path(path) = ty else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "Query filters only support With<T> and Without<T>",
+        ));
+    };
+    let Some(segment) = path.path.segments.last() else {
+        return Err(syn::Error::new_spanned(
+            ty,
+            "Query filters only support With<T> and Without<T>",
+        ));
+    };
+    match segment.ident.to_string().as_str() {
+        "With" => {
+            out.push(GuestQueryItem::With(extract_single_generic_type(segment)?));
+            Ok(())
+        }
+        "Without" => {
+            out.push(GuestQueryItem::Without(extract_single_generic_type(
+                segment,
+            )?));
+            Ok(())
+        }
+        _ => Err(syn::Error::new_spanned(
+            ty,
+            "Query filters only support With<T> and Without<T>",
+        )),
+    }
+}
+
+fn is_wasvy_attr_named(attr: &Attribute, name: &str) -> bool {
+    attr.path()
+        .segments
+        .last()
+        .is_some_and(|segment| segment.ident == name)
+}
+
+fn extract_wasvy_system_schedule(attr: &Attribute) -> syn::Result<String> {
+    let syn::Meta::List(list) = &attr.meta else {
+        return Err(syn::Error::new_spanned(
+            attr,
+            "#[wasvy::system(...)] requires a schedule, e.g. #[wasvy::system(Update)]",
+        ));
+    };
+    Ok(list.tokens.to_string().replace(' ', ""))
+}
+
+fn guest_schedule_tokens(schedule: &str) -> syn::Result<proc_macro2::TokenStream> {
+    let tokens = match schedule {
+        "ModStartup" => quote!(__wasvy_guest_bindings::wasvy::ecs::app::Schedule::ModStartup),
+        "PreUpdate" => quote!(__wasvy_guest_bindings::wasvy::ecs::app::Schedule::PreUpdate),
+        "Update" => quote!(__wasvy_guest_bindings::wasvy::ecs::app::Schedule::Update),
+        "PostUpdate" => quote!(__wasvy_guest_bindings::wasvy::ecs::app::Schedule::PostUpdate),
+        "FixedPreUpdate" => {
+            quote!(__wasvy_guest_bindings::wasvy::ecs::app::Schedule::FixedPreUpdate)
+        }
+        "FixedUpdate" => quote!(__wasvy_guest_bindings::wasvy::ecs::app::Schedule::FixedUpdate),
+        "FixedPostUpdate" => {
+            quote!(__wasvy_guest_bindings::wasvy::ecs::app::Schedule::FixedPostUpdate)
+        }
+        _ => {
+            return Err(syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!(
+                    "unsupported Wasvy guest schedule `{schedule}`; use ModStartup, PreUpdate, Update, PostUpdate, FixedPreUpdate, FixedUpdate, or FixedPostUpdate"
+                ),
+            ));
+        }
+    };
+    Ok(tokens)
+}
+
+fn guest_wit_param_type(param: &GuestSourceParam) -> &'static str {
+    match param {
+        GuestSourceParam::Commands => "commands",
+        GuestSourceParam::Query(_) => "query",
+        GuestSourceParam::Res(_) | GuestSourceParam::ResMut(_) => "world-resource",
+    }
+}
+
+fn guest_query_for_tokens(items: &[GuestQueryItem]) -> Vec<proc_macro2::TokenStream> {
+    items
+        .iter()
+        .filter_map(|item| match item {
+            GuestQueryItem::Ref(ty) => Some(quote! {
+                __wasvy_guest_bindings::wasvy::ecs::app::QueryFor::Ref(<#ty as ::bevy_reflect::TypePath>::type_path().to_string())
+            }),
+            GuestQueryItem::Mut(ty) => Some(quote! {
+                __wasvy_guest_bindings::wasvy::ecs::app::QueryFor::Mut(<#ty as ::bevy_reflect::TypePath>::type_path().to_string())
+            }),
+            GuestQueryItem::With(ty) => Some(quote! {
+                __wasvy_guest_bindings::wasvy::ecs::app::QueryFor::With(<#ty as ::bevy_reflect::TypePath>::type_path().to_string())
+            }),
+            GuestQueryItem::Without(ty) => Some(quote! {
+                __wasvy_guest_bindings::wasvy::ecs::app::QueryFor::Without(<#ty as ::bevy_reflect::TypePath>::type_path().to_string())
+            }),
+            GuestQueryItem::Entity => None,
+        })
+        .collect()
+}
+
+fn guest_param_wrapper_tokens(
+    arg: &syn::PatType,
+    wasvy_path: &proc_macro2::TokenStream,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let param = classify_param(&arg.ty)?;
+    Ok(match param {
+        ModuleParam::Commands => {
+            quote!(#wasvy_path::module_guest::Commands<__wasvy_guest_bindings::wasvy::ecs::app::Commands>)
+        }
+        ModuleParam::Res(_) => {
+            let Type::Path(path) = arg.ty.as_ref() else {
+                unreachable!()
+            };
+            let segment = path.path.segments.last().expect("Res segment");
+            let inner = extract_single_generic_type(segment)?;
+            quote!(#wasvy_path::module_guest::Res<#inner, __wasvy_guest_bindings::wasvy::ecs::app::WorldResource>)
+        }
+        ModuleParam::ResMut(_) => {
+            let Type::Path(path) = arg.ty.as_ref() else {
+                unreachable!()
+            };
+            let segment = path.path.segments.last().expect("ResMut segment");
+            let inner = extract_single_generic_type(segment)?;
+            quote!(#wasvy_path::module_guest::ResMut<#inner, __wasvy_guest_bindings::wasvy::ecs::app::WorldResource>)
+        }
+        ModuleParam::Query(_) => {
+            let Type::Path(path) = arg.ty.as_ref() else {
+                unreachable!()
+            };
+            let segment = path.path.segments.last().expect("Query segment");
+            let inner = extract_query_data_type(segment)?;
+            quote!(#wasvy_path::module_guest::Query<#inner, __wasvy_guest_bindings::wasvy::ecs::app::Query>)
+        }
+    })
+}
+
+fn guest_raw_param_type_tokens(arg: &syn::PatType) -> syn::Result<proc_macro2::TokenStream> {
+    let param = classify_param(&arg.ty)?;
+    Ok(match param {
+        ModuleParam::Commands => quote!(__wasvy_guest_bindings::wasvy::ecs::app::Commands),
+        ModuleParam::Query(_) => quote!(__wasvy_guest_bindings::wasvy::ecs::app::Query),
+        ModuleParam::Res(_) | ModuleParam::ResMut(_) => {
+            quote!(__wasvy_guest_bindings::wasvy::ecs::app::WorldResource)
+        }
+    })
+}
+
+fn guest_wrapper_ctor_tokens(
+    arg: &syn::PatType,
+    raw_ident: &Ident,
+    wasvy_path: &proc_macro2::TokenStream,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let param = classify_param(&arg.ty)?;
+    Ok(match param {
+        ModuleParam::Commands => quote!(#wasvy_path::module_guest::Commands::new(#raw_ident)),
+        ModuleParam::Query(_) => quote!(#wasvy_path::module_guest::Query::new(#raw_ident)),
+        ModuleParam::Res(_) => quote!(#wasvy_path::module_guest::Res::new(#raw_ident)),
+        ModuleParam::ResMut(_) => quote!(#wasvy_path::module_guest::ResMut::new(#raw_ident)),
+    })
+}
+
+fn extract_single_generic_type(segment: &syn::PathSegment) -> syn::Result<Type> {
+    let PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "expected angle-bracketed generic arguments",
+        ));
+    };
+    let Some(GenericArgument::Type(inner)) = args.args.first() else {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "expected a single type argument",
+        ));
+    };
+    if args.args.len() != 1 {
+        return Err(syn::Error::new_spanned(
+            segment,
+            "expected a single type argument",
+        ));
+    }
+    Ok(inner.clone())
+}
+
+fn generate_guest_wit(systems: &[GuestModuleSystem]) -> String {
+    let mut wit = String::from(
+        r#"package wasvy:modules-generated;
+
+world guest {
+    use wasvy:ecs/app@0.0.7.{app, commands, query, world-resource};
+
+    export register: func(app: app);
+    export on-first-load: func(commands: commands);
+"#,
+    );
+
+    for system in systems {
+        let params = system
+            .params
+            .iter()
+            .enumerate()
+            .map(|(index, param)| format!("arg{index}: {}", guest_wit_param_type(param)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        wit.push_str(&format!("    export {}: func({params});\n", system.ident));
+    }
+
+    wit.push_str("}\n");
+    wit
 }
 
 fn rust_ident(name: &str) -> Ident {

@@ -1,0 +1,11 @@
+[package]
+name = "two_modules_game_host"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ai.workspace = true
+bevy.workspace = true
+combat.workspace = true
+game_api.workspace = true
+wasvy.workspace = true

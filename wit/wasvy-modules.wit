@@ -1,0 +1,18 @@
+/// Wasvy Modules: internal Rust-first modular game workflow guest contract.
+package wasvy:modules@0.1.0;
+
+/// Guest contract for Wasvy Modules.
+///
+/// This is intentionally distinct from `wasvy:ecs/guest`:
+/// - `register` is the metadata-only system registration phase
+/// - `on-first-load` is an optional once-per-world activation hook
+world guest {
+    import wasvy:ecs/app@0.0.7;
+    use wasvy:ecs/app@0.0.7.{app, commands};
+
+    /// Metadata-only registration phase. This is the Module equivalent of guest setup.
+    export register: func(app: app);
+
+    /// Optional once-per-world activation hook.
+    export on-first-load: func(commands: commands);
+}

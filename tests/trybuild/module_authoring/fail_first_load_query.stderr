@@ -1,0 +1,5 @@
+error: #[wasvy::on_first_load] currently supports Commands only
+  --> tests/trybuild/module_authoring/fail_first_load_query.rs:12:17
+   |
+12 | fn init(_query: Query<&Marker>) {}
+   |                 ^^^^^^^^^^^^^^

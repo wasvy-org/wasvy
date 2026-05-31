@@ -1,0 +1,16 @@
+package game:components;
+
+interface components {
+  use wasvy:ecs/app.{component};
+
+  /// wasvy:type-path=host_wit_example::components::Health
+  resource health {
+    constructor(component: component);
+    heal: func(amount: f32);
+    pct: func() -> f32;
+  }
+}
+
+world host {
+  import components;
+}

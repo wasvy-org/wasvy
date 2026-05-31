@@ -7175,6 +7175,7 @@ dependencies = [
  "inventory",
  "serde",
  "serde_json",
+ "toml 1.1.0+spec-1.1.0",
  "trybuild",
  "wasmtime",
  "wasmtime-wasi",
@@ -7197,6 +7198,7 @@ dependencies = [
  "tracing",
  "wasmtime",
  "wasmtime-wasi",
+ "wasvy",
  "wasvy_macros",
  "wit-parser 0.245.1",
 ]

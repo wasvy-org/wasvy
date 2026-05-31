@@ -25,3 +25,4 @@ wasmtime-wasi.workspace = true
 wasvy_macros.workspace = true
 wit-parser.workspace = true
 tracing.workspace = true
+wasvy.workspace = true

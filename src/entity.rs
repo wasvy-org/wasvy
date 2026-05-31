@@ -21,11 +21,14 @@ where
     for<'a> &'a I: Into<Entity>,
     F: From<Entity> + Send,
 {
-    let State::RunSystem { table, .. } = host.access() else {
-        bail!(
-            "{} resource is only accessible when running systems",
-            type_name::<I>()
-        )
+    let table = match host.access() {
+        State::Init { table, .. } | State::RunSystem { table, .. } => table,
+        _ => {
+            bail!(
+                "{} resource is only accessible when running systems or first-load init",
+                type_name::<I>()
+            )
+        }
     };
 
     let input = table.get(&input)?;
@@ -37,15 +40,22 @@ pub(crate) fn spawn_empty<F>(host: &mut WasmHost) -> Result<Resource<F>>
 where
     F: From<Entity> + Send,
 {
-    let State::RunSystem {
-        commands,
-        table,
-        insert_despawn_component,
-        access,
-        ..
-    } = host.access()
-    else {
-        bail!("Commands resource is only accessible when running systems",)
+    let (commands, table, insert_despawn_component, access) = match host.access() {
+        State::Init {
+            commands,
+            table,
+            insert_despawn_component,
+            access,
+            ..
+        }
+        | State::RunSystem {
+            commands,
+            table,
+            insert_despawn_component,
+            access,
+            ..
+        } => (commands, table, insert_despawn_component, access),
+        _ => bail!("Commands resource is only accessible when running systems or first-load init"),
     };
 
     let mut entity_commands = commands.spawn_empty();
@@ -77,18 +87,27 @@ where
         return Ok(());
     }
 
-    let State::RunSystem {
-        commands,
-        table,
-        type_registry,
-        codec,
-        ..
-    } = host.access()
-    else {
-        bail!(
-            "{} resource is only accessible when running systems",
-            type_name::<T>()
-        )
+    let (commands, table, type_registry, codec) = match host.access() {
+        State::Init {
+            commands,
+            table,
+            type_registry,
+            codec,
+            ..
+        }
+        | State::RunSystem {
+            commands,
+            table,
+            type_registry,
+            codec,
+            ..
+        } => (commands, table, type_registry, codec),
+        _ => {
+            bail!(
+                "{} resource is only accessible when running systems or first-load init",
+                type_name::<T>()
+            )
+        }
     };
 
     let input = table.get(input)?;
@@ -124,17 +143,25 @@ where
         return Ok(());
     }
 
-    let State::RunSystem {
-        commands,
-        table,
-        wasm_registry,
-        ..
-    } = host.access()
-    else {
-        bail!(
-            "{} resource is only accessible when running systems",
-            type_name::<T>()
-        )
+    let (commands, table, wasm_registry) = match host.access() {
+        State::Init {
+            commands,
+            table,
+            wasm_registry,
+            ..
+        }
+        | State::RunSystem {
+            commands,
+            table,
+            wasm_registry,
+            ..
+        } => (commands, table, wasm_registry),
+        _ => {
+            bail!(
+                "{} resource is only accessible when running systems or first-load init",
+                type_name::<T>()
+            )
+        }
     };
 
     let input = table.get(&input)?;

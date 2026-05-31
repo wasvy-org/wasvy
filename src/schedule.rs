@@ -85,7 +85,7 @@ impl ModSchedule {
 ///
 /// This isn't added to the scheduler, instead it's run by the exclusive system ([run_setup](crate::setup::run_setup)) after one or more mods finish loading
 #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
-pub(crate) struct ModStartup;
+pub struct ModStartup;
 
 impl ModStartup {
     pub(crate) fn new_schedule() -> Schedule {

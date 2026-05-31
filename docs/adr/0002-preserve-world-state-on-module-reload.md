@@ -1,0 +1,3 @@
+# Preserve world state on Module reload
+
+Wasvy Modules will reload by preserving host world state and replacing Module code and scheduled systems. On a successful reload, Wasvy reruns Registration, removes the old Module generation's systems, installs the new generation's systems, and continues against the same entities, components, and resources; on a Reload Compatibility Failure, Wasvy keeps the old Module active and instructs the developer to relaunch. We chose this because the core value of Wasvy Modules is hot-reloadable modular game development that still feels like one running game, and resetting or despawning state on every code change would undermine that workflow.

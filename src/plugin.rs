@@ -16,6 +16,7 @@ use crate::{
     engine::{Engine, Linker, create_linker},
     methods::FunctionIndex,
     mods::{Mod, ModDespawnBehaviour},
+    resource::WasmResourceRegistry,
     sandbox::Sandboxed,
     schedule::{ModSchedule, ModSchedules, ModStartup},
     serialize::{CodecResource, WasvyCodec},
@@ -252,6 +253,7 @@ impl Plugin for ModLoaderPlugin {
             .insert_resource(despawn_behaviour)
             .insert_resource(codec.expect("WasvyCodec is necessary"))
             .init_resource::<WasmComponentRegistry>()
+            .init_resource::<WasmResourceRegistry>()
             .init_resource::<AppTypeRegistry>()
             .insert_resource(schedules)
             .add_schedule(ModStartup::new_schedule())

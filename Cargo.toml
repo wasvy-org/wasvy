@@ -81,20 +81,23 @@ serde_json = ["dep:serde_json"]
 
 [dependencies]
 anyhow.workspace = true
-bevy_app.workspace = true
-bevy_asset.workspace = true
-bevy_derive.workspace = true
 bevy_ecs.workspace = true
-bevy_log.workspace = true
-bevy_platform.workspace = true
 bevy_reflect.workspace = true
-bevy_remote = { workspace = true, optional = true }
 inventory.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, optional = true }
+wasvy_macros.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_derive.workspace = true
+bevy_log.workspace = true
+bevy_platform.workspace = true
+bevy_remote = { workspace = true, optional = true }
+toml.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
-wasvy_macros.workspace = true
 
 [dev-dependencies]
 wit-bindgen.workspace = true

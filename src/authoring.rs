@@ -40,8 +40,24 @@
 
 use std::marker::PhantomData;
 
+#[cfg(not(target_arch = "wasm32"))]
 pub use bevy_app::App;
-use bevy_app::Plugin;
+#[cfg(not(target_arch = "wasm32"))]
+pub use bevy_app::Plugin;
+#[cfg(target_arch = "wasm32")]
+pub struct App;
+#[cfg(target_arch = "wasm32")]
+impl App {
+    pub fn register_type<T>(&mut self) {}
+    pub fn register_type_data<T, D>(&mut self) {}
+    pub fn init_resource<T>(&mut self) {}
+    pub fn register_function<F>(&mut self, _function: F) {}
+    pub fn add_systems<S, F>(&mut self, _schedule: S, _system: F) {}
+}
+#[cfg(target_arch = "wasm32")]
+pub trait Plugin {
+    fn build(&self, _app: &mut App) {}
+}
 use bevy_ecs::component::Component;
 use bevy_ecs::reflect::{AppFunctionRegistry, AppTypeRegistry};
 use bevy_reflect::{FromType, GetTypeRegistration, Reflect, TypePath};
@@ -51,6 +67,31 @@ use bevy_reflect::{FromType, GetTypeRegistration, Reflect, TypePath};
 pub struct WasvyComponentRegistration {
     /// Function invoked to register the component (typically registers reflect).
     pub register: fn(&mut App),
+}
+
+/// Inventory entry describing one Wasvy Module declaration.
+#[derive(Clone, Copy)]
+pub struct WasvyModuleDeclaration {
+    pub scope: &'static str,
+    pub name: &'static str,
+}
+
+/// Inventory entry describing one Wasvy Module system.
+#[derive(Clone, Copy)]
+pub struct WasvyModuleSystemRegistration {
+    pub scope: &'static str,
+    pub export_name: &'static str,
+    pub register_native: fn(&mut App),
+    pub referenced_types: &'static [&'static str],
+}
+
+/// Inventory entry describing one Wasvy Module first-load initializer.
+#[derive(Clone, Copy)]
+pub struct WasvyModuleFirstLoadRegistration {
+    pub scope: &'static str,
+    pub export_name: &'static str,
+    pub register_native: fn(&mut App),
+    pub referenced_types: &'static [&'static str],
 }
 
 /// Inventory entry that captures method argument names for WIT generation.
@@ -76,6 +117,9 @@ pub struct WasvyMethodsRegistration {
 inventory::collect!(WasvyComponentRegistration);
 inventory::collect!(WasvyMethodMetadata);
 inventory::collect!(WasvyMethodsRegistration);
+inventory::collect!(WasvyModuleDeclaration);
+inventory::collect!(WasvyModuleSystemRegistration);
+inventory::collect!(WasvyModuleFirstLoadRegistration);
 
 #[doc(hidden)]
 #[macro_export]
@@ -96,6 +140,30 @@ macro_rules! __wasvy_submit_methods_registration {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __wasvy_submit_method_metadata {
+    ($info:expr) => {
+        $crate::authoring::inventory::submit! { $info }
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __wasvy_submit_module_declaration {
+    ($info:expr) => {
+        $crate::authoring::inventory::submit! { $info }
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __wasvy_submit_module_system_registration {
+    ($info:expr) => {
+        $crate::authoring::inventory::submit! { $info }
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __wasvy_submit_module_first_load_registration {
     ($info:expr) => {
         $crate::authoring::inventory::submit! { $info }
     };
@@ -195,6 +263,13 @@ impl<T: WasvyMethods> Plugin for WasvyMethodsPlugin<T> {
 ///
 /// This is used by [ModLoaderPlugin](crate::plugin::ModLoaderPlugin) and can be called directly
 /// in build scripts that generate WIT.
+pub fn module_scope_matches(module_scope: &str, item_scope: &str) -> bool {
+    item_scope == module_scope
+        || item_scope
+            .strip_prefix(module_scope)
+            .is_some_and(|suffix| suffix.starts_with("::"))
+}
+
 pub struct AutoRegistrationPlugin;
 
 impl Plugin for AutoRegistrationPlugin {

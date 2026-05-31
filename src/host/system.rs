@@ -9,6 +9,7 @@ use crate::{
     system::{DynamicSystemId, Param},
 };
 
+#[derive(Clone)]
 pub struct WasmSystem {
     pub(crate) id: DynamicSystemId,
     pub(crate) name: String,
@@ -53,6 +54,14 @@ impl HostSystem for WasmHost {
 
     fn add_query(&mut self, system: Resource<WasmSystem>, query: Vec<QueryFor>) -> Result<()> {
         WasmSystem::add_param(self, system, Param::Query(query))
+    }
+
+    fn add_res(&mut self, system: Resource<WasmSystem>, type_path: String) -> Result<()> {
+        WasmSystem::add_param(self, system, Param::Res(type_path))
+    }
+
+    fn add_res_mut(&mut self, system: Resource<WasmSystem>, type_path: String) -> Result<()> {
+        WasmSystem::add_param(self, system, Param::ResMut(type_path))
     }
 
     fn after(&mut self, system: Resource<WasmSystem>, other: Resource<WasmSystem>) -> Result<()> {

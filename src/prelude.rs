@@ -9,9 +9,17 @@ pub use crate::authoring::{
 pub use crate::devtools::Devtools;
 pub use crate::methods::{FunctionAccess, FunctionIndex};
 pub use crate::mods::{Mod, ModDespawnBehaviour, ModSystemSet, Mods};
+pub use crate::module_plugin::{NativeAdapterPlugin, WasvyWorkspacePlugin};
+pub use crate::modules::{
+    Module, ModuleGeneration, ModuleId, ModuleReloadStatus, ModuleSystemSet, Modules,
+    ReloadBlockedReason,
+};
 pub use crate::plugin::ModLoaderPlugin;
 #[deprecated(note = "use ModLoaderPlugin instead")]
 pub type ModloaderPlugin = ModLoaderPlugin;
 pub use crate::sandbox::Sandbox;
 pub use crate::schedule::{ModSchedule, ModSchedules};
 pub use crate::witgen::{WitGeneratorPlugin, WitGeneratorSettings};
+pub use crate::workspace::{
+    WorkspaceConfigPath, WorkspaceInventory, WorkspaceModuleEntry, WorldComposition,
+};

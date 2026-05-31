@@ -1,0 +1,3 @@
+# Separate Wasvy Modules from Mods
+
+Wasvy will treat **Wasvy Modules** as a distinct product surface from public **Mods**. A **Module** is an internal Rust gameplay unit with a durable module identity, crate-root authoring, native-or-guest execution, preserve-state hot reload, and an explicit Module Authoring Contract; a **Mod** remains the public externally authored extension workflow. We made this split because the internal modular-game workflow has different ergonomics, lifecycle semantics, state-reload guarantees, and tooling needs than generic modding, and collapsing them under one surface would blur the language and constrain the design.

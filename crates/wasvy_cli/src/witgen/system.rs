@@ -18,6 +18,8 @@ pub struct Arg {
 pub enum SystemParam {
     Commands,
     Query,
+    Res,
+    ResMut,
 }
 
 impl fmt::Display for SystemParam {
@@ -25,6 +27,8 @@ impl fmt::Display for SystemParam {
         f.write_str(match self {
             Self::Commands => "commands",
             Self::Query => "query",
+            Self::Res => "res",
+            Self::ResMut => "res_mut",
         })
     }
 }
@@ -49,6 +53,14 @@ impl bindings::HostSystem for Host {
         _: Vec<bindings::QueryFor>,
     ) -> Result<()> {
         add_param(self, system, SystemParam::Query)
+    }
+
+    fn add_res(&mut self, system: Resource<WasmSystem>, _: String) -> Result<()> {
+        add_param(self, system, SystemParam::Res)
+    }
+
+    fn add_res_mut(&mut self, system: Resource<WasmSystem>, _: String) -> Result<()> {
+        add_param(self, system, SystemParam::ResMut)
     }
 
     fn after(&mut self, _: Resource<WasmSystem>, _: Resource<WasmSystem>) -> Result<()> {

@@ -166,12 +166,14 @@ pub(crate) fn process_module_reload_queue(world: &mut World) -> bool {
             Ok(prepared) => {
                 if let Err(err) = commit_module_reload(world, prepared) {
                     error!("Module reload activation failed: {err:?}");
+                    error!("[wasvy-dev] module_reload_failed error={err:#}");
                 } else {
                     ran_startup = true;
                 }
             }
             Err(err) => {
                 error!("Module reload blocked: {err:?}");
+                error!("[wasvy-dev] module_reload_blocked error={err:#}");
             }
         }
     }
@@ -233,6 +235,11 @@ fn commit_module_reload(world: &mut World, prepared: PreparedModuleReload) -> Re
                     prepared.planned.content_hash,
                 );
             }
+            info!(
+                "[wasvy-dev] module_reload_duplicate_content module={} generation={}",
+                prepared.module_id,
+                generation.0,
+            );
             return Ok(());
         }
     }
@@ -296,6 +303,12 @@ fn commit_module_reload(world: &mut World, prepared: PreparedModuleReload) -> Re
         prepared.planned.schema_snapshot.clone(),
         prepared.planned.asset_version,
         prepared.planned.content_hash,
+    );
+
+    info!(
+        "[wasvy-dev] module_swapped module={} generation={}",
+        prepared.module_id,
+        prepared.new_generation.0,
     );
 
     Ok(())

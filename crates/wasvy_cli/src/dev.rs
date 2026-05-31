@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeSet,
     fs,
-    io::ErrorKind,
+    io::{self, BufRead, BufReader, ErrorKind, Write},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::mpsc,
@@ -22,6 +22,8 @@ use wasvy::{
 const WASM_TARGET: &str = "wasm32-wasip2";
 const DEBOUNCE_WINDOW: Duration = Duration::from_millis(250);
 const HOST_EXIT_POLL: Duration = Duration::from_millis(100);
+const STATUS_SPINNER_INTERVAL: Duration = Duration::from_millis(80);
+const STATUS_SPINNER_FRAMES: [&str; 8] = ["⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"];
 
 #[derive(Debug, Clone)]
 pub struct DevSession {
@@ -46,6 +48,167 @@ struct ChangeSet {
     changed_modules: BTreeSet<String>,
     rebuild_all_guest_modules: bool,
     restart_host: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum ReloadPhase {
+    Building,
+    Staging,
+    WaitingForSwap,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ReloadTracker {
+    modules: BTreeSet<String>,
+    waiting_for_swap: BTreeSet<String>,
+    phase: ReloadPhase,
+}
+
+impl ReloadTracker {
+    fn building(modules: BTreeSet<String>) -> Self {
+        Self {
+            waiting_for_swap: modules.clone(),
+            modules,
+            phase: ReloadPhase::Building,
+        }
+    }
+
+    fn staging(&mut self) {
+        self.phase = ReloadPhase::Staging;
+    }
+
+    fn waiting_for_swap(&mut self) {
+        self.phase = ReloadPhase::WaitingForSwap;
+        self.waiting_for_swap = self.modules.clone();
+    }
+
+    fn mark_complete(&mut self, module: &str) {
+        self.waiting_for_swap.remove(module);
+    }
+
+    fn is_complete(&self) -> bool {
+        self.waiting_for_swap.is_empty()
+    }
+
+    fn label(&self) -> String {
+        self.modules.iter().cloned().collect::<Vec<_>>().join(", ")
+    }
+
+    fn status_line(&self) -> String {
+        match self.phase {
+            ReloadPhase::Building => format!(
+                "wasvy dev | reloading {} | building guest module(s)",
+                self.label()
+            ),
+            ReloadPhase::Staging => format!(
+                "wasvy dev | reloading {} | staging guest module artifact(s)",
+                self.label()
+            ),
+            ReloadPhase::WaitingForSwap => format!(
+                "wasvy dev | reloading {} | waiting for host swap ({}/{})",
+                self.label(),
+                self.modules.len().saturating_sub(self.waiting_for_swap.len()),
+                self.modules.len(),
+            ),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum HostReloadSignal {
+    ModuleSwapped { module: String },
+    ModuleReloadDuplicateContent { module: String },
+    ModuleReloadFailed,
+    ModuleReloadBlocked,
+}
+
+struct AnimatedStatusLine {
+    message: String,
+    frame_index: usize,
+    last_advanced_at: Instant,
+}
+
+impl AnimatedStatusLine {
+    fn new(message: String) -> Self {
+        Self {
+            message,
+            frame_index: 0,
+            last_advanced_at: Instant::now(),
+        }
+    }
+
+    fn rendered(&self) -> String {
+        format!(
+            "{} {}",
+            STATUS_SPINNER_FRAMES[self.frame_index],
+            self.message
+        )
+    }
+
+    fn tick(&mut self) -> bool {
+        if self.last_advanced_at.elapsed() < STATUS_SPINNER_INTERVAL {
+            return false;
+        }
+
+        self.frame_index = (self.frame_index + 1) % STATUS_SPINNER_FRAMES.len();
+        self.last_advanced_at = Instant::now();
+        true
+    }
+}
+
+#[derive(Default)]
+struct DevTerminal {
+    status_line: Option<AnimatedStatusLine>,
+}
+
+impl DevTerminal {
+    fn print_block(&mut self, text: &str) {
+        for line in text.lines() {
+            self.println(line);
+        }
+    }
+
+    fn println(&mut self, line: impl AsRef<str>) {
+        let line = line.as_ref();
+        let mut stdout = io::stdout().lock();
+        if self.status_line.is_some() {
+            let _ = write!(stdout, "\r\x1b[2K");
+        }
+        let _ = writeln!(stdout, "{line}");
+        self.redraw_status(&mut stdout);
+        let _ = stdout.flush();
+    }
+
+    fn set_status_line(&mut self, line: Option<String>) {
+        self.status_line = line.map(AnimatedStatusLine::new);
+        let mut stdout = io::stdout().lock();
+        self.redraw_status(&mut stdout);
+        let _ = stdout.flush();
+    }
+
+    fn tick_status_line(&mut self) {
+        let Some(status_line) = self.status_line.as_mut() else {
+            return;
+        };
+        if !status_line.tick() {
+            return;
+        }
+
+        let mut stdout = io::stdout().lock();
+        self.redraw_status(&mut stdout);
+        let _ = stdout.flush();
+    }
+
+    fn redraw_status(&self, stdout: &mut impl Write) {
+        match &self.status_line {
+            Some(status_line) => {
+                let _ = write!(stdout, "\r\x1b[2K{}", status_line.rendered());
+            }
+            None => {
+                let _ = write!(stdout, "\r\x1b[2K");
+            }
+        }
+    }
 }
 
 pub fn load_dev_session(manifest_path: impl AsRef<Path>) -> Result<DevSession> {
@@ -103,19 +266,31 @@ pub fn render_dev_plan(session: &DevSession, native: bool) -> String {
 
 pub fn run_dev(manifest_path: impl AsRef<Path>, native: bool) -> Result<()> {
     let session = load_dev_session(manifest_path)?;
-    println!("{}", render_dev_plan(&session, native));
+    let mut terminal = DevTerminal::default();
+    terminal.print_block(&render_dev_plan(&session, native));
 
     if !native {
-        rebuild_and_stage_modules(&session, &session.module_specs)?;
+        let mut no_reload_tracker = None;
+        rebuild_and_stage_modules(
+            &session,
+            &session.module_specs,
+            &mut terminal,
+            None,
+            &mut no_reload_tracker,
+        )?;
     }
 
     let mut host = HostProcess::spawn(&session, native)?;
     let (_watcher, rx) = create_watcher(&session)?;
+    let mut reload_tracker = None;
 
-    println!("watching for changes...");
+    terminal.println("watching for changes...");
 
     loop {
+        drain_host_output(&mut host, &mut terminal, &mut reload_tracker);
+
         if let Some(status) = host.try_wait()? {
+            terminal.set_status_line(None);
             if status.success() {
                 return Ok(());
             }
@@ -124,7 +299,10 @@ pub fn run_dev(manifest_path: impl AsRef<Path>, native: bool) -> Result<()> {
 
         let event = match rx.recv_timeout(HOST_EXIT_POLL) {
             Ok(event) => event?,
-            Err(mpsc::RecvTimeoutError::Timeout) => continue,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                terminal.tick_status_line();
+                continue;
+            }
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 bail!("file watcher disconnected unexpectedly")
             }
@@ -148,40 +326,84 @@ pub fn run_dev(manifest_path: impl AsRef<Path>, native: bool) -> Result<()> {
         }
 
         if native {
-            println!("change detected; restarting native host...");
+            terminal.println("change detected; restarting native host...");
             host.restart(&session, true)?;
             continue;
         }
 
-        if changes.rebuild_all_guest_modules {
-            println!("workspace API/host config changed; rebuilding guest modules...");
-            if let Err(err) = rebuild_and_stage_modules(&session, &session.module_specs) {
-                eprintln!("guest rebuild failed; keeping current host running: {err:#}");
-                continue;
-            }
-        } else if !changes.changed_modules.is_empty() {
-            let specs = session
+        let changed_specs = session
+            .module_specs
+            .iter()
+            .filter(|spec| changes.changed_modules.contains(spec.id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+        let reload_modules = if changes.rebuild_all_guest_modules {
+            session
                 .module_specs
                 .iter()
-                .filter(|spec| changes.changed_modules.contains(spec.id.as_str()))
-                .cloned()
-                .collect::<Vec<_>>();
-            println!(
+                .map(|spec| spec.id.as_str().to_string())
+                .collect::<BTreeSet<_>>()
+        } else {
+            changes.changed_modules.clone()
+        };
+
+        if !reload_modules.is_empty() {
+            reload_tracker = Some(ReloadTracker::building(reload_modules));
+            terminal.set_status_line(reload_tracker.as_ref().map(ReloadTracker::status_line));
+        }
+
+        if changes.rebuild_all_guest_modules {
+            terminal.println("workspace API/host config changed; rebuilding guest modules...");
+            if let Err(err) = rebuild_and_stage_modules(
+                &session,
+                &session.module_specs,
+                &mut terminal,
+                Some(&mut host),
+                &mut reload_tracker,
+            ) {
+                terminal.println(format!(
+                    "guest rebuild failed; keeping current host running: {err:#}"
+                ));
+                reload_tracker = None;
+                terminal.set_status_line(None);
+                continue;
+            }
+        } else if !changed_specs.is_empty() {
+            terminal.println(format!(
                 "module source changed: {}",
-                specs
+                changed_specs
                     .iter()
                     .map(|spec| spec.id.as_str())
                     .collect::<Vec<_>>()
                     .join(", ")
-            );
-            if let Err(err) = rebuild_and_stage_modules(&session, &specs) {
-                eprintln!("guest rebuild failed; old module generation stays active: {err:#}");
+            ));
+            if let Err(err) = rebuild_and_stage_modules(
+                &session,
+                &changed_specs,
+                &mut terminal,
+                Some(&mut host),
+                &mut reload_tracker,
+            ) {
+                terminal.println(format!(
+                    "guest rebuild failed; old module generation stays active: {err:#}"
+                ));
+                reload_tracker = None;
+                terminal.set_status_line(None);
                 continue;
             }
         }
 
+        if !changes.restart_host
+            && let Some(reload) = reload_tracker.as_mut()
+        {
+            reload.waiting_for_swap();
+            terminal.set_status_line(Some(reload.status_line()));
+        }
+
         if changes.restart_host {
-            println!("restarting host...");
+            terminal.println("restarting host...");
+            terminal.set_status_line(None);
+            reload_tracker = None;
             host.restart(&session, false)?;
         }
     }
@@ -248,7 +470,13 @@ fn load_module_build_specs(manifest: &WorkspaceManifest) -> Result<Vec<ModuleBui
         .collect()
 }
 
-fn rebuild_and_stage_modules(session: &DevSession, specs: &[ModuleBuildSpec]) -> Result<()> {
+fn rebuild_and_stage_modules(
+    session: &DevSession,
+    specs: &[ModuleBuildSpec],
+    terminal: &mut DevTerminal,
+    mut host: Option<&mut HostProcess>,
+    reload_tracker: &mut Option<ReloadTracker>,
+) -> Result<()> {
     if specs.is_empty() {
         return Ok(());
     }
@@ -263,14 +491,15 @@ fn rebuild_and_stage_modules(session: &DevSession, specs: &[ModuleBuildSpec]) ->
         .arg(WASM_TARGET)
         .current_dir(&session.manifest.root)
         .stdin(Stdio::null())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
     for spec in specs {
         command.arg("-p").arg(&spec.package_name);
     }
 
-    let status = command.status().with_context(|| {
+    let status = run_command_with_terminal_output(command, terminal, host.as_deref_mut(), reload_tracker)
+        .with_context(|| {
         format!(
             "failed to run cargo build for workspace {}",
             workspace_cargo.display()
@@ -280,13 +509,24 @@ fn rebuild_and_stage_modules(session: &DevSession, specs: &[ModuleBuildSpec]) ->
         bail!("cargo build failed with status {status}");
     }
 
+    if let Some(reload_tracker) = reload_tracker.as_mut() {
+        reload_tracker.staging();
+        terminal.set_status_line(Some(reload_tracker.status_line()));
+    }
+    if let Some(host) = host.as_deref_mut() {
+        drain_host_output(host, terminal, reload_tracker);
+    }
+
     for spec in specs {
         stage_module_artifact(spec)?;
-        println!(
+        terminal.println(format!(
             "staged module {} -> {}",
             spec.id,
             spec.staged_wasm.display()
-        );
+        ));
+        if let Some(host) = host.as_deref_mut() {
+            drain_host_output(host, terminal, reload_tracker);
+        }
     }
 
     Ok(())
@@ -411,8 +651,159 @@ fn classify_changes(session: &DevSession, paths: &[PathBuf], native: bool) -> Ch
     changes
 }
 
+fn run_command_with_terminal_output(
+    mut command: Command,
+    terminal: &mut DevTerminal,
+    mut host: Option<&mut HostProcess>,
+    reload_tracker: &mut Option<ReloadTracker>,
+) -> Result<std::process::ExitStatus> {
+    let mut child = command.spawn().context("failed to spawn command")?;
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    let (tx, rx) = mpsc::channel();
+    if let Some(stdout) = stdout {
+        spawn_line_reader(stdout, tx.clone());
+    }
+    if let Some(stderr) = stderr {
+        spawn_line_reader(stderr, tx.clone());
+    }
+    drop(tx);
+
+    loop {
+        if let Some(host) = host.as_deref_mut() {
+            drain_host_output(host, terminal, reload_tracker);
+        }
+
+        match rx.recv_timeout(HOST_EXIT_POLL) {
+            Ok(line) => {
+                terminal.println(line);
+                if let Some(host) = host.as_deref_mut() {
+                    drain_host_output(host, terminal, reload_tracker);
+                }
+            }
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                terminal.tick_status_line();
+                if let Some(status) = child.try_wait().context("failed to poll command")? {
+                    while let Ok(line) = rx.try_recv() {
+                        terminal.println(line);
+                    }
+                    if let Some(host) = host.as_deref_mut() {
+                        drain_host_output(host, terminal, reload_tracker);
+                    }
+                    return Ok(status);
+                }
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                let status = child.wait().context("failed to wait for command")?;
+                if let Some(host) = host.as_deref_mut() {
+                    drain_host_output(host, terminal, reload_tracker);
+                }
+                return Ok(status);
+            }
+        }
+    }
+}
+
+fn drain_host_output(
+    host: &mut HostProcess,
+    terminal: &mut DevTerminal,
+    reload_tracker: &mut Option<ReloadTracker>,
+) {
+    while let Some(line) = host.try_recv_output() {
+        handle_host_output_line(&line, terminal, reload_tracker);
+    }
+}
+
+fn handle_host_output_line(
+    line: &str,
+    terminal: &mut DevTerminal,
+    reload_tracker: &mut Option<ReloadTracker>,
+) {
+    match parse_host_reload_signal(line) {
+        Some(HostReloadSignal::ModuleSwapped { module })
+        | Some(HostReloadSignal::ModuleReloadDuplicateContent { module }) => {
+            let Some(reload) = reload_tracker.as_mut() else {
+                return;
+            };
+            if !matches!(reload.phase, ReloadPhase::WaitingForSwap) {
+                return;
+            }
+
+            reload.mark_complete(&module);
+            if reload.is_complete() {
+                let label = reload.label();
+                terminal.set_status_line(None);
+                terminal.println(format!("reload complete: {label}"));
+                *reload_tracker = None;
+            } else {
+                terminal.set_status_line(Some(reload.status_line()));
+            }
+        }
+        Some(HostReloadSignal::ModuleReloadFailed)
+        | Some(HostReloadSignal::ModuleReloadBlocked) => {
+            let Some(reload) = reload_tracker.as_ref() else {
+                return;
+            };
+            if !matches!(reload.phase, ReloadPhase::WaitingForSwap) {
+                return;
+            }
+
+            terminal.set_status_line(None);
+            terminal.println("reload failed; see host output above");
+            *reload_tracker = None;
+        }
+        None => terminal.println(line),
+    }
+}
+
+fn parse_host_reload_signal(line: &str) -> Option<HostReloadSignal> {
+    let marker = line.split_once("[wasvy-dev] ")?.1;
+    if let Some(rest) = marker.strip_prefix("module_swapped ") {
+        return extract_module_name(rest).map(|module| HostReloadSignal::ModuleSwapped { module });
+    }
+    if let Some(rest) = marker.strip_prefix("module_reload_duplicate_content ") {
+        return extract_module_name(rest)
+            .map(|module| HostReloadSignal::ModuleReloadDuplicateContent { module });
+    }
+    if marker.starts_with("module_reload_failed ") {
+        return Some(HostReloadSignal::ModuleReloadFailed);
+    }
+    if marker.starts_with("module_reload_blocked ") {
+        return Some(HostReloadSignal::ModuleReloadBlocked);
+    }
+    None
+}
+
+fn extract_module_name(fields: &str) -> Option<String> {
+    fields
+        .split_whitespace()
+        .find_map(|field| field.strip_prefix("module="))
+        .map(str::to_string)
+}
+
+fn spawn_line_reader<R>(reader: R, tx: mpsc::Sender<String>)
+where
+    R: std::io::Read + Send + 'static,
+{
+    thread::spawn(move || {
+        let reader = BufReader::new(reader);
+        for line in reader.lines() {
+            match line {
+                Ok(line) => {
+                    if tx.send(line).is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+}
+
 struct HostProcess {
     child: Child,
+    output_rx: mpsc::Receiver<String>,
 }
 
 impl HostProcess {
@@ -424,8 +815,8 @@ impl HostProcess {
             .arg(&session.host_manifest_path)
             .current_dir(&session.manifest.root)
             .stdin(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit());
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
 
         let rust_log = match std::env::var("RUST_LOG") {
             Ok(value) if value.contains("bevy_asset::server") => value,
@@ -441,17 +832,35 @@ impl HostProcess {
             command.arg("--").arg("--native");
         }
 
-        let child = command.spawn().with_context(|| {
+        let mut child = command.spawn().with_context(|| {
             format!(
                 "failed to launch host via {}",
                 session.host_manifest_path.display()
             )
         })?;
-        Ok(Self { child })
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+        let (tx, rx) = mpsc::channel();
+        if let Some(stdout) = stdout {
+            spawn_line_reader(stdout, tx.clone());
+        }
+        if let Some(stderr) = stderr {
+            spawn_line_reader(stderr, tx.clone());
+        }
+        drop(tx);
+
+        Ok(Self {
+            child,
+            output_rx: rx,
+        })
     }
 
     fn try_wait(&mut self) -> Result<Option<std::process::ExitStatus>> {
         self.child.try_wait().context("failed to poll host process")
+    }
+
+    fn try_recv_output(&mut self) -> Option<String> {
+        self.output_rx.try_recv().ok()
     }
 
     fn restart(&mut self, session: &DevSession, native: bool) -> Result<()> {
@@ -632,6 +1041,58 @@ path = "crates/modules/combat"
         };
 
         assert_eq!(relevant_paths(&event), vec![PathBuf::from("src/lib.rs")]);
+    }
+
+    #[test]
+    fn host_swap_signal_is_ignored_before_waiting_phase() {
+        let mut terminal = DevTerminal::default();
+        let mut reload_tracker = Some(ReloadTracker::building(BTreeSet::from([
+            "counter".to_string(),
+        ])));
+        terminal.set_status_line(reload_tracker.as_ref().map(ReloadTracker::status_line));
+
+        handle_host_output_line(
+            "INFO [wasvy-dev] module_swapped module=counter generation=7",
+            &mut terminal,
+            &mut reload_tracker,
+        );
+
+        assert!(reload_tracker.is_some());
+        assert!(matches!(
+            reload_tracker.as_ref().map(|tracker| &tracker.phase),
+            Some(ReloadPhase::Building)
+        ));
+        assert!(terminal.status_line.is_some());
+    }
+
+    #[test]
+    fn parse_host_reload_signal_detects_swap_and_duplicate_content() {
+        assert_eq!(
+            parse_host_reload_signal("INFO [wasvy-dev] module_swapped module=counter generation=7"),
+            Some(HostReloadSignal::ModuleSwapped {
+                module: "counter".to_string(),
+            })
+        );
+        assert_eq!(
+            parse_host_reload_signal(
+                "INFO [wasvy-dev] module_reload_duplicate_content module=counter generation=7"
+            ),
+            Some(HostReloadSignal::ModuleReloadDuplicateContent {
+                module: "counter".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn parse_host_reload_signal_detects_failures() {
+        assert_eq!(
+            parse_host_reload_signal("ERROR [wasvy-dev] module_reload_failed error=boom"),
+            Some(HostReloadSignal::ModuleReloadFailed)
+        );
+        assert_eq!(
+            parse_host_reload_signal("ERROR [wasvy-dev] module_reload_blocked error=boom"),
+            Some(HostReloadSignal::ModuleReloadBlocked)
+        );
     }
 
     #[test]

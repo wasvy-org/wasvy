@@ -1,8 +1,8 @@
 mod python;
-pub use python::Python;
+pub use python::*;
 
 mod rust;
-pub use rust::Rust;
+pub use rust::*;
 
 use crate::runtime::Config;
 

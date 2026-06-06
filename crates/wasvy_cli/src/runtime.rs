@@ -7,6 +7,7 @@ use std::{
 
 use anyhow::{Context, Result, bail};
 use error_collection::Errors;
+use serde::Deserialize;
 use wit_parser::Resolve;
 
 use crate::{
@@ -15,6 +16,8 @@ use crate::{
     editor::BoxedEditor,
     id::Id,
     language::BoxedLanguage,
+    languages::{Rust, cargo_metadata},
+    named::Named,
     remote::Remote,
     source::Source,
 };
@@ -102,6 +105,7 @@ impl TryFrom<&Remote> for Config {
 
     fn try_from(value: &Remote) -> Result<Self> {
         let Remote {
+            current_exe: _,
             name,
             endpoint: _,
             asset_dir: _,
@@ -182,20 +186,39 @@ impl Runtime {
         &self.0.editors
     }
 
-    /// Given a directory, searches its contents for compatible [Source]s (build files) for Mods
-    pub fn search(&self, path: impl AsRef<Path>) -> Result<Vec<Source>> {
-        // Resolve directories
-        let mut sources: Vec<Source> = search_glob(path.as_ref().join("**/wit/*.wit"))
+    /// Searches its contents for compatible [Source]s (build files) for Mods
+    ///
+    /// This will locate:
+    /// - Native mods in the host app workspace (Rust)
+    /// - External mods located somewhere within the path (Rust, Python, Go, etc)
+    /// - Pre-compiled binaries located somewhere within the path (Wasm)
+    pub fn search(&self, remote: &Remote, path: impl AsRef<Path>) -> Result<Vec<Source>> {
+        let Native {
+            crate_names,
+            workspace_root,
+        } = find_native(&remote.current_exe);
+        let native: Vec<Source> = crate_names
+            .into_iter()
+            .filter_map(|crate_name| Source::new_native(&workspace_root, crate_name, self).ok())
+            .collect();
+
+        let rust = Rust::id();
+        let mut mods: Vec<Source> = search_glob(path.as_ref().join("**/wit/*.wit"))
             .filter_map(|p| p.parent().and_then(Path::parent).map(Path::to_path_buf))
             .collect::<HashSet<_>>() // Dedupe
             .into_iter()
-            .filter_map(|path| Source::identify_dir(&path, None, self).ok())
+            .filter_map(|path| Source::new_dir(&path, self).ok())
+            // Avoid duplicates with native sources
+            .filter(|source| {
+                !(source.path().starts_with(&workspace_root)
+                    && source.is_language(&rust)
+                    && native.iter().any(|native| native.name() == source.name()))
+            })
             .collect();
 
-        // Resolve wasm files
-        let mut wasm = search_glob(path.as_ref().join("**/*.wasm"))
+        let mut wasm: Vec<Source> = search_glob(path.as_ref().join("**/*.wasm"))
             // Ignore wasm build artifacts located in source directories (such as dest directory for python)
-            .filter(|path| !sources.iter().any(|source| path.starts_with(source.path())))
+            .filter(|path| !mods.iter().any(|source| path.starts_with(source.path())))
             // Ignore wasm files in rust build directory (**/target/wasm32-*/*/*.wasm )
             .filter(|path| {
                 let mut components = path.components().rev().skip(2);
@@ -210,28 +233,29 @@ impl Runtime {
                     .unwrap_or_default();
                 !target || !dir
             })
-            .filter_map(|path| Source::identify_file(path, None, self).ok())
+            .filter_map(|path| Source::new_wasm(path, None, self).ok())
             .collect();
 
+        let mut sources = native;
+        sources.append(&mut mods);
         sources.append(&mut wasm);
-
         Ok(sources)
     }
 
     /// Identifies a directory directory as a compatible [Source] (build files) for a Mod
     pub fn identify(&self, path: impl AsRef<Path>) -> Option<Source> {
-        Source::identify(path, self).ok()
+        Source::new(path, self).ok()
     }
 
     /// Creates a new source (project/build files) at the specified directory, using the language of choice
-    pub fn create(
+    pub fn scaffold(
         &self,
         name: impl AsRef<str>,
         path: impl AsRef<Path>,
         language: Id,
         logging: Logging,
     ) -> Result<Source> {
-        Source::create(name, path, self, language, logging)
+        Source::scaffold(name, path, self, language, logging)
     }
 }
 
@@ -246,4 +270,52 @@ fn search_glob(pattern: PathBuf) -> impl Iterator<Item = PathBuf> {
                 .components()
                 .any(|component| component.as_os_str().to_string_lossy().starts_with('.'))
         })
+}
+
+#[derive(Deserialize, Default)]
+struct Native {
+    crate_names: Vec<String>,
+    workspace_root: PathBuf,
+}
+
+fn find_native(path: impl AsRef<Path>) -> Native {
+    #[derive(Deserialize, Default)]
+    struct Metadata {
+        packages: Vec<Package>,
+        workspace_root: PathBuf,
+    }
+
+    #[derive(Deserialize, Default)]
+    struct Package {
+        name: String,
+        targets: Vec<Target>,
+    }
+
+    #[derive(Deserialize, Default)]
+    struct Target {
+        crate_types: HashSet<String>,
+    }
+
+    let metadata = cargo_metadata(path).unwrap_or_default();
+    let Metadata {
+        packages,
+        workspace_root,
+    } = serde_json::from_str(&metadata).unwrap_or_default();
+
+    let crate_names = packages
+        .into_iter()
+        .filter(|package| {
+            package.targets.iter().any(|target| {
+                // All native mods have these two crate types.
+                // TODO: there's probably more we can check here to avoid false positives
+                target.crate_types.contains("rlib") && target.crate_types.contains("cdylib")
+            })
+        })
+        .map(|package| package.name)
+        .collect();
+
+    Native {
+        crate_names,
+        workspace_root,
+    }
 }

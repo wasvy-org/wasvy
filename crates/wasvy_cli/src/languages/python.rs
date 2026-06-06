@@ -28,7 +28,7 @@ impl Language for Python {
         })
     }
 
-    fn create(&self, source: &Source, logging: Logging) -> Result<()> {
+    fn scaffold(&self, source: &Source, logging: Logging) -> Result<()> {
         let mut errors = Errors::new();
 
         let path = source.path();
@@ -86,7 +86,7 @@ impl Language for Python {
 
         Command::run(Poetry::Componentize { output }, source, logging)?;
 
-        Source::identify_file(output, Some(source.name()), source.runtime())
+        Source::new_wasm(output, Some(source.name().to_string()), source.runtime())
             .with_context(|| anyhow!("identifying build artifact {output:?}"))
     }
 }

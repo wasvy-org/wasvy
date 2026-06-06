@@ -10,7 +10,7 @@ pub trait Language: Named + Send + Sync {
     fn identify(&self, path: &Path) -> Result<SourceInfo>;
 
     /// Creates necessary files for a new source of this language type
-    fn create(&self, source: &Source, logging: Logging) -> Result<()>;
+    fn scaffold(&self, source: &Source, logging: Logging) -> Result<()>;
 
     /// Compiles this language to a source.
     ///

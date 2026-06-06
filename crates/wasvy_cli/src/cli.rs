@@ -112,7 +112,7 @@ pub fn cli(args: Args) -> Result<()> {
     }
 
     let runtime = Runtime::new(&remote).context("initializing runtime")?;
-    let sources = get_sources(&runtime, command, path)?;
+    let sources = get_sources(&runtime, command, &remote, path)?;
 
     match command {
         Command::Create(args) => create(path, args, &runtime)?,
@@ -126,7 +126,12 @@ pub fn cli(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn get_sources(runtime: &Runtime, command: &Command, path: &Path) -> Result<Vec<Source>> {
+fn get_sources(
+    runtime: &Runtime,
+    command: &Command,
+    remote: &Remote,
+    path: &Path,
+) -> Result<Vec<Source>> {
     let (Command::Search(ModArgs { mods })
     | Command::Load(ModArgs { mods })
     | Command::Unload(ModArgs { mods })
@@ -135,7 +140,7 @@ fn get_sources(runtime: &Runtime, command: &Command, path: &Path) -> Result<Vec<
         return Ok(Vec::new());
     };
 
-    let mut sources = runtime.search(path)?;
+    let mut sources = runtime.search(remote, path)?;
     if !mods.is_empty() {
         sources.retain(|source| mods.iter().any(|pattern| source.name().contains(pattern)));
     }
@@ -176,7 +181,7 @@ fn create(path: &Path, args: &CreateArgs, runtime: &Runtime) -> Result<()> {
         );
 
         if let Some(language) = language.cloned() {
-            errors.collect(runtime.create(&args.name, directory, language, Default::default()));
+            errors.collect(runtime.scaffold(&args.name, directory, language, Default::default()));
         }
     }
 

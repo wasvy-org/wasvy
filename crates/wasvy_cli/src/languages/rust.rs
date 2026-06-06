@@ -8,11 +8,13 @@ use std::{
 use anyhow::{Context, Result, anyhow, bail};
 use error_collection::Errors;
 use semver::Version;
+use serde::Deserialize;
 use tracing::warn;
 
 use crate::{
     command::{Command, CommandType, Logging},
     fs::WriteTo,
+    id::Id,
     language::{Language, SourceInfo},
     named::Named,
     source::Source,
@@ -34,6 +36,10 @@ impl Rust {
             .context("could not get cargo version")?;
         let version = String::from_utf8(output.stdout)?;
         Self::parse(version)
+    }
+
+    pub fn id() -> Id {
+        (&Self::default()).into()
     }
 
     fn parse(version: impl AsRef<str>) -> Result<Self> {
@@ -58,7 +64,7 @@ impl Language for Rust {
         })
     }
 
-    fn create(&self, source: &Source, _logging: Logging) -> Result<()> {
+    fn scaffold(&self, source: &Source, _logging: Logging) -> Result<()> {
         let mut errors = Errors::new();
 
         let path = source.path();
@@ -159,7 +165,7 @@ fn get_build_artifact(source: &Source) -> Result<Source> {
         .join("wasm32-wasip2")
         .join("release")
         .join(format!("{name}.wasm"));
-    Source::identify_file(&file, Some(source.name()), source.runtime())
+    Source::new_wasm(&file, Some(name), source.runtime())
         .with_context(|| anyhow!("identifying build artifact {file:?}"))
 }
 
@@ -172,7 +178,7 @@ fn retry_witgen(source: &Source) -> Result<()> {
     write_guest_wit(&wit_source)
 }
 
-fn build_directory(path: impl AsRef<Path>) -> Result<PathBuf> {
+pub(crate) fn cargo_metadata(path: impl AsRef<Path>) -> Result<String> {
     let path = path.as_ref();
     let output = process::Command::new("cargo")
         .arg("metadata")
@@ -181,21 +187,22 @@ fn build_directory(path: impl AsRef<Path>) -> Result<PathBuf> {
         .arg("--no-deps")
         .current_dir(path)
         .output()
-        .context("could not run cargo metadata")?;
+        .context("could not run `cargo metadata`")?;
 
-    let stdout =
-        String::from_utf8(output.stdout).context("cargo metadata output was not valid UTF-8")?;
+    String::from_utf8(output.stdout).context("cargo metadata output was not valid UTF-8")
+}
 
-    let metadata: serde_json::Value =
-        serde_json::from_str(&stdout).context("failed to parse cargo metadata as JSON")?;
+fn build_directory(path: impl AsRef<Path>) -> Result<PathBuf> {
+    #[derive(Deserialize)]
+    struct Metadata {
+        target_directory: PathBuf,
+    }
 
-    let target_directory = metadata
-        .get("build_directory")
-        .or(metadata.get("target_directory"))
-        .and_then(|path| path.as_str())
-        .ok_or(anyhow!("missing target_directory"))?;
+    let metadata = cargo_metadata(&path)?;
+    let metadata: Metadata =
+        serde_json::from_str(&metadata).context("Invalid `cargo metadata` target_directory")?;
 
-    Ok(PathBuf::from(target_directory))
+    Ok(metadata.target_directory)
 }
 
 impl Default for Rust {

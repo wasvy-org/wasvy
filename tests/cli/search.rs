@@ -14,7 +14,7 @@ fn search_default() {
     let remote = Remote::connect(app.uri()).unwrap();
     let runtime = Runtime::new(&remote).unwrap();
 
-    let sources = runtime.search("examples/mods").unwrap();
+    let sources = runtime.search(&remote, "examples/mods").unwrap();
     println!("{sources:#?}");
     assert!(
         sources.iter().all(|source| !source.is_wasm()),
@@ -50,7 +50,7 @@ fn search_components() {
     let remote = Remote::connect(app.uri()).unwrap();
     let runtime = Runtime::new(&remote).unwrap();
 
-    let sources = runtime.search("examples/mods").unwrap();
+    let sources = runtime.search(&remote, "examples/mods").unwrap();
     println!("{sources:#?}");
     assert!(
         sources

@@ -19,6 +19,7 @@ pub struct Remote {
     pub dependencies: Vec<Dependency>,
     pub endpoint: RemoteUri,
     pub asset_dir: PathBuf,
+    pub current_exe: PathBuf,
     pub name: String,
 }
 
@@ -54,7 +55,11 @@ impl Remote {
             .map(PathBuf::from)
             .context("unknown asset_dir")?;
 
-        let _ = fs::create_dir_all(&asset_dir);
+        let current_exe = res
+            .get("current_exe")
+            .and_then(|v| v.as_str())
+            .map(PathBuf::from)
+            .context("unknown current_exe")?;
 
         let name = res
             .get("program_name")
@@ -64,6 +69,7 @@ impl Remote {
 
         Ok(Remote {
             asset_dir,
+            current_exe,
             dependencies,
             endpoint,
             name,

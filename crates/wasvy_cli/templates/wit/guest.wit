@@ -3,13 +3,12 @@ package {{ namespace }}:{{ name }};
 
 /// The "guest" world your mod resides in.
 world guest {
-    use wasvy:ecs/app@{{ wasvy_wit_version }}.{commands, query};
+    use wasvy:ecs/app@{{ wasvy_wit_version }}.{ {% for param in params %}{{ param }}, {% endfor %}};
 
-    /// An example system that runs on ModSetup
-    export start: func(commands: commands);
-
-    /// Another example system that runs every Update
-    export update: func(query: query);
+    {% for system in systems %}
+    {% if !system.desc.is_empty() %}// {{ system.desc }}
+    {% endif %}export {{ system.name }}: func({% for arg in system.args %}{{ arg.name }}: {{ arg.param }}{% if !loop.last %}, {% endif %}{% endfor %});
+    {% endfor %}
 
     /// This is important.
     /// This makes it so the WASM module must implement the guest required functions by the Bevy host.

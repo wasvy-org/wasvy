@@ -202,20 +202,12 @@ impl Source {
             .languages()
             .get(&language)
             .ok_or(anyhow!("language must belong to runtime"))?;
-        let name = name.as_ref();
-        let namespace = runtime.namespace();
-        let wasvy_wit_version = runtime
-            .find_dependency("wasvy", "ecs")
-            .map(|dependency| dependency.version.clone());
 
-        let wit = Wit::new(ScaffoldWit {
-            name: name.to_string(),
-            namespace: namespace.to_string(),
-            wasvy_wit_version,
-        })?;
+        let wit = Wit::new(ScaffoldWit::new(&name, runtime))?;
         wit.write(&path)?;
 
-        let mut source = Self::new_dir_inner(path, Some(name.to_string()), language, runtime)?;
+        let mut source =
+            Self::new_dir_inner(path, Some(name.as_ref().to_string()), language, runtime)?;
 
         let mut errors = Errors::new();
 

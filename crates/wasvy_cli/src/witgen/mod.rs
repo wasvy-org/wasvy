@@ -28,6 +28,7 @@ pub fn write_guest_wit(source: &Source) -> Result<()> {
     wit.write(source.path())
 }
 
+/// Used to generate wit bindings for a [Source]
 #[derive(askama::Template)]
 #[template(path = "./wit/guest.wit")]
 pub struct Wit {
@@ -110,10 +111,14 @@ impl Default for WitConfig {
 
 impl From<&Runtime> for WitConfig {
     fn from(runtime: &Runtime) -> Self {
-        Self {
+        let mut config = Self {
             namespace: runtime.namespace().to_string(),
             ..Default::default()
+        };
+        if let Some(dependency) = runtime.find_dependency("wasvy", "ecs") {
+            config.wasvy_wit_version = dependency.version.clone();
         }
+        config
     }
 }
 
@@ -138,18 +143,12 @@ impl TryFrom<&Source> for WitConfig {
 }
 
 /// The default wit template for scaffolding new projects
-pub struct ScaffoldWit {
-    pub name: String,
-    pub namespace: String,
-    pub wasvy_wit_version: Option<Version>,
-}
+pub struct ScaffoldWit(WitConfig);
 
-impl From<ScaffoldWit> for WitConfig {
-    fn from(value: ScaffoldWit) -> Self {
-        let mut config = WitConfig::default();
-        config.name = value.name;
-        config.namespace = value.namespace;
-        config.wasvy_wit_version = value.wasvy_wit_version.unwrap_or(config.wasvy_wit_version);
+impl ScaffoldWit {
+    pub fn new(name: impl AsRef<str>, runtime: &Runtime) -> Self {
+        let mut config: WitConfig = runtime.into();
+        config.name = name.as_ref().to_string();
         config.systems = vec![
             WasmSystem {
                 args: vec![Arg {
@@ -168,7 +167,13 @@ impl From<ScaffoldWit> for WitConfig {
                 name: "update".into(),
             },
         ];
-        config
+        Self(config)
+    }
+}
+
+impl From<ScaffoldWit> for WitConfig {
+    fn from(value: ScaffoldWit) -> Self {
+        value.0
     }
 }
 
@@ -229,16 +234,16 @@ fn is_valid_wit_ident(value: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use crate::runtime::Config;
+
     use super::*;
 
     #[test]
     fn scaffold() {
-        let wit = Wit::new(ScaffoldWit {
-            namespace: "test".into(),
-            name: "game".into(),
-            wasvy_wit_version: None,
-        })
-        .unwrap();
+        let mut config = Config::default();
+        config.namespace = "test".into();
+        let runtime = Runtime::new(config).unwrap();
+        let wit = Wit::new(ScaffoldWit::new("game", &runtime)).unwrap();
 
         let output: String = wit.try_into().unwrap();
 

@@ -53,7 +53,7 @@ use Variant::*;
 impl Source {
     /// Creates a new source from an existing path.
     ///
-    /// Note: This will fail if the path is missing, if you want to create a new Source in a language of choice, call [Source::scafold]
+    /// Note: This will fail if the path is missing, if you want to create a new Source in a language of choice, call [Source::scaffold]
     pub fn new(path: impl AsRef<Path>, runtime: &Runtime) -> Result<Self> {
         let path = path.as_ref();
         if path.is_file() && path.extension().unwrap_or_default() == "wasm" {

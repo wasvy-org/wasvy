@@ -14,7 +14,7 @@ pub trait Language: Named + Send + Sync {
 
     /// Compiles this language to a source.
     ///
-    /// See [Source::identify_file] to return a Source from a wasm file.
+    /// See [Source::new] to return a Source from a wasm file.
     fn build(&self, source: &Source, logging: Logging) -> Result<Source>;
 }
 

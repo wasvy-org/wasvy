@@ -24,7 +24,7 @@ impl Mods<'_, '_> {
     ///
     /// This [spawns](Self::spawn) a new instance of the mod and configures it to run in the world.
     ///
-    /// The mod will be given access to the entire World. See [docs for Global Sandbox](Sandbox)
+    /// The mod will be given access to the entire World. See [docs for Global Sandbox](crate::sandbox::Sandbox)
     pub fn load<'a>(&mut self, path: impl Into<AssetPath<'a>>) {
         let mod_id = self.spawn(path, None);
         self.enable_access(mod_id, ModAccess::World);
@@ -291,7 +291,7 @@ impl ModSystemSet {
         Self::Access(ModAccess::World)
     }
 
-    /// Creates the system set for a [Sandbox] (all snaboxed systems).
+    /// Creates the system set for a [Sandbox](crate::sandbox::Sandbox) (all sandboxed systems).
     ///
     /// All of the sandbox's systems (from any mod) will be included in this set.
     ///

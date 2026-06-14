@@ -102,19 +102,20 @@ impl<'a> SearchBuilder<'a> {
             search_glob(path.join("**/*.wasm"))
                 // Ignore wasm build artifacts located in source directories (such as dest directory for python)
                 .filter(|path| !mods.iter().any(|source| path.starts_with(source.path())))
-                // Ignore wasm files in rust build directory (**/target/wasm32-*/*/*.wasm )
+                // Ignore wasm files in rust build directories: **/target/wasm32-*/**/*.wasm
                 .filter(|path| {
-                    let mut components = path.components().rev().skip(2);
-                    let target = components
-                        .next()
-                        .and_then(|part| part.as_os_str().to_str())
-                        .map(|part| part.starts_with("wasm32-"))
-                        .unwrap_or_default();
-                    let dir = components
-                        .next()
-                        .map(|part| part.as_os_str() == "target")
-                        .unwrap_or_default();
-                    !target || !dir
+                    let mut parts = path.components();
+                    while let Some(target) = parts.next() {
+                        if target.as_os_str() == "target" {
+                            if let Some(target) =
+                                parts.next().and_then(|part| part.as_os_str().to_str())
+                                && target.starts_with("wasm32-")
+                            {
+                                return false;
+                            }
+                        }
+                    }
+                    true
                 })
                 .filter_map(|path| Source::new_wasm(path, None, self.runtime).ok())
                 .collect()

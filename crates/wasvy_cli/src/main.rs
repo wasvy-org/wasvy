@@ -1,51 +1,24 @@
-use wasvy_cli::{
-    remote::Remote,
-    runtime::{Config, Runtime},
-    source::Source,
-};
+#[cfg(not(feature = "cli"))]
+compile_error!("The `cli` feature must be enabled to build wasvy-cli.");
 
-fn main() {
-    // Connect to a wasvy remote session
-    let Ok(remote) = Remote::new() else {
-        // TODO: play some animation and wait for game to launch
-        println!("There's no bevy apps running");
-        return;
-    };
+use clap::Parser;
+use std::process::exit;
 
-    // Create the CLI runtime
-    let runtime = {
-        let mut config = Config::default();
-        for dep in remote.dependencies.iter() {
-            let name = format!("{dep}");
-            if let Err(err) = config.add_dependency(dep) {
-                println!("Could not resolve remote dependency {name} because: {err:?}");
-                return;
-            }
-        }
+use wasvy_cli::cli::{Args, cli};
 
-        config.add_all_editors();
-        config.add_all_languages();
+mod tui;
 
-        Runtime::new(config)
-    };
+pub fn main() {
+    let version = env!("CARGO_PKG_VERSION");
+    println!("Wasvy CLI v{version} for Bevy v0.18.0");
+    println!();
+    let args = Args::parse();
 
-    // Open up the current source without user confirmation
-    if let Some(source) = runtime.identify(".") {
-        handle_sources(vec![source])
+    if matches!(args.command, None | Some(wasvy_cli::cli::Command::Tui)) {
+        println!("Starting the TUI");
+        tui::main();
+    } else if let Err(err) = cli(args) {
+        eprintln!("Error: {err:?}");
+        exit(1)
     }
-    // TODO: Offer the user the option to generate a new source while we search in a separate thread
-    else {
-        match runtime.search(".") {
-            Err(err) => println!("No compatible sources found. Error reading file system: {err:?}"),
-            Ok(sources) if sources.is_empty() => println!("No sources found."),
-            Ok(sources) => {
-                // TODO: user should select from sources
-                handle_sources(sources)
-            }
-        }
-    }
-}
-
-fn handle_sources(_sources: Vec<Source>) {
-    todo!()
 }

@@ -5,7 +5,7 @@ categories.workspace = true
 rust-version.workspace = true
 version.workspace = true
 edition.workspace = true
-description = "Development tool for applications powered by Bevy and using the Wasvy modding framework"
+description = "Development tools for applications powered by Bevy and using the Wasvy modding framework"
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -14,9 +14,17 @@ readme.workspace = true
 [dependencies]
 anyhow.workspace = true
 askama.workspace = true
+bevy_app = { workspace = true, optional = true }
+bevy_ecs = { workspace = true, optional = true }
+bevy_internal = { workspace = true, optional = true }
+bevy_state = { workspace = true, optional = true }
+bevy_ratatui = { workspace = true, optional = true }
+bevy_remote.workspace = true
+clap = { workspace = true, optional = true }
 derive_more.workspace = true
 error-collection.workspace = true
 glob.workspace = true
+http.workspace = true
 semver.workspace = true
 serde_json.workspace = true
 toml.workspace = true
@@ -24,4 +32,25 @@ wasmtime.workspace = true
 wasmtime-wasi.workspace = true
 wasvy_macros.workspace = true
 wit-parser.workspace = true
+notify.workspace = true
+ratatui = { workspace = true, optional = true }
 tracing.workspace = true
+ureq.workspace = true
+serde.workspace = true
+
+[[bin]]
+name = "wasvy-cli"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+cli = [
+    "dep:bevy_app",
+    "dep:bevy_ecs",
+    "dep:bevy_state",
+    "dep:bevy_internal",
+    "dep:bevy_ratatui",
+    "dep:clap",
+    "dep:ratatui"
+]

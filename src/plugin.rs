@@ -7,6 +7,7 @@ use bevy_ecs::reflect::AppTypeRegistry;
 use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
 use bevy_log::prelude::*;
 
+use crate::app_extend::AppExtend;
 use crate::{
     asset::{ModAsset, ModAssetLoader},
     authoring::AutoRegistrationPlugin,
@@ -280,13 +281,10 @@ impl Plugin for ModLoaderPlugin {
     }
 
     fn finish(&self, app: &mut App) {
-        let asset_plugins = app.get_added_plugins::<AssetPlugin>();
-        let asset_plugin = asset_plugins
-            .first()
-            .expect("ModLoaderPlugin requires AssetPlugin to be loaded.");
+        let asset_plugin: &AssetPlugin = app.plugin();
 
         // Warn a user running the App in debug; they probably want hot-reloading
-        if cfg!(debug_assertions) {
+        if cfg!(debug_assertions) && !cfg!(test) {
             let user_overrode_watch_setting = asset_plugin.watch_for_changes_override.is_some();
             let resolved_watch_setting = app
                 .world()

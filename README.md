@@ -9,7 +9,7 @@
 [![Crates.io](https://img.shields.io/crates/v/wasvy.svg)](https://crates.io/crates/wasvy)
 [![Downloads](https://img.shields.io/crates/d/wasvy.svg)](https://crates.io/crates/wasvy)
 [![Docs](https://docs.rs/wasvy/badge.svg)](https://docs.rs/wasvy)
-[![Rust Version](https://img.shields.io/badge/rust-1.92.0+-blue.svg)](https://www.rust-lang.org)
+[![Rust Version](https://img.shields.io/badge/rust-1.95.0+-blue.svg)](https://www.rust-lang.org)
 [![CI](https://github.com/wasvy-org/wasvy/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/wasvy-org/wasvy/actions)
 [![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.com/channels/691052431525675048/1492230910383357992/1492230910383357992)
 
@@ -261,7 +261,7 @@ Once allowed, direnv will automatically enter the development shell for this rep
 
 If you are not using Nix, install the required tooling manually:
 
-- Install [Rust 1.92.0+](https://www.rust-lang.org/tools/install)
+- Install [Rust 1.95.0+](https://www.rust-lang.org/tools/install)
 - Install [`just`](https://github.com/casey/just)
 - Run `just enable-git-hooks`
 

@@ -1,0 +1,245 @@
+use anyhow::{Context, Result, bail};
+use clap::Parser;
+use derive_more::Display;
+use error_collection::Errors;
+use std::{
+    fmt, fs,
+    path::{Path, PathBuf},
+};
+
+use crate::{
+    id::Id,
+    named::Named,
+    remote::{Remote, RemoteUri},
+    runtime::Runtime,
+    source::Source,
+};
+
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+pub struct Args {
+    #[command(subcommand)]
+    pub command: Option<Command>,
+
+    #[arg(short, long, default_value = ".")]
+    pub path: PathBuf,
+
+    /// A pattern for the name of the remote app, defined by the devtools config
+    #[arg(short, long)]
+    pub app: Option<String>,
+
+    /// An alternate remote address
+    #[arg(long)]
+    pub uri: Option<String>,
+}
+
+impl Default for Args {
+    fn default() -> Self {
+        Self::parse_from(["wasvy-cli"])
+    }
+}
+
+impl From<Command> for Args {
+    fn from(value: Command) -> Self {
+        Self {
+            command: Some(value),
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(clap::Subcommand, Debug, Eq, PartialEq)]
+pub enum Command {
+    /// Opens the Wasvy Terminal User Interface
+    Tui,
+
+    /// Creates a new mod source
+    Create(CreateArgs),
+
+    /// Searches the filesystem for compatible sources for the remote app
+    Search(ModArgs),
+
+    /// Compiles and loads one or more mods into the remote app
+    Load(ModArgs),
+
+    /// Unloads one or more mods from the remote app
+    Unload(ModArgs),
+
+    /// Watch mod sources for changes and compile
+    Watch(ModArgs),
+}
+
+#[derive(clap::Args, Debug, Eq, PartialEq)]
+pub struct CreateArgs {
+    /// What language to use
+    #[arg(short, long, default_value = "rust")]
+    pub language: String,
+
+    /// The project name
+    #[arg(short, long, default_value = "my-bevy-mod")]
+    pub name: String,
+}
+
+#[derive(clap::Args, Debug, Eq, PartialEq, Default)]
+pub struct ModArgs {
+    /// One or more patterns to filter sources
+    #[arg(short, long)]
+    pub mods: Vec<String>,
+}
+
+pub fn cli(args: Args) -> Result<()> {
+    let Args {
+        command,
+        path,
+        app,
+        uri,
+    } = &args;
+    let command = command.as_ref().expect("unreachable");
+    let uri: RemoteUri = uri
+        .as_ref()
+        .and_then(|a| a.parse().ok())
+        .unwrap_or_default();
+    let remote = Remote::connect(uri)
+        .context("No remote found!\nIs your Bevy app running with wasvy devtools enabled?")?;
+
+    // Assert remote is the correct one
+    let name = &remote.name;
+    if let Some(pattern) = app
+        && !name.contains(pattern.as_str())
+    {
+        bail!("remote server \"{name}\" and pattern \"{pattern}\" do not match");
+    }
+
+    let runtime = Runtime::new(&remote).context("initializing runtime")?;
+    let sources = get_sources(&runtime, command, &remote, path)?;
+
+    match command {
+        Command::Create(args) => create(path, args, &runtime)?,
+        Command::Search(_) => search(sources)?,
+        Command::Load(_) => {
+            // Note: we don't care about errors since these will be logged to the output anyway
+            let _ = remote.load(&sources, Default::default());
+        }
+        Command::Unload(_) => {
+            // Note: we don't care about errors since these will be logged to the output anyway
+            let _ = remote.unload(&sources, Default::default());
+        }
+        Command::Watch(_) => {
+            let _ = remote.load(&sources, Default::default());
+            remote.watch(&sources, Default::default())?
+        }
+        Command::Tui => unreachable!(),
+    }
+
+    Ok(())
+}
+
+fn get_sources(
+    runtime: &Runtime,
+    command: &Command,
+    remote: &Remote,
+    path: &Path,
+) -> Result<Vec<Source>> {
+    let (Command::Search(ModArgs { mods })
+    | Command::Load(ModArgs { mods })
+    | Command::Unload(ModArgs { mods })
+    | Command::Watch(ModArgs { mods })) = command
+    else {
+        return Ok(Vec::new());
+    };
+
+    let mut sources = runtime.search(remote, path)?;
+    if !mods.is_empty() {
+        sources.retain(|source| mods.iter().any(|pattern| source.name().contains(pattern)));
+    }
+
+    Ok(sources)
+}
+
+fn create(path: &Path, args: &CreateArgs, runtime: &Runtime) -> Result<()> {
+    let mut errors = Errors::new();
+
+    let language = args.language.to_lowercase();
+    let matches: Vec<Id> = runtime
+        .languages()
+        .iter()
+        .filter(|(_, (_, synonyms))| synonyms.contains(&language))
+        .map(|(id, _)| id)
+        .cloned()
+        .collect();
+    let language = if matches.len() == 1 {
+        matches.first()
+    } else {
+        errors.push(InvalidLanguageError {
+            language: args.language.clone(),
+            runtime: runtime.clone(),
+        });
+        None
+    };
+
+    let directory = path.join(&args.name);
+    if !path.is_dir() {
+        errors.push(anyhow::anyhow!("Invalid path: {path:?}"));
+    } else if directory.exists() {
+        errors.push(anyhow::anyhow!("Directory already exists: {directory:?}"))
+    } else {
+        errors.collect(
+            fs::create_dir_all(&directory)
+                .with_context(|| format!("Creating directory {directory:?}")),
+        );
+
+        if let Some(language) = language.cloned() {
+            errors.collect(runtime.scaffold(&args.name, directory, language, Default::default()));
+        }
+    }
+
+    errors.as_result()
+}
+
+#[derive(Display)]
+#[display("Language \"{language}\" is not a valid choice")]
+struct InvalidLanguageError {
+    language: String,
+    runtime: Runtime,
+}
+
+impl std::error::Error for InvalidLanguageError {}
+
+impl fmt::Debug for InvalidLanguageError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { language, runtime } = self;
+        write!(
+            f,
+            "Language \"{language}\" is not a valid choice. Options include:"
+        )?;
+
+        for (lang, synonyms) in runtime.languages().values() {
+            write!(f, "\n{}", lang.name())?;
+            if !synonyms.is_empty() {
+                write!(f, " ({})", synonyms.join(", "))?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn search(mut sources: Vec<Source>) -> Result<()> {
+    if sources.is_empty() {
+        bail!("no source was found");
+    }
+
+    sources.sort_by(|a, b| a.name().cmp(b.name()));
+    for source in sources.iter() {
+        let name = source.name();
+        let path = source.path();
+        let language = source
+            .language()
+            .map(|language| language.name())
+            .unwrap_or("wasm");
+        eprintln!("{name} - {path:?} ({language})");
+    }
+
+    Ok(())
+}

@@ -1,17 +1,18 @@
-use std::{
-    collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{collections::HashMap, iter, path::Path, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
+use error_collection::Errors;
 use wit_parser::Resolve;
 
 use crate::{
+    command::Logging,
     dependency::{Dependency, Interface},
     editor::BoxedEditor,
     id::Id,
     language::BoxedLanguage,
+    named::Named,
+    remote::Remote,
+    search::SearchBuilder,
     source::Source,
 };
 
@@ -27,7 +28,7 @@ pub struct Config {
     pub editors: Editors,
 }
 
-type Languages = HashMap<Id, BoxedLanguage>;
+type Languages = HashMap<Id, (BoxedLanguage, Vec<String>)>;
 type Editors = HashMap<Id, BoxedEditor>;
 
 impl Default for Config {
@@ -60,10 +61,19 @@ impl Config {
     }
 
     /// Adds support for a new language
-    pub fn add_language(&mut self, language: impl Into<BoxedLanguage>) -> &mut Self {
+    pub fn add_language(
+        &mut self,
+        language: impl Into<BoxedLanguage>,
+        synonyms: &[&str],
+    ) -> &mut Self {
         let language = language.into();
         let id = Id::from(&language);
-        self.languages.insert(id, language);
+        let synonyms = synonyms
+            .iter()
+            .chain(iter::once(&language.name()))
+            .map(|synonym| synonym.to_lowercase())
+            .collect();
+        self.languages.insert(id, (language, synonyms));
         self
     }
 
@@ -76,6 +86,43 @@ impl Config {
     }
 }
 
+impl TryFrom<Remote> for Config {
+    type Error = anyhow::Error;
+
+    fn try_from(value: Remote) -> Result<Self> {
+        (&value).try_into()
+    }
+}
+
+impl TryFrom<&Remote> for Config {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &Remote) -> Result<Self> {
+        let Remote {
+            current_exe: _,
+            name,
+            endpoint: _,
+            asset_dir: _,
+            dependencies,
+        } = value;
+
+        let mut config = Config {
+            namespace: name.to_string(),
+            ..Default::default()
+        };
+
+        let mut errors = Errors::new();
+        for dep in dependencies.iter() {
+            errors.collect(config.add_dependency(dep));
+        }
+
+        errors
+            .as_result()
+            .with_context(|| format!("Loading remote config for \"{name}\""))
+            .map(|_| config)
+    }
+}
+
 /// A Wasvy Cli Runtime exposes an api for locating and building mods from source.
 ///
 /// Start with a [Config]
@@ -84,12 +131,14 @@ pub struct Runtime(Arc<Config>);
 
 impl Runtime {
     /// Produces a runtime from a config
-    pub fn new(config: Config) -> Self {
-        assert!(
-            !config.languages.is_empty(),
-            "must add languages to builder"
-        );
-        Self(Arc::new(config))
+    pub fn new(config: impl TryInto<Config, Error = impl Into<anyhow::Error>>) -> Result<Self> {
+        let config = config.try_into().map_err(Into::into)?;
+
+        if config.languages.is_empty() {
+            bail!("config requires 1 or more languages");
+        }
+
+        Ok(Self(Arc::new(config)))
     }
 
     /// Returns the wit namespace
@@ -131,42 +180,33 @@ impl Runtime {
         &self.0.editors
     }
 
-    /// Given a directory, searches its contents for compatible [Source]s (build files) for Mods
-    pub fn search(&self, path: impl AsRef<Path>) -> Result<Vec<Source>> {
-        let wasm_matches = search_glob(path.as_ref().join("**/*.wasm"));
-        let source_matches = search_glob(path.as_ref().join("**/wit/*.wit"))
-            .filter_map(|p| p.parent().and_then(Path::parent).map(Path::to_path_buf));
-
-        // remove duplicate paths from source_matches
-        let paths: HashSet<_> = wasm_matches.chain(source_matches).collect();
-
-        let sources = paths
-            .into_iter()
-            .filter_map(|path| self.identify(path))
-            .collect();
-
-        Ok(sources)
+    /// Searches its contents for compatible [Source]s (build files) for Mods
+    ///
+    /// This will locate:
+    /// - Native mods in the host app workspace (Rust)
+    /// - External mods located somewhere within the path (Rust, Python, Go, etc)
+    /// - Pre-compiled binaries located somewhere within the path (Wasm)
+    pub fn search(&self, remote: &Remote, path: impl AsRef<Path>) -> Result<Vec<Source>> {
+        SearchBuilder::new(self)
+            .native(&remote.current_exe)
+            .dir(path.as_ref())
+            .wasm(path.as_ref())
+            .search()
     }
 
     /// Identifies a directory directory as a compatible [Source] (build files) for a Mod
     pub fn identify(&self, path: impl AsRef<Path>) -> Option<Source> {
-        Source::identify(path, self).ok()
+        Source::new(path, self).ok()
     }
 
     /// Creates a new source (project/build files) at the specified directory, using the language of choice
-    pub fn create(
+    pub fn scaffold(
         &self,
         name: impl AsRef<str>,
         path: impl AsRef<Path>,
         language: Id,
+        logging: Logging,
     ) -> Result<Source> {
-        Source::create(name, path, self, language)
+        Source::scaffold(name, path, self, language, logging)
     }
-}
-
-fn search_glob(pattern: PathBuf) -> impl Iterator<Item = PathBuf> {
-    let pattern = pattern.to_str().expect("unicode path");
-    glob::glob(pattern)
-        .expect("valid glob")
-        .filter_map(Result::ok)
 }

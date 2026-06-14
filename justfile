@@ -8,9 +8,8 @@ run-example app *args:
 
 # Run the wasvy tui
 [group("examples")]
-[arg("command", pattern="^(|help|tui|create|search|load|unload|watch)$")]
-run-cli command *args:
-	cargo run -p wasvy_cli -- {{command}} {{args}}
+run-cli *args:
+	cargo run -p wasvy_cli -- {{args}}
 
 # Build an example guest rust mod to wasm and place it in the shared assets directory
 [group("examples")]

@@ -51,9 +51,6 @@ impl From<Command> for Args {
 
 #[derive(clap::Subcommand, Debug, Eq, PartialEq)]
 pub enum Command {
-    /// Opens the Wasvy Terminal User Interface
-    Tui,
-
     /// Creates a new mod source
     Create(CreateArgs),
 
@@ -68,6 +65,12 @@ pub enum Command {
 
     /// Watch mod sources for changes and compile
     Watch(ModArgs),
+}
+
+impl Default for Command {
+    fn default() -> Self {
+        Self::Watch(ModArgs::default())
+    }
 }
 
 #[derive(clap::Args, Debug, Eq, PartialEq)]
@@ -95,7 +98,8 @@ pub fn cli(args: Args) -> Result<()> {
         app,
         uri,
     } = &args;
-    let command = command.as_ref().expect("unreachable");
+    let default = Command::default();
+    let command = command.as_ref().unwrap_or(&default);
     let uri: RemoteUri = uri
         .as_ref()
         .and_then(|a| a.parse().ok())
@@ -115,7 +119,7 @@ pub fn cli(args: Args) -> Result<()> {
     let sources = get_sources(&runtime, command, &remote, path)?;
 
     match command {
-        Command::Create(args) => create(path, args, &runtime)?,
+        Command::Create(args) => create(path, &args, &runtime)?,
         Command::Search(_) => search(sources)?,
         Command::Load(_) => {
             // Note: we don't care about errors since these will be logged to the output anyway
@@ -129,7 +133,6 @@ pub fn cli(args: Args) -> Result<()> {
             let _ = remote.load(&sources, Default::default());
             remote.watch(&sources, Default::default())?
         }
-        Command::Tui => unreachable!(),
     }
 
     Ok(())

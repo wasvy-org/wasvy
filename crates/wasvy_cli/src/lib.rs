@@ -11,5 +11,6 @@ pub mod languages;
 pub mod named;
 pub mod remote;
 pub mod runtime;
+pub mod search;
 pub mod source;
 pub mod witgen;

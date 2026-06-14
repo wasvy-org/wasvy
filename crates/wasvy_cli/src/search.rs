@@ -106,11 +106,17 @@ impl<'a> SearchBuilder<'a> {
                 .filter(|path| {
                     let mut parts = path.components();
                     while let Some(target) = parts.next() {
-                        if target.as_os_str() == "target" {
-                            if let Some(target) =
-                                parts.next().and_then(|part| part.as_os_str().to_str())
+                        if target.as_os_str() == "target"
+                            && let Some(next) = parts.next().map(|part| part.as_os_str())
+                        {
+                            if let Some(target) = next.to_str()
                                 && target.starts_with("wasm32-")
                             {
+                                return false;
+                            }
+
+                            // Ideally this wouldn't be here, but we also want to avoid match binaries created during tests
+                            if next == "tests" {
                                 return false;
                             }
                         }

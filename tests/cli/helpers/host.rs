@@ -78,7 +78,11 @@ impl Host {
 
             app.add_plugins((
                 MinimalPlugins,
-                AssetPlugin::default(),
+                AssetPlugin {
+                    file_path: "target/tests/host_assets".into(),
+                    processed_file_path: "target/tests/host_assets/processed".into(),
+                    ..Default::default()
+                },
                 RemoteHttpPlugin::default().with_port(port),
                 ModLoaderPlugin::default().devtools(devtools),
             ))

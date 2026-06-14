@@ -55,6 +55,22 @@ pub enum Logging {
 }
 
 impl Logging {
+    pub fn println(&self, value: impl AsRef<str>) {
+        match self {
+            Logging::Inherit => println!("{}", value.as_ref()),
+            Logging::Capture => todo!(),
+            Logging::Ignore => {}
+        }
+    }
+
+    pub fn eprintln(&self, value: impl AsRef<str>) {
+        match self {
+            Logging::Inherit => eprintln!("{}", value.as_ref()),
+            Logging::Capture => todo!(),
+            Logging::Ignore => {}
+        }
+    }
+
     fn stdio(&self) -> Stdio {
         match self {
             Logging::Inherit => Stdio::inherit(),

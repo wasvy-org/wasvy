@@ -180,11 +180,17 @@ impl Source {
     /// Builds the source, producing a new Wasm source
     pub fn build(&self, logging: Logging) -> Result<Cow<'_, Source>> {
         if let Some(language) = self.language() {
-            let source = language
-                .build(self, logging)
-                .with_context(|| format!("building with language {}", language.name()))?;
+            logging.println(format!("Building {self}"));
+            let result = language
+                .build(self, logging.clone())
+                .with_context(|| format!("Building {self} with language {}", language.name()));
 
-            Ok(Cow::Owned(source))
+            match &result {
+                Ok(source) => logging.println(format!("Successfully built {source}")),
+                Err(err) => logging.eprintln(format!("Error: {err:?}")),
+            }
+
+            Ok(Cow::Owned(result?))
         } else {
             Ok(Cow::Borrowed(self))
         }
@@ -221,6 +227,19 @@ impl Source {
         errors.collect(source.refresh());
 
         errors.as_result().map(|_| source)
+    }
+
+    /// Returns file system paths that should be watched to react to changes
+    pub fn watch_paths(&self) -> Vec<PathBuf> {
+        let paths = if let Some(language) = self.language() {
+            language.watch_paths(self)
+        } else {
+            vec![self.path().to_owned()]
+        };
+        paths
+            .iter()
+            .filter_map(|path| fs::canonicalize(path).ok())
+            .collect()
     }
 
     /// Identifies a crate in the same workspace as the app as a compatible [Source] for a Mod
@@ -371,6 +390,12 @@ impl fmt::Debug for Source {
     }
 }
 
+impl fmt::Display for Source {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
 fn get_world(resolve: &Resolve, package: PackageId) -> Option<&World> {
     resolve
         .select_world(&[package], None)
@@ -406,6 +431,10 @@ mod tests {
         }
 
         fn build(&self, _source: &Source, _logging: Logging) -> Result<Source> {
+            unreachable!()
+        }
+
+        fn watch_paths(&self, _source: &Source) -> Vec<PathBuf> {
             unreachable!()
         }
     }

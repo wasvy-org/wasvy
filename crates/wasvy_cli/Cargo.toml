@@ -32,6 +32,7 @@ wasmtime.workspace = true
 wasmtime-wasi.workspace = true
 wasvy_macros.workspace = true
 wit-parser.workspace = true
+notify.workspace = true
 ratatui = { workspace = true, optional = true }
 tracing.workspace = true
 ureq.workspace = true

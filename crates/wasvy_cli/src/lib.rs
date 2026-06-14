@@ -13,4 +13,5 @@ pub mod remote;
 pub mod runtime;
 pub mod search;
 pub mod source;
+pub mod watch;
 pub mod witgen;

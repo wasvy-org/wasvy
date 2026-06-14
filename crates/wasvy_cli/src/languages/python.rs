@@ -1,6 +1,6 @@
 use std::{
     fs::{self, canonicalize},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -37,7 +37,7 @@ impl Language for Python {
 
         #[derive(askama::Template)]
         #[template(path = "./python/pyproject.toml")]
-        pub struct PyProject<'a> {
+        struct PyProject<'a> {
             namespace: &'a str,
             name: &'a str,
         }
@@ -88,6 +88,13 @@ impl Language for Python {
 
         Source::new_wasm(output, Some(source.name().to_string()), source.runtime())
             .with_context(|| anyhow!("identifying build artifact {output:?}"))
+    }
+
+    fn watch_paths(&self, source: &Source) -> Vec<PathBuf> {
+        vec![
+            source.path().join("src"),
+            source.path().join("pyproject.toml"),
+        ]
     }
 }
 

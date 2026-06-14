@@ -80,6 +80,7 @@ wasvy_cli = { path = "./crates/wasvy_cli" }
 wasvy_macros = { version = "0.0.8", path = "crates/wasvy_macros" }
 wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
 wit-parser = "0.245.1"
+notify = "7.0.0"
 
 [features]
 default = ["devtools", "serde_json"]

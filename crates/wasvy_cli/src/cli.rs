@@ -117,9 +117,18 @@ pub fn cli(args: Args) -> Result<()> {
     match command {
         Command::Create(args) => create(path, args, &runtime)?,
         Command::Search(_) => search(sources)?,
-        Command::Load(_) => remote.load(&sources, Default::default())?,
-        Command::Unload(_) => remote.unload(&sources, Default::default())?,
-        Command::Watch(_) => remote.watch(&sources)?,
+        Command::Load(_) => {
+            // Note: we don't care about errors since these will be logged to the output anyway
+            let _ = remote.load(&sources, Default::default());
+        }
+        Command::Unload(_) => {
+            // Note: we don't care about errors since these will be logged to the output anyway
+            let _ = remote.unload(&sources, Default::default());
+        }
+        Command::Watch(_) => {
+            let _ = remote.load(&sources, Default::default());
+            remote.watch(&sources, Default::default())?
+        }
         Command::Tui => unreachable!(),
     }
 

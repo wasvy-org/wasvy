@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use wit_parser::Resolve;
 
-use crate::{command::Logging, dependency::Dependency, named::Named, source::Source};
+use crate::{command::Logging, dependency::Dependency, named::Named, source::Source, watch::watch};
 
 #[derive(Debug)]
 pub struct Remote {
@@ -178,9 +178,11 @@ impl Remote {
 
     /// Despawns mods by their id
     pub fn despawn(&self, mods: impl IntoIterator<Item = u64>) -> Result<()> {
-        let mods = mods.into_iter().map(Value::from).collect();
-        self.endpoint
-            .send("wasvy.mods.despawn", Value::Array(mods))?;
+        let mods: Vec<Value> = mods.into_iter().map(Value::from).collect();
+        if !mods.is_empty() {
+            self.endpoint
+                .send("wasvy.mods.despawn", Value::Array(mods))?;
+        }
         Ok(())
     }
 
@@ -227,7 +229,7 @@ impl Remote {
         let sources = mods.iter().map(|(source, _)| source);
         errors.collect(
             self.spawn(sources, [Access::World], logging)
-                .context("Spawining loaded mods"),
+                .context("Spawning loaded mods"),
         );
 
         errors.as_result()
@@ -273,8 +275,12 @@ impl Remote {
         Ok(())
     }
 
-    pub fn watch(&self, _sources: impl IntoIterator<Item = impl Borrow<Source>>) -> Result<()> {
-        todo!()
+    pub fn watch(
+        &self,
+        sources: impl IntoIterator<Item = impl Borrow<Source>>,
+        logging: Logging,
+    ) -> Result<()> {
+        watch(sources, self, logging)
     }
 }
 

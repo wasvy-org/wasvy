@@ -127,6 +127,10 @@ impl Language for Rust {
 
         get_build_artifact(source)
     }
+
+    fn watch_paths(&self, source: &Source) -> Vec<PathBuf> {
+        vec![source.path().join("src"), source.path().join("Cargo.toml")]
+    }
 }
 
 struct CargoBuild;

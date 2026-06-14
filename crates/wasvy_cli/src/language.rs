@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use derive_more::Deref;
@@ -16,6 +16,13 @@ pub trait Language: Named + Send + Sync {
     ///
     /// See [Source::new] to return a Source from a wasm file.
     fn build(&self, source: &Source, logging: Logging) -> Result<Source>;
+
+    /// Returns a list of paths to watch for file changes.
+    ///
+    /// - These can be files or directories
+    /// - The paths don't need to exist
+    /// - Do not include the wit folder
+    fn watch_paths(&self, source: &Source) -> Vec<PathBuf>;
 }
 
 /// Information identified from a mod directory by a [Language] implementation.

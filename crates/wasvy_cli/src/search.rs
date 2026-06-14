@@ -91,7 +91,7 @@ impl<'a> SearchBuilder<'a> {
         if let Some(workspace_root) = native.first().map(|source| source.path()) {
             let rust = Rust::id();
             mods.retain(|source| {
-                !(source.path().starts_with(&workspace_root)
+                !(source.path().starts_with(workspace_root)
                     && source.is_language(&rust)
                     && native.iter().any(|native| native.name() == source.name()))
             });

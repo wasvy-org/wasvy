@@ -240,9 +240,11 @@ mod tests {
 
     #[test]
     fn scaffold() {
-        let mut config = Config::default();
-        config.namespace = "test".into();
-        let runtime = Runtime::new(config).unwrap();
+        let runtime = Runtime::new(Config {
+            namespace: "test".into(),
+            ..Default::default()
+        })
+        .unwrap();
         let wit = Wit::new(ScaffoldWit::new("game", &runtime)).unwrap();
 
         let output: String = wit.try_into().unwrap();

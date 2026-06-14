@@ -14,7 +14,7 @@ fn search_default() {
     let remote = Remote::connect(app.uri()).unwrap();
     let runtime = Runtime::new(&remote).unwrap();
 
-    let sources = runtime.search(&remote, "examples/mods").unwrap();
+    let sources = runtime.search(&remote, "examples").unwrap();
     println!("{sources:#?}");
     assert!(
         sources.iter().all(|source| !source.is_wasm()),
@@ -37,6 +37,12 @@ fn search_default() {
             .iter()
             .all(|source| source.name() != "components_example_mod"),
         "does not resolve a mod requiring a custom interface that isn't present in the host app"
+    );
+    assert!(
+        sources
+            .iter()
+            .all(|source| !source.name().ends_with("_app")),
+        "does not resolve an app"
     );
 }
 

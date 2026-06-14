@@ -20,7 +20,7 @@ use crate::{
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use error_collection::Errors;
 use wit_parser::{
-    Package, PackageId, Resolve, UnresolvedPackageGroup, World,
+    Package, PackageId, Resolve, Type, UnresolvedPackageGroup, World, WorldItem, WorldKey,
     decoding::{DecodedWasm, decode},
 };
 
@@ -316,6 +316,19 @@ impl Source {
             world.includes.iter().len() == 0,
             "world includes are fully resolved"
         );
+
+        // Expect minimum required exports
+        let setup = WorldKey::Name("setup".into());
+        if let Some(WorldItem::Function(function)) = world.exports.get(&setup) {
+            ensure!(
+                function.result.is_none()
+                    && function.params.len() == 1
+                    && matches!(function.params[0].ty, Type::Id(_)), // TODO: This is an App
+                "Setup has correct signature"
+            )
+        } else {
+            bail!("Mod must export a setup function")
+        }
 
         // TODO: Are there other checks that we should perform?
 

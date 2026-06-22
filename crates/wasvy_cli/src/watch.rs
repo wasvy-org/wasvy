@@ -17,9 +17,11 @@ pub fn watch(
     sources: impl IntoIterator<Item = impl Borrow<Source>>,
     remote: &Remote,
     timeout: Duration,
+    count: Option<usize>,
     logging: Logging,
 ) -> Result<()> {
     let started_at = Instant::now();
+    let mut reloads = 0;
     let (handler, rx) = WatchHandler::new();
     let mut watcher = recommended_watcher(handler).context("Creating file watcher")?;
 
@@ -80,12 +82,23 @@ pub fn watch(
             .collect();
 
         // If we have changes, reload the affected sources
-        let changed = sources
+        let changed: Vec<_> = sources
             .iter()
             .enumerate()
             .filter(|(index, _)| changed.contains(index))
-            .map(|(_, source)| source.borrow());
+            .map(|(_, source)| source.borrow())
+            .collect();
+
+        if changed.is_empty() {
+            continue;
+        }
+
         let _ = remote.load(changed, logging.clone());
+        reloads += 1;
+
+        if count.is_some_and(|count| reloads >= count) {
+            return Ok(());
+        }
     }
 }
 

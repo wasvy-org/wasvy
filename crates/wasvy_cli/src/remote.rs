@@ -280,9 +280,10 @@ impl Remote {
         &self,
         sources: impl IntoIterator<Item = impl Borrow<Source>>,
         timeout: Duration,
+        count: Option<usize>,
         logging: Logging,
     ) -> Result<()> {
-        watch(sources, self, timeout, logging)
+        watch(sources, self, timeout, count, logging)
     }
 }
 

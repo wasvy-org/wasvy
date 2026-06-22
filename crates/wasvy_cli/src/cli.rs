@@ -100,6 +100,10 @@ pub struct WatchArgs {
     /// Exit after this many seconds
     #[arg(long)]
     pub timeout: Option<u64>,
+
+    /// Exit after this many reloads
+    #[arg(long)]
+    pub count: Option<usize>,
 }
 
 pub fn cli(args: Args) -> Result<Vec<Source>> {
@@ -157,7 +161,7 @@ pub fn cli(args: Args) -> Result<Vec<Source>> {
                 .timeout
                 .map(Duration::from_secs)
                 .unwrap_or(Duration::from_secs(30 * 24 * 60 * 60));
-            remote.watch(&sources, timeout, Default::default())?;
+            remote.watch(&sources, timeout, args.count, Default::default())?;
             Ok(Vec::new()) // TODO: the user probably expects these to be the watched sources
         }
     }

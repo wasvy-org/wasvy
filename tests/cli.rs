@@ -204,7 +204,8 @@ mod rust {
                 mods: ModArgs {
                     mods: vec!["watch-create".to_string()],
                 },
-                timeout: Some(30),
+                timeout: Some(10),
+                count: Some(2),
             })),
             path: "tests/fixtures/crates".into(),
             app: None,
@@ -218,14 +219,14 @@ mod rust {
         let scaffold = fs::read_to_string(source_path).unwrap();
         fs::write(source_path, scaffold).unwrap();
         signal_receiver
-            .recv_timeout(Duration::from_secs(30))
+            .recv_timeout(Duration::from_secs(10))
             .expect("name spawned");
 
         fs::write(source_path, marker_mod(WatchMarker::type_path())).unwrap();
 
         watch.join().unwrap().expect("watch");
 
-        let mut world = app.wait(Duration::from_secs(30));
+        let mut world = app.wait(Duration::from_secs(10));
         assert!(!has_example_name(&mut world));
         assert!(has_watch_marker(&mut world));
     }

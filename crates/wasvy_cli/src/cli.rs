@@ -13,6 +13,7 @@ use crate::{
     remote::{Remote, RemoteUri},
     runtime::Runtime,
     source::Source,
+    watch::watch,
 };
 
 /// Simple program to greet a person
@@ -91,7 +92,7 @@ pub struct ModArgs {
     pub mods: Vec<String>,
 }
 
-pub fn cli(args: Args) -> Result<()> {
+pub fn cli(args: Args) -> Result<Vec<Source>> {
     let Args {
         command,
         path,
@@ -116,41 +117,45 @@ pub fn cli(args: Args) -> Result<()> {
     }
 
     let runtime = Runtime::new(&remote).context("initializing runtime")?;
-    let sources = get_sources(&runtime, command, &remote, path)?;
 
     match command {
-        Command::Create(args) => create(path, &args, &runtime)?,
-        Command::Search(_) => search(sources)?,
-        Command::Load(_) => {
-            // Note: we don't care about errors since these will be logged to the output anyway
-            let _ = remote.load(&sources, Default::default());
+        Command::Create(args) => {
+            let source = create(path, &args, &runtime)?;
+            Ok(vec![source])
         }
-        Command::Unload(_) => {
-            // Note: we don't care about errors since these will be logged to the output anyway
-            let _ = remote.unload(&sources, Default::default());
+        Command::Search(mods) => {
+            let mut sources = get_sources(&runtime, &mods, &remote, path)?;
+            if sources.is_empty() {
+                bail!("no source was found");
+            }
+            print_search(&mut sources);
+            Ok(sources)
         }
-        Command::Watch(_) => {
-            let _ = remote.load(&sources, Default::default());
-            remote.watch(&sources, Default::default())?
+        Command::Load(mods) => {
+            let sources = get_sources(&runtime, &mods, &remote, path)?;
+            remote.load(&sources, Default::default())?;
+            Ok(Vec::new()) // TODO: the user probably expects these to be the built, loaded sources
+        }
+        Command::Unload(mods) => {
+            let sources = get_sources(&runtime, &mods, &remote, path)?;
+            remote.unload(&sources, Default::default())?;
+            Ok(Vec::new()) // TODO: the user probably expects these to be the unloaded sources
+        }
+        Command::Watch(mods) => {
+            let sources = get_sources(&runtime, &mods, &remote, path)?;
+            watch(&sources, &remote, Default::default())?;
+            Ok(Vec::new()) // TODO: the user probably expects these to be the watched sources
         }
     }
-
-    Ok(())
 }
 
 fn get_sources(
     runtime: &Runtime,
-    command: &Command,
+    mods: &ModArgs,
     remote: &Remote,
     path: &Path,
 ) -> Result<Vec<Source>> {
-    let (Command::Search(ModArgs { mods })
-    | Command::Load(ModArgs { mods })
-    | Command::Unload(ModArgs { mods })
-    | Command::Watch(ModArgs { mods })) = command
-    else {
-        return Ok(Vec::new());
-    };
+    let ModArgs { mods } = mods;
 
     let mut sources = runtime.search(remote, path)?;
     if !mods.is_empty() {
@@ -160,7 +165,7 @@ fn get_sources(
     Ok(sources)
 }
 
-fn create(path: &Path, args: &CreateArgs, runtime: &Runtime) -> Result<()> {
+fn create(path: &Path, args: &CreateArgs, runtime: &Runtime) -> Result<Source> {
     let mut errors = Errors::new();
 
     let language = args.language.to_lowercase();
@@ -182,6 +187,7 @@ fn create(path: &Path, args: &CreateArgs, runtime: &Runtime) -> Result<()> {
     };
 
     let directory = path.join(&args.name);
+    let mut source = None;
     if !path.is_dir() {
         errors.push(anyhow::anyhow!("Invalid path: {path:?}"));
     } else if directory.exists() {
@@ -193,11 +199,16 @@ fn create(path: &Path, args: &CreateArgs, runtime: &Runtime) -> Result<()> {
         );
 
         if let Some(language) = language.cloned() {
-            errors.collect(runtime.scaffold(&args.name, directory, language, Default::default()));
+            source = errors.collect(runtime.scaffold(
+                &args.name,
+                directory,
+                language,
+                Default::default(),
+            ));
         }
     }
 
-    errors.as_result()
+    errors.as_result().map(|_| source.unwrap())
 }
 
 #[derive(Display)]
@@ -228,11 +239,7 @@ impl fmt::Debug for InvalidLanguageError {
     }
 }
 
-fn search(mut sources: Vec<Source>) -> Result<()> {
-    if sources.is_empty() {
-        bail!("no source was found");
-    }
-
+fn print_search(sources: &mut Vec<Source>) {
     sources.sort_by(|a, b| a.name().cmp(b.name()));
     for source in sources.iter() {
         let name = source.name();
@@ -243,6 +250,4 @@ fn search(mut sources: Vec<Source>) -> Result<()> {
             .unwrap_or("wasm");
         eprintln!("{name} - {path:?} ({language})");
     }
-
-    Ok(())
 }

@@ -1,0 +1,26 @@
+[package]
+name = "wasvy_mock"
+authors.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+description = "Development tools for applications powered by Bevy and using the Wasvy modding framework"
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_derive.workspace = true
+bevy_ecs.workspace = true
+bevy_internal.workspace = true
+bevy_platform.workspace = true
+bevy_remote.workspace = true
+clap.workspace = true
+shlex.workspace = true
+wasvy.workspace = true
+wasvy_cli.workspace = true

@@ -3,11 +3,7 @@ use bevy_remote::{RemotePlugin, http::RemoteHttpPlugin};
 
 use crate::{
     app_extend::AppExtend,
-    devtools::{
-        DevtoolsPlugin,
-        metadata::{Metadata, metadata},
-        mods::*,
-    },
+    devtools::{DevtoolsPlugin, remote::*},
 };
 
 impl Plugin for DevtoolsPlugin {

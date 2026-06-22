@@ -2,7 +2,7 @@ use std::{
     mem,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU16, Ordering},
         mpsc,
     },
     thread::{self, JoinHandle},
@@ -15,29 +15,31 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 use bevy_internal::MinimalPlugins;
 use bevy_platform::thread::sleep;
-use bevy_remote::http::RemoteHttpPlugin;
+use bevy_remote::http::{DEFAULT_PORT, RemoteHttpPlugin};
+use clap::Parser;
 use wasvy::prelude::{Devtools, ModLoaderPlugin};
-use wasvy_cli::{cli::Args, remote::RemoteUri};
-
-use super::ports::next_test_port;
+use wasvy_cli::{cli::Args, remote::RemoteUri, source::Source};
 
 const WAIT: Duration = Duration::from_millis(10);
 
+/// Prepare and run a [Mock] Bevy app running [ModLoaderPlugin].
+///
+/// Construct via [MockConfig::default()], use like a Bevy [App].
 #[derive(Default, Debug, Deref, DerefMut)]
-pub struct Host {
+pub struct MockApp {
     #[deref]
     app: App,
     devtools: Option<Devtools>,
 }
 
-impl Host {
+impl MockApp {
     pub fn devtools(mut self, devtools: impl Into<Devtools>) -> Self {
         self.devtools = Some(devtools.into());
         self
     }
 
     #[must_use = "The returned handle will end execution of the app when dropped"]
-    pub fn run(self) -> RunningHost {
+    pub fn run(self) -> Mock {
         let Self { mut app, devtools } = self;
         let mut devtools = devtools.unwrap_or_default();
         devtools.program_name = "wasvy-test-host".into();
@@ -132,32 +134,43 @@ impl Host {
             .recv_timeout(Duration::from_millis(50))
             .expect("Host app ready");
 
-        RunningHost {
+        Mock {
             uri,
             exit,
+            cleanup: Vec::new(),
             join: Some(join),
         }
     }
 }
 
-pub struct RunningHost {
+pub struct Mock {
     uri: RemoteUri,
     exit: Arc<AtomicBool>,
+    cleanup: Vec<Source>,
     join: Option<JoinHandle<World>>,
 }
 
-impl RunningHost {
+impl Mock {
     pub fn uri(&self) -> RemoteUri {
         self.uri.clone()
     }
 
     /// Run a cli command with the connected host
-    pub fn cli(&self, args: impl Into<Args>) -> anyhow::Result<()> {
-        let mut args = args.into();
+    pub fn cli(
+        &mut self,
+        args: impl TryInto<MockArgs, Error = impl Into<anyhow::Error>>,
+    ) -> anyhow::Result<()> {
+        let MockArgs(mut args) = args.try_into().map_err(Into::into)?;
         if args.uri.is_none() {
             args.uri = Some(self.uri.to_string());
         }
-        wasvy_cli::cli::cli(args)
+        let require_cleanup = matches!(&args.command, Some(wasvy_cli::cli::Command::Create(_)));
+        let mut sources = wasvy_cli::cli::cli(args)?;
+        if require_cleanup {
+            self.cleanup.append(&mut sources);
+        }
+
+        Ok(())
     }
 
     /// Attempts to exit the host app as quickly as possible
@@ -193,11 +206,33 @@ impl RunningHost {
     }
 }
 
-impl Drop for RunningHost {
+impl Drop for Mock {
     fn drop(&mut self) {
+        for source in self.cleanup.drain(..) {
+            let _ = source.delete();
+        }
         if self.join.is_some() {
             self.exit_inner();
         }
+    }
+}
+
+pub struct MockArgs(Args);
+
+impl From<Args> for MockArgs {
+    fn from(value: Args) -> Self {
+        Self(value)
+    }
+}
+
+impl TryFrom<&'static str> for MockArgs {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &'static str) -> std::result::Result<Self, anyhow::Error> {
+        let args =
+            shlex::split(value).ok_or_else(|| anyhow::anyhow!("invalid shell string: {value}"))?;
+        let value = Args::try_parse_from(args)?;
+        Ok(value.into())
     }
 }
 
@@ -206,7 +241,7 @@ fn host_exit() {
     #[derive(Resource, Debug, PartialEq)]
     struct State(u32);
 
-    let mut host = Host::default();
+    let mut host = MockApp::default();
     host.add_systems(Startup, |mut commands: Commands| {
         commands.insert_resource(State(1234));
     });
@@ -217,12 +252,19 @@ fn host_exit() {
     assert_eq!(world.resource::<State>(), &State(1234));
 }
 
+static NEXT_TEST_PORT: AtomicU16 = AtomicU16::new(DEFAULT_PORT + 1);
+
+// Prevent conflicts between two different tests
+pub fn next_test_port() -> u16 {
+    NEXT_TEST_PORT.fetch_add(1, Ordering::Relaxed)
+}
+
 #[test]
 fn host_wait() {
     #[derive(Resource, Debug, PartialEq)]
     struct Count(u32);
 
-    let mut host = Host::default();
+    let mut host = MockApp::default();
     host.insert_resource(Count(0));
     host.add_systems(Update, |mut count: ResMut<Count>| {
         count.0 += 1;
@@ -232,6 +274,5 @@ fn host_wait() {
 
     let world = app.wait(Duration::from_millis(50)); // wait 50ms + WAIT = 60ms or 6 updates
     let count = world.resource::<Count>().0;
-    assert!(count >= 5);
-    assert!(count <= 8);
+    assert_eq!(count, 6);
 }

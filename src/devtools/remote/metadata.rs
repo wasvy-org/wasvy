@@ -8,8 +8,9 @@ use serde_json::Value;
 
 use crate::devtools::Devtools;
 
+/// TODO: Make immutable in 0.19
 #[derive(Resource, Serialize)]
-pub(super) struct Metadata {
+pub struct Metadata {
     #[serde(flatten)]
     devtools: Devtools,
     asset_dir: PathBuf,
@@ -17,7 +18,7 @@ pub(super) struct Metadata {
 }
 
 impl Metadata {
-    pub(super) fn new(devtools: Devtools, asset_plugin: &AssetPlugin) -> Self {
+    pub fn new(devtools: Devtools, asset_plugin: &AssetPlugin) -> Self {
         let reader = FileAssetReader::new(&asset_plugin.file_path);
         let asset_dir = reader.root_path();
         if !asset_dir.exists() {

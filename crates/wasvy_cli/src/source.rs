@@ -35,6 +35,7 @@ pub struct Source {
     runtime: Runtime,
 }
 
+// TODO: Ideally there'd be no variants, only underlying source implementations (kinda like languages)
 #[derive(Clone, PartialEq, Eq)]
 enum Variant {
     /// A mod developed via a language of choice, must be compiled to Wasm in order to run
@@ -240,6 +241,16 @@ impl Source {
             .iter()
             .filter_map(|path| fs::canonicalize(path).ok())
             .collect()
+    }
+
+    /// Consumes and deletes the source from the filesystem
+    pub fn delete(self) -> Result<()> {
+        match self.variant {
+            External { .. } => fs::remove_dir_all(self.path)?,
+            Wasm => fs::remove_file(self.path)?,
+            Native { .. } => todo!("find crate location in workspace and delete source"),
+        }
+        Ok(())
     }
 
     /// Identifies a crate in the same workspace as the app as a compatible [Source] for a Mod

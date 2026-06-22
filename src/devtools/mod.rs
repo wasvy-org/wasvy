@@ -3,10 +3,7 @@ use std::borrow::Cow;
 use serde::Serialize;
 
 #[cfg(feature = "devtools")]
-mod mods;
-
-#[cfg(feature = "devtools")]
-mod metadata;
+mod remote;
 
 #[cfg(feature = "devtools")]
 mod plugin;

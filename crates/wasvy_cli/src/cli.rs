@@ -134,11 +134,11 @@ pub fn cli(args: Args) -> Result<Vec<Source>> {
 
     match command {
         Command::Create(args) => {
-            let source = create(path, &args, &runtime)?;
+            let source = create(path, args, &runtime)?;
             Ok(vec![source])
         }
         Command::Search(mods) => {
-            let mut sources = get_sources(&runtime, &mods, &remote, path)?;
+            let mut sources = get_sources(&runtime, mods, &remote, path)?;
             if sources.is_empty() {
                 bail!("no source was found");
             }
@@ -146,12 +146,12 @@ pub fn cli(args: Args) -> Result<Vec<Source>> {
             Ok(sources)
         }
         Command::Load(mods) => {
-            let sources = get_sources(&runtime, &mods, &remote, path)?;
+            let sources = get_sources(&runtime, mods, &remote, path)?;
             remote.load(&sources, Default::default())?;
             Ok(Vec::new()) // TODO: the user probably expects these to be the built, loaded sources
         }
         Command::Unload(mods) => {
-            let sources = get_sources(&runtime, &mods, &remote, path)?;
+            let sources = get_sources(&runtime, mods, &remote, path)?;
             remote.unload(&sources, Default::default())?;
             Ok(Vec::new()) // TODO: the user probably expects these to be the unloaded sources
         }
@@ -161,6 +161,7 @@ pub fn cli(args: Args) -> Result<Vec<Source>> {
                 .timeout
                 .map(Duration::from_secs)
                 .unwrap_or(Duration::from_secs(30 * 24 * 60 * 60));
+
             remote.watch(&sources, timeout, args.count, Default::default())?;
             Ok(Vec::new()) // TODO: the user probably expects these to be the watched sources
         }
@@ -257,7 +258,7 @@ impl fmt::Debug for InvalidLanguageError {
     }
 }
 
-fn print_search(sources: &mut Vec<Source>) {
+fn print_search(sources: &mut [Source]) {
     sources.sort_by(|a, b| a.name().cmp(b.name()));
     for source in sources.iter() {
         let name = source.name();

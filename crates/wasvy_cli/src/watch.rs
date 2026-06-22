@@ -3,7 +3,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::PathBuf,
-    sync::mpsc,
+    sync::mpsc::{self, RecvTimeoutError},
     time::{Duration, Instant},
 };
 
@@ -16,8 +16,10 @@ use notify::{Event, EventHandler, EventKind, RecursiveMode, Watcher, recommended
 pub fn watch(
     sources: impl IntoIterator<Item = impl Borrow<Source>>,
     remote: &Remote,
+    timeout: Duration,
     logging: Logging,
 ) -> Result<()> {
+    let started_at = Instant::now();
     let (handler, rx) = WatchHandler::new();
     let mut watcher = recommended_watcher(handler).context("Creating file watcher")?;
 
@@ -52,10 +54,17 @@ pub fn watch(
     }
 
     loop {
-        let Event { paths, .. } = match rx.recv() {
+        let Some(remaining) = timeout.checked_sub(started_at.elapsed()) else {
+            return Ok(());
+        };
+
+        let Event { paths, .. } = match rx.recv_timeout(remaining) {
             Ok(Ok(event)) => event,
             Ok(Err(err)) => return Err(err.into()),
-            Err(err) => return Err(err.into()),
+            Err(RecvTimeoutError::Timeout) => return Ok(()),
+            Err(RecvTimeoutError::Disconnected) => {
+                return Err(anyhow!("watch event channel disconnected"));
+            }
         };
 
         // Determine which sources changed

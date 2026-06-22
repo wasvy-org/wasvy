@@ -178,7 +178,9 @@ impl Mock {
         self.exit_inner()
     }
 
-    /// Exits the host app once duration has elapsed
+    /// Exits the host app once either:
+    /// - The duration has elapsed
+    /// - The app exits
     pub fn wait(mut self, duration: Duration) -> World {
         self.wait_inner(duration, false)
     }

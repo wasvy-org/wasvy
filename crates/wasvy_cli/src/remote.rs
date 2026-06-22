@@ -1,3 +1,4 @@
+use core::time::Duration;
 use std::{borrow::Borrow, collections::HashMap, fs, path::PathBuf, str::FromStr};
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -278,9 +279,10 @@ impl Remote {
     pub fn watch(
         &self,
         sources: impl IntoIterator<Item = impl Borrow<Source>>,
+        timeout: Duration,
         logging: Logging,
     ) -> Result<()> {
-        watch(sources, self, logging)
+        watch(sources, self, timeout, logging)
     }
 }
 

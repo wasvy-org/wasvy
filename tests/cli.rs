@@ -1,13 +1,14 @@
-use std::{sync::mpsc, time::Duration};
+use std::{fs, path::Path, sync::mpsc, thread, time::Duration};
 
 use bevy_app::{AppExit, PostUpdate, Update};
 use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use bevy_math::{Quat, Vec3};
+use bevy_reflect::{Reflect, TypePath};
 use bevy_transform::components::Transform;
 use wasvy::{mods::Mod, prelude::Devtools};
 use wasvy_cli::{
-    cli::{Args, Command},
+    cli::{Args, Command, ModArgs, WatchArgs},
     named::Named,
     remote::{Remote, RemoteUri},
     runtime::Runtime,
@@ -19,13 +20,10 @@ fn list() {
     let mut host = MockApp::default();
 
     let (signal_sender, signal_receiver) = mpsc::channel();
-    let mut signal_sender = Some(signal_sender);
     host.add_systems(Update, move |mods: Query<&Mod>| {
         // The mod is created in the world
         if !mods.is_empty() {
-            if let Some(signal_sender) = signal_sender.take() {
-                let _ = signal_sender.send(());
-            }
+            let _ = signal_sender.send(());
         }
     });
 
@@ -138,6 +136,11 @@ fn search_cli_fail() {
 #[cfg(test)]
 mod rust {
     use super::*;
+    use wasvy::component::WasmComponentRegistry;
+
+    #[derive(Component, Reflect, Default)]
+    #[reflect(Component)]
+    struct WatchMarker;
 
     #[test]
     fn create() {
@@ -164,15 +167,124 @@ mod rust {
             .expect("load");
 
         let mut world = app.wait(Duration::from_millis(5000));
+        assert!(has_example_name(&mut world));
         let transform: &Transform = world.get(entity).unwrap();
         assert_eq!(transform.translation, Vec3::X);
         assert!(transform.rotation.angle_between(Quat::default()) > 1.);
+    }
 
-        let mut names = world.query::<&Name>();
-        assert!(
-            names
-                .iter(&world)
-                .any(|name| name.as_str() == "Example entity")
-        );
+    #[test]
+    fn watch() {
+        let mut host = MockApp::default();
+        host.world_mut().spawn(Transform::default());
+
+        let _ = fs::remove_dir_all("tests/fixtures/crates/watch-create");
+
+        let (signal_sender, signal_receiver) = mpsc::channel();
+        host.add_systems(PostUpdate, move |world: &mut World| {
+            let has_name = has_example_name(world);
+            if has_name {
+                let _ = signal_sender.send(());
+                return;
+            }
+
+            let has_marker = has_watch_marker(world);
+            if has_marker {
+                world.write_message(AppExit::Success);
+            }
+        });
+
+        let mut app = host.run();
+
+        app.cli("wasvy-cli --path tests/fixtures/crates create -l rust -n watch-create")
+            .expect("create");
+
+        let args = Args {
+            command: Some(Command::Watch(WatchArgs {
+                mods: ModArgs {
+                    mods: vec!["watch-create".to_string()],
+                },
+                timeout: Some(30),
+            })),
+            path: "tests/fixtures/crates".into(),
+            app: None,
+            uri: Some(app.uri().to_string()),
+        };
+
+        let watch = thread::spawn(move || wasvy_cli::cli::cli(args));
+        let source_path = Path::new("tests/fixtures/crates/watch-create/src/lib.rs");
+        thread::sleep(Duration::from_millis(250));
+
+        let scaffold = fs::read_to_string(source_path).unwrap();
+        fs::write(source_path, scaffold).unwrap();
+        signal_receiver
+            .recv_timeout(Duration::from_secs(30))
+            .expect("name spawned");
+
+        fs::write(source_path, marker_mod(WatchMarker::type_path())).unwrap();
+
+        watch.join().unwrap().expect("watch");
+
+        let mut world = app.wait(Duration::from_secs(30));
+        assert!(!has_example_name(&mut world));
+        assert!(has_watch_marker(&mut world));
+    }
+
+    fn has_watch_marker(world: &mut World) -> bool {
+        let has_concrete_marker = world.query::<&WatchMarker>().iter(world).next().is_some();
+        has_concrete_marker || has_dynamic_component(world, WatchMarker::type_path())
+    }
+
+    fn has_example_name(world: &mut World) -> bool {
+        world
+            .query::<&Name>()
+            .iter(world)
+            .any(|name| name.as_str() == "Example entity")
+    }
+
+    fn has_dynamic_component(world: &mut World, type_path: &str) -> bool {
+        let Some(component_id) = world
+            .get_resource::<WasmComponentRegistry>()
+            .and_then(|registry| registry.get(type_path))
+            .copied()
+        else {
+            return false;
+        };
+
+        let mut entities = world.query::<Entity>();
+        let entities: Vec<_> = entities.iter(world).collect();
+        entities
+            .into_iter()
+            .any(|entity| world.entity(entity).contains_id(component_id))
+    }
+
+    fn marker_mod(marker_type_path: &str) -> String {
+        format!(
+            r#"
+mod bindings;
+use bindings::*;
+
+struct GuestComponent;
+
+impl Guest for GuestComponent {{
+    fn setup(app: App) {{
+        let start = System::new("start");
+        start.add_commands();
+        app.add_systems(&Schedule::ModStartup, &[&start]);
+    }}
+
+    fn start(commands: Commands) {{
+        commands.spawn(&[(
+            "{marker_type_path}".to_string(),
+            b"{{}}".to_vec(),
+        )]);
+    }}
+
+    fn update(_: Query) {{}}
+}}
+
+export!(GuestComponent);
+"#
+        )
     }
 }

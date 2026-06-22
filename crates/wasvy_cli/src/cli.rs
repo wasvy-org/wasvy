@@ -5,6 +5,7 @@ use error_collection::Errors;
 use std::{
     fmt, fs,
     path::{Path, PathBuf},
+    time::Duration,
 };
 
 use crate::{
@@ -13,7 +14,6 @@ use crate::{
     remote::{Remote, RemoteUri},
     runtime::Runtime,
     source::Source,
-    watch::watch,
 };
 
 /// Simple program to greet a person
@@ -65,12 +65,12 @@ pub enum Command {
     Unload(ModArgs),
 
     /// Watch mod sources for changes and compile
-    Watch(ModArgs),
+    Watch(WatchArgs),
 }
 
 impl Default for Command {
     fn default() -> Self {
-        Self::Watch(ModArgs::default())
+        Self::Watch(WatchArgs::default())
     }
 }
 
@@ -90,6 +90,16 @@ pub struct ModArgs {
     /// One or more patterns to filter sources
     #[arg(short, long)]
     pub mods: Vec<String>,
+}
+
+#[derive(clap::Args, Debug, Eq, PartialEq, Default)]
+pub struct WatchArgs {
+    #[command(flatten)]
+    pub mods: ModArgs,
+
+    /// Exit after this many seconds
+    #[arg(long)]
+    pub timeout: Option<u64>,
 }
 
 pub fn cli(args: Args) -> Result<Vec<Source>> {
@@ -141,9 +151,13 @@ pub fn cli(args: Args) -> Result<Vec<Source>> {
             remote.unload(&sources, Default::default())?;
             Ok(Vec::new()) // TODO: the user probably expects these to be the unloaded sources
         }
-        Command::Watch(mods) => {
-            let sources = get_sources(&runtime, &mods, &remote, path)?;
-            watch(&sources, &remote, Default::default())?;
+        Command::Watch(args) => {
+            let sources = get_sources(&runtime, &args.mods, &remote, path)?;
+            let timeout = args
+                .timeout
+                .map(Duration::from_secs)
+                .unwrap_or(Duration::from_secs(30 * 24 * 60 * 60));
+            remote.watch(&sources, timeout, Default::default())?;
             Ok(Vec::new()) // TODO: the user probably expects these to be the watched sources
         }
     }

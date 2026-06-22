@@ -1,6 +1,7 @@
 use std::{sync::mpsc, time::Duration};
 
 use bevy_app::{AppExit, PostUpdate, Update};
+use bevy_ecs::name::Name;
 use bevy_ecs::prelude::*;
 use bevy_math::{Quat, Vec3};
 use bevy_transform::components::Transform;
@@ -145,7 +146,7 @@ mod rust {
         host.add_systems(PostUpdate, post_update);
         fn post_update(mut exits: MessageWriter<AppExit>, signal: Single<&Transform>) {
             if signal.rotation.angle_between(Quat::default()) > 1. {
-                exits.write(AppExit::from_code(123));
+                exits.write(AppExit::Success);
             }
         }
 
@@ -162,9 +163,16 @@ mod rust {
         app.cli("wasvy-cli --path tests/fixtures/crates/rust-create load")
             .expect("load");
 
-        let world = app.wait(Duration::from_millis(5000));
+        let mut world = app.wait(Duration::from_millis(5000));
         let transform: &Transform = world.get(entity).unwrap();
         assert_eq!(transform.translation, Vec3::X);
         assert!(transform.rotation.angle_between(Quat::default()) > 1.);
+
+        let mut names = world.query::<&Name>();
+        assert!(
+            names
+                .iter(&world)
+                .any(|name| name.as_str() == "Example entity")
+        );
     }
 }

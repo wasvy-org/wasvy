@@ -30,7 +30,7 @@ impl Guest for GuestComponent {
 
         commands.spawn(&[(
             "bevy_ecs::name::Name".to_string(),
-            r#"{ "name": "Example entity" }"#.as_bytes().to_vec(),
+            r#""Example entity""#.as_bytes().to_vec(),
         )]);
     }
 

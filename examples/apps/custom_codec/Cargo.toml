@@ -16,7 +16,7 @@ publish = false
 # wasvy = { version = "0.0.8", default-features = false } 
 wasvy = { path = "../../../", default-features = false }
 
-bevy = { version = "0.18.0", features = [
+bevy = { version = "0.19.0", features = [
     "wayland",
     "dynamic_linking",
     "bevy_dev_tools",

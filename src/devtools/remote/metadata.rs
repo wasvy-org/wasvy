@@ -8,8 +8,8 @@ use serde_json::Value;
 
 use crate::devtools::Devtools;
 
-/// TODO: Make immutable in 0.19
 #[derive(Resource, Serialize)]
+#[component(immutable)]
 pub struct Metadata {
     #[serde(flatten)]
     devtools: Devtools,

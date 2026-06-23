@@ -20,5 +20,5 @@ bevy = { version = "0.19.0", features = [
     "dynamic_linking",
     "bevy_dev_tools",
 ] }
-bevy_egui = "0.39.0"
-bevy-inspector-egui = "0.36.0"
+bevy_egui = "0.40.0"
+bevy-inspector-egui = "0.37.0"

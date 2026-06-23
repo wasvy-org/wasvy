@@ -24,7 +24,9 @@ pub(crate) struct DisableSystemSet {
     pub(crate) schedules: ModSchedules,
 }
 
-impl Command<()> for DisableSystemSet {
+impl Command for DisableSystemSet {
+    type Out = ();
+
     fn apply(self, world: &mut World) {
         if !self.schedules.0.is_empty() {
             world.write_message(self);
@@ -36,7 +38,7 @@ pub(crate) fn disable_mod_system_sets(
     world: &mut World,
     param: &mut SystemState<MessageReader<DisableSystemSet>>,
 ) {
-    let mut messages = param.get_mut(world);
+    let mut messages = param.get_mut(world).expect("valid system parameter");
 
     // Collect a map of unique bevy schedule labels and the sets that need to be removed from them
     let mut remove = HashMap::new();

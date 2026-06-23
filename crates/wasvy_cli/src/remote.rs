@@ -3,7 +3,7 @@ use std::{borrow::Borrow, collections::HashMap, fs, path::PathBuf, str::FromStr}
 
 use anyhow::{Context, Result, anyhow, bail};
 use bevy_remote::{
-    BrpPayload, BrpRequest,
+    BrpPayload, BrpRequest, BrpResponse,
     http::{DEFAULT_ADDR, DEFAULT_PORT},
 };
 use derive_more::{Deref, DerefMut};
@@ -322,7 +322,6 @@ impl RemoteUri {
     /// Send a BRP JSON-RPC 2.0 request and return the result
     pub fn send(&self, method: impl Into<String>, params: Value) -> Result<Value> {
         let body = BrpRequest {
-            jsonrpc: "2.0".into(),
             method: method.into(),
             id: None,
             params: match params {
@@ -343,15 +342,6 @@ impl RemoteUri {
             BrpPayload::Result(value) => Ok(value),
         }
     }
-}
-
-/// A response according to BRP.
-///
-/// [bevy_remote::BrpResponse] is not deserializable. See <https://github.com/bevyengine/bevy/pull/24305>
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BrpResponse {
-    #[serde(flatten)]
-    pub payload: BrpPayload,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]

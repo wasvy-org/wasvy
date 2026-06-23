@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-required_rust_version="1.92.0"
+required_rust_version="1.95.0"
 
 if ! command -v rustc >/dev/null 2>&1; then
   echo "🚫 pre-push: rustc is not installed or not on PATH"

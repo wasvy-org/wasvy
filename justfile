@@ -72,7 +72,7 @@ publish-wasvy-ecs file_path version:
 [group("chores")]
 [arg("new", pattern="^\\d+\\.\\d+\\.\\d+$")]
 bump-toolchain new:
-	rg -l 'rust' . | xargs sed -i "/rust/s/1.95.0/{{new}}/g"
+	rg -l -g '!.?*' -g '.githooks/**' -g '.github/**' 'rust' . | xargs sed -i "/rust/s/1.95.0/{{new}}/g"
 
 # Replace the existing (0.18.0) bevy version with a new one.
 [group("chores")]

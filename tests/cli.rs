@@ -147,6 +147,8 @@ mod rust {
     #[test]
     fn create() {
         let mut host = MockApp::default();
+        host.register_type::<Name>();
+        host.register_type::<Transform>();
 
         host.add_systems(PostUpdate, post_update);
         fn post_update(mut exits: MessageWriter<AppExit>, signal: Single<&Transform>) {
@@ -178,6 +180,8 @@ mod rust {
     #[test]
     fn watch() {
         let mut host = MockApp::default();
+        host.register_type::<Name>();
+        host.register_type::<Transform>();
         host.world_mut().spawn(Transform::default());
 
         let (signal_sender, signal_receiver) = mpsc::channel();
@@ -215,7 +219,7 @@ mod rust {
 
         // Wait for watch to load the mod we just created
         signal_receiver
-            .recv_timeout(Duration::from_secs(120))
+            .recv_timeout(Duration::from_secs(60))
             .expect("name component spawned by mod");
 
         // Update file which should re-trigger load

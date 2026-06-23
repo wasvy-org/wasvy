@@ -4,7 +4,10 @@ compile_error!("The `cli` feature must be enabled to build wasvy-cli.");
 use clap::Parser;
 use std::process::exit;
 
-use wasvy_cli::cli::{Args, cli};
+use wasvy_cli::{
+    cli::{Args, cli},
+    command::Logging,
+};
 
 pub fn main() {
     let version = env!("CARGO_PKG_VERSION");
@@ -13,7 +16,7 @@ pub fn main() {
     println!();
     let args = Args::parse();
 
-    if let Err(err) = cli(args) {
+    if let Err(err) = cli(args, Logging::Inherit) {
         eprintln!("Error: {err:?}");
         exit(1)
     }

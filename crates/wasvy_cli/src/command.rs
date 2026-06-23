@@ -45,11 +45,12 @@ impl Command {
 }
 
 /// Logging mode for commands
+///
+/// Default is to ignore all logs
 #[derive(Debug, Default, Clone)]
 pub enum Logging {
-    #[cfg_attr(not(test), default)]
     Inherit,
-    #[cfg_attr(test, default)]
+    #[default]
     Ignore,
     Capture,
 }

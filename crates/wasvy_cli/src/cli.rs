@@ -9,6 +9,7 @@ use std::{
 };
 
 use crate::{
+    command::Logging,
     id::Id,
     named::Named,
     remote::{Remote, RemoteUri},
@@ -106,7 +107,7 @@ pub struct WatchArgs {
     pub count: Option<usize>,
 }
 
-pub fn cli(args: Args) -> Result<Vec<Source>> {
+pub fn cli(args: Args, logging: Logging) -> Result<Vec<Source>> {
     let Args {
         command,
         path,
@@ -147,24 +148,24 @@ pub fn cli(args: Args) -> Result<Vec<Source>> {
         }
         Command::Load(mods) => {
             let sources = get_sources(&runtime, mods, &remote, path)?;
-            remote.load(&sources, Default::default())?;
+            remote.load(&sources, logging)?;
             Ok(Vec::new()) // TODO: the user probably expects these to be the built, loaded sources
         }
         Command::Unload(mods) => {
             let sources = get_sources(&runtime, mods, &remote, path)?;
-            remote.unload(&sources, Default::default())?;
+            remote.unload(&sources, logging)?;
             Ok(Vec::new()) // TODO: the user probably expects these to be the unloaded sources
         }
         Command::Watch(args) => {
             let sources = get_sources(&runtime, &args.mods, &remote, path)?;
-            remote.load(&sources, Default::default())?;
+            remote.load(&sources, logging.clone())?;
 
             let timeout = args
                 .timeout
                 .map(Duration::from_secs)
                 .unwrap_or(Duration::from_secs(30 * 24 * 60 * 60));
 
-            remote.watch(&sources, timeout, args.count, Default::default())?;
+            remote.watch(&sources, timeout, args.count, logging)?;
             Ok(Vec::new()) // TODO: the user probably expects these to be the watched sources
         }
     }

@@ -18,7 +18,7 @@ use bevy_platform::thread::sleep;
 use bevy_remote::http::{DEFAULT_PORT, RemoteHttpPlugin};
 use clap::Parser;
 use wasvy::prelude::{Devtools, ModLoaderPlugin};
-use wasvy_cli::{cli::Args, remote::RemoteUri, source::Source};
+use wasvy_cli::{cli::Args, command::Logging, remote::RemoteUri, source::Source};
 
 const WAIT: Duration = Duration::from_millis(10);
 
@@ -30,17 +30,27 @@ pub struct MockApp {
     #[deref]
     app: App,
     devtools: Option<Devtools>,
+    logging: Logging,
 }
 
 impl MockApp {
-    pub fn devtools(mut self, devtools: impl Into<Devtools>) -> Self {
+    pub fn set_devtools(mut self, devtools: impl Into<Devtools>) -> Self {
         self.devtools = Some(devtools.into());
+        self
+    }
+
+    pub fn set_logging(mut self, logging: Logging) -> Self {
+        self.logging = logging;
         self
     }
 
     #[must_use = "The returned handle will end execution of the app when dropped"]
     pub fn run(self) -> Mock {
-        let Self { mut app, devtools } = self;
+        let Self {
+            mut app,
+            devtools,
+            logging,
+        } = self;
         let mut devtools = devtools.unwrap_or_default();
         devtools.program_name = "wasvy-test-host".into();
         let port = next_test_port();
@@ -139,6 +149,7 @@ impl MockApp {
             exit,
             cleanup: Vec::new(),
             join: Some(join),
+            logging,
         }
     }
 }
@@ -148,6 +159,7 @@ pub struct Mock {
     exit: Arc<AtomicBool>,
     cleanup: Vec<Source>,
     join: Option<JoinHandle<World>>,
+    logging: Logging,
 }
 
 impl Mock {
@@ -165,7 +177,7 @@ impl Mock {
             args.uri = Some(self.uri.to_string());
         }
         let require_cleanup = matches!(&args.command, Some(wasvy_cli::cli::Command::Create(_)));
-        let mut sources = wasvy_cli::cli::cli(args)?;
+        let mut sources = wasvy_cli::cli::cli(args, self.logging.clone())?;
         if require_cleanup {
             self.cleanup.append(&mut sources);
         }

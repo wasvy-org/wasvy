@@ -9,6 +9,7 @@ use bevy_transform::components::Transform;
 use wasvy::{mods::Mod, prelude::Devtools};
 use wasvy_cli::{
     cli::{Args, Command, ModArgs, WatchArgs},
+    command::Logging,
     named::Named,
     remote::{Remote, RemoteUri},
     runtime::Runtime,
@@ -86,7 +87,7 @@ fn search_default() {
 #[test]
 fn search_components() {
     let app = MockApp::default()
-        .devtools(
+        .set_devtools(
             Devtools::default()
                 .implement(include_str!("../examples/apps/components/wit/bindings.wit")),
         )
@@ -128,7 +129,7 @@ fn search_cli_success() {
 fn search_cli_fail() {
     let mut args: Args = Command::Search(Default::default()).into();
     args.uri = Some(RemoteUri::new(next_test_port()).to_string());
-    let result = wasvy_cli::cli::cli(args);
+    let result = wasvy_cli::cli::cli(args, Logging::Ignore);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("No remote found!"));
 }
@@ -137,6 +138,7 @@ fn search_cli_fail() {
 mod rust {
     use super::*;
     use wasvy::component::WasmComponentRegistry;
+    use wasvy_cli::command::Logging;
 
     #[derive(Component, Reflect, Default)]
     #[reflect(Component)]
@@ -178,8 +180,6 @@ mod rust {
         let mut host = MockApp::default();
         host.world_mut().spawn(Transform::default());
 
-        let _ = fs::remove_dir_all("tests/fixtures/crates/watch-create");
-
         let (signal_sender, signal_receiver) = mpsc::channel();
         host.add_systems(PostUpdate, move |world: &mut World| {
             if has_example_name(world) {
@@ -209,7 +209,9 @@ mod rust {
             uri: Some(app.uri().to_string()),
         };
 
-        let watch = thread::spawn(move || wasvy_cli::cli::cli(args));
+        let watch = thread::spawn(move || {
+            wasvy_cli::cli::cli(args, Logging::Ignore).expect("cli ran with no errors")
+        });
 
         // Wait for watch to load the mod we just created
         signal_receiver

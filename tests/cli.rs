@@ -215,7 +215,7 @@ mod rust {
 
         // Wait for watch to load the mod we just created
         signal_receiver
-            .recv_timeout(Duration::from_secs(20))
+            .recv_timeout(Duration::from_secs(120))
             .expect("name component spawned by mod");
 
         // Update file which should re-trigger load

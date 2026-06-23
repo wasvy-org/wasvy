@@ -7,7 +7,7 @@ use anyhow::Result;
 use serde::Deserialize;
 
 use crate::{
-    languages::{Rust, cargo_metadata},
+    languages::{Metadata, Rust, cargo_metadata},
     named::Named,
     runtime::Runtime,
     source::Source,
@@ -156,28 +156,11 @@ struct Native {
 }
 
 fn find_native(path: impl AsRef<Path>) -> Native {
-    #[derive(Deserialize, Default)]
-    struct Metadata {
-        packages: Vec<Package>,
-        workspace_root: PathBuf,
-    }
-
-    #[derive(Deserialize, Default)]
-    struct Package {
-        name: String,
-        targets: Vec<Target>,
-    }
-
-    #[derive(Deserialize, Default)]
-    struct Target {
-        crate_types: HashSet<String>,
-    }
-
-    let metadata = cargo_metadata(path).unwrap_or_default();
     let Metadata {
         packages,
         workspace_root,
-    } = serde_json::from_str(&metadata).unwrap_or_default();
+        ..
+    } = cargo_metadata(path).unwrap_or_default();
 
     let crate_names = packages
         .into_iter()

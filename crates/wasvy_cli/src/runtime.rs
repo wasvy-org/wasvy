@@ -107,7 +107,16 @@ impl TryFrom<&Remote> for Config {
         } = value;
 
         let mut config = Config {
-            namespace: name.to_string(),
+            namespace: name
+                .chars()
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() || c == '-' {
+                        c
+                    } else {
+                        '-'
+                    }
+                })
+                .collect(),
             ..Default::default()
         };
 

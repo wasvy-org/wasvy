@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     env, fs,
     iter::once,
     path::{Path, PathBuf},
@@ -7,8 +8,10 @@ use std::{
 
 use anyhow::{Context, Result, anyhow, bail};
 use error_collection::Errors;
+use glob::Pattern;
 use semver::Version;
 use serde::Deserialize;
+use toml_edit::{Array, DocumentMut, Item, RawString, Value};
 use tracing::warn;
 
 use crate::{
@@ -64,7 +67,7 @@ impl Language for Rust {
         })
     }
 
-    fn scaffold(&self, source: &Source, _logging: Logging) -> Result<()> {
+    fn scaffold(&self, source: &Source, logging: Logging) -> Result<()> {
         let mut errors = Errors::new();
 
         let path = source.path();
@@ -107,11 +110,18 @@ impl Language for Rust {
         };
         errors.collect(file.write(path));
 
+        errors.collect(source.update_deps());
+
+        if errors.is_empty() {
+            errors.collect(add_to_workspace_if_needed(source.path()));
+            errors.collect(Command::run(Cargo::Check, source, logging));
+        }
+
         errors.as_result()
     }
 
     fn build(&self, source: &Source, logging: Logging) -> Result<Source> {
-        if let Err(error) = Command::run(CargoBuild, source, logging) {
+        if let Err(error) = Command::run(Cargo::Build, source, logging) {
             // Since rust is strongly typed, compilation might fail if wit is outdated.
             // Retry building setup only and generate wit from that if possible.
             // if error.to_string().contains("TODO") {
@@ -133,19 +143,28 @@ impl Language for Rust {
     }
 }
 
-struct CargoBuild;
+enum Cargo {
+    Build,
+    Check,
+}
 
-impl CommandType for CargoBuild {
+impl CommandType for Cargo {
     const PROGRAM: &str = "cargo";
 
     fn setup(self, command: &mut Command, source: &Source) -> Result<()> {
-        command
-            .arg("build")
-            .arg("--release")
-            .arg("--target")
-            .arg("wasm32-wasip2")
-            .arg("-p")
-            .arg(source.name());
+        match self {
+            Self::Build => {
+                command
+                    .arg("build")
+                    .arg("--release")
+                    .arg("--target")
+                    .arg("wasm32-wasip2");
+            }
+            Self::Check => {
+                command.arg("check");
+            }
+        }
+        command.arg("-p").arg(source.name());
 
         Ok(())
     }
@@ -174,7 +193,7 @@ fn get_build_artifact(source: &Source) -> Result<Source> {
 }
 
 fn retry_witgen(source: &Source) -> Result<()> {
-    let mut command = Command::new(CargoBuild, source, Logging::Ignore)?;
+    let mut command = Command::new(Cargo::Build, source, Logging::Ignore)?;
     command.arg("--features").arg("setup_only");
     command.execute()?;
 
@@ -182,7 +201,25 @@ fn retry_witgen(source: &Source) -> Result<()> {
     write_guest_wit(&wit_source)
 }
 
-pub(crate) fn cargo_metadata(path: impl AsRef<Path>) -> Result<String> {
+#[derive(Deserialize, Default)]
+pub(crate) struct Metadata {
+    pub(crate) packages: Vec<MetadataPackage>,
+    pub(crate) workspace_root: PathBuf,
+    pub(crate) target_directory: PathBuf,
+}
+
+#[derive(Deserialize, Default)]
+pub(crate) struct MetadataPackage {
+    pub(crate) name: String,
+    pub(crate) targets: Vec<MetadataTarget>,
+}
+
+#[derive(Deserialize, Default)]
+pub(crate) struct MetadataTarget {
+    pub(crate) crate_types: HashSet<String>,
+}
+
+pub(crate) fn cargo_metadata(path: impl AsRef<Path>) -> Result<Metadata> {
     let path = path.as_ref();
     let output = process::Command::new("cargo")
         .arg("metadata")
@@ -193,20 +230,124 @@ pub(crate) fn cargo_metadata(path: impl AsRef<Path>) -> Result<String> {
         .output()
         .context("could not run `cargo metadata`")?;
 
-    String::from_utf8(output.stdout).context("cargo metadata output was not valid UTF-8")
+    serde_json::from_slice(&output.stdout).context("cargo metadata output was not valid UTF-8")
 }
 
 fn build_directory(path: impl AsRef<Path>) -> Result<PathBuf> {
-    #[derive(Deserialize)]
-    struct Metadata {
-        target_directory: PathBuf,
+    Ok(cargo_metadata(path)?.target_directory)
+}
+
+fn add_to_workspace_if_needed(crate_path: &Path) -> Result<()> {
+    let Some(parent) = crate_path.parent() else {
+        return Ok(());
+    };
+    let Ok(Metadata { workspace_root, .. }) = cargo_metadata(parent) else {
+        return Ok(());
+    };
+
+    let workspace_manifest = workspace_root.join("Cargo.toml");
+    if !workspace_manifest.is_file() {
+        return Ok(());
     }
 
-    let metadata = cargo_metadata(&path)?;
-    let metadata: Metadata =
-        serde_json::from_str(&metadata).context("Invalid `cargo metadata` target_directory")?;
+    let crate_path = fs::canonicalize(crate_path)
+        .with_context(|| format!("canonicalizing scaffolded crate path {crate_path:?}"))?;
+    let relative_path = crate_path
+        .strip_prefix(&workspace_root)
+        .with_context(|| format!("{crate_path:?} is not inside workspace {workspace_root:?}"))?;
+    let relative_path = cargo_path(relative_path);
+    let contents = fs::read_to_string(&workspace_manifest)
+        .with_context(|| format!("reading workspace manifest {workspace_manifest:?}"))?;
+    if !has_workspace_table(&contents) {
+        return Ok(());
+    }
 
-    Ok(metadata.target_directory)
+    if workspace_members(&contents)
+        .iter()
+        .any(|member| member_covers_path(member, &relative_path))
+    {
+        return Ok(());
+    }
+
+    let contents = append_workspace_member(&contents, &relative_path)?;
+    fs::write(&workspace_manifest, contents)
+        .with_context(|| format!("writing workspace manifest {workspace_manifest:?}"))
+}
+
+fn has_workspace_table(contents: &str) -> bool {
+    let Ok(document) = contents.parse::<DocumentMut>() else {
+        return false;
+    };
+    document.get("workspace").and_then(Item::as_table).is_some()
+}
+
+fn cargo_path(path: &Path) -> String {
+    path.iter()
+        .map(|component| component.to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn workspace_members(contents: &str) -> Vec<String> {
+    let Ok(document) = contents.parse::<DocumentMut>() else {
+        return Vec::new();
+    };
+    document
+        .get("workspace")
+        .and_then(Item::as_table)
+        .and_then(|workspace| workspace.get("members"))
+        .and_then(Item::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|member| member.as_str().map(str::to_string))
+        .collect()
+}
+
+fn member_covers_path(member: &str, path: &str) -> bool {
+    member == path || Pattern::new(member).is_ok_and(|pattern| pattern.matches(path))
+}
+
+fn append_workspace_member(contents: &str, member: &str) -> Result<String> {
+    let mut document = contents
+        .parse::<DocumentMut>()
+        .context("parsing workspace manifest")?;
+    let Some(workspace) = document.get_mut("workspace").and_then(Item::as_table_mut) else {
+        bail!("workspace manifest is missing [workspace]");
+    };
+
+    if !workspace.contains_key("members") {
+        workspace.insert("members", Item::Value(Value::Array(Default::default())));
+    }
+
+    let Some(members) = workspace.get_mut("members").and_then(Item::as_array_mut) else {
+        bail!("workspace.members must be an array");
+    };
+    if is_multiline_array(members) {
+        let indent = array_member_indent(contents, members).unwrap_or_else(|| "    ".to_string());
+        members.push_formatted(Value::from(member).decorated(format!("\n{indent}"), ""));
+        members.set_trailing_comma(true);
+        members.set_trailing("\n");
+    } else {
+        members.push(member);
+    }
+    Ok(document.to_string())
+}
+
+fn is_multiline_array(array: &Array) -> bool {
+    array.to_string().contains('\n')
+}
+
+fn array_member_indent(contents: &str, array: &Array) -> Option<String> {
+    array.iter().find_map(|value| {
+        let prefix = raw_string(contents, value.decor().prefix()?)?;
+        let (_, indent) = prefix.rsplit_once('\n')?;
+        Some(indent.to_string())
+    })
+}
+
+fn raw_string<'a>(contents: &'a str, raw: &'a RawString) -> Option<&'a str> {
+    raw.as_str()
+        .or_else(|| raw.span().and_then(|span| contents.get(span)))
 }
 
 impl Default for Rust {
@@ -217,6 +358,8 @@ impl Default for Rust {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+
     use crate::languages::rust::build_directory;
 
     use super::*;
@@ -255,5 +398,128 @@ mod tests {
         let dir = build_directory(".").unwrap();
         assert_eq!(dir.file_name(), Some("target".as_ref()));
         assert!(dir.try_exists().unwrap_or(false));
+    }
+
+    #[test]
+    fn workspace_member_wildcard_covers_path() {
+        assert!(member_covers_path("crates/*", "crates/example"));
+        assert!(!member_covers_path("crates/*", "examples/example"));
+    }
+
+    #[test]
+    fn append_workspace_member_to_inline_array() {
+        let manifest = "[workspace]\nmembers = [\"crates/*\"]\n";
+        let manifest = append_workspace_member(manifest, "mods/new-mod").unwrap();
+        assert_eq!(
+            manifest,
+            "[workspace]\nmembers = [\"crates/*\", \"mods/new-mod\"]\n"
+        );
+    }
+
+    #[test]
+    fn append_workspace_member_to_multiline_array() {
+        let manifest = "[workspace]\nmembers = [\n    \"crates/*\",\n]\n";
+        let manifest = append_workspace_member(manifest, "mods/new-mod").unwrap();
+        assert_eq!(
+            manifest,
+            "[workspace]\nmembers = [\n    \"crates/*\",\n    \"mods/new-mod\",\n]\n"
+        );
+    }
+
+    #[test]
+    fn append_workspace_member_when_members_key_is_missing() {
+        let manifest = "[workspace]\nresolver = \"3\"\n";
+        let manifest = append_workspace_member(manifest, "mods/new-mod").unwrap();
+        assert_eq!(
+            workspace_members(&manifest),
+            vec!["mods/new-mod".to_string()]
+        );
+        assert!(manifest.contains("resolver = \"3\""));
+    }
+
+    #[test]
+    fn append_workspace_member_preserves_comments() {
+        let manifest = "# top\n[workspace]\n# members comment\nmembers = [\"crates/*\"] # inline\n";
+        let manifest = append_workspace_member(manifest, "mods/new-mod").unwrap();
+        assert!(manifest.contains("# top"));
+        assert!(manifest.contains("# members comment"));
+        assert!(manifest.contains("# inline"));
+        assert_eq!(
+            workspace_members(&manifest),
+            vec!["crates/*".to_string(), "mods/new-mod".to_string()]
+        );
+    }
+
+    #[test]
+    fn package_manifest_is_not_a_workspace() {
+        let manifest = "[package]\nname = \"app\"\n";
+        assert!(!has_workspace_table(manifest));
+    }
+
+    #[test]
+    fn workspace_members_are_parsed() {
+        let manifest = "[workspace]\nmembers = [\"crates/*\", \"mods/new-mod\"]\n";
+        assert_eq!(
+            workspace_members(manifest),
+            vec!["crates/*".to_string(), "mods/new-mod".to_string()]
+        );
+    }
+
+    #[test]
+    fn add_to_workspace_adds_uncovered_crate() {
+        let target = test_artifact_path("add_to_workspace_adds_uncovered_crate");
+        fs::write(
+            target.join("Cargo.toml"),
+            "[workspace]\nmembers = []\nresolver = \"3\"\n",
+        )
+        .unwrap();
+
+        let crate_path = target.join("mods").join("new-mod");
+        fs::create_dir_all(crate_path.join("src")).unwrap();
+        fs::write(
+            crate_path.join("Cargo.toml"),
+            "[package]\nname = \"new-mod\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+        )
+        .unwrap();
+        fs::write(crate_path.join("src/lib.rs"), "").unwrap();
+
+        add_to_workspace_if_needed(&crate_path).unwrap();
+
+        let manifest = fs::read_to_string(target.join("Cargo.toml")).unwrap();
+        assert!(workspace_members(&manifest).contains(&"mods/new-mod".to_string()));
+    }
+
+    #[test]
+    fn add_to_workspace_skips_wildcard_covered_crate() {
+        let target = test_artifact_path("add_to_workspace_skips_wildcard_covered_crate");
+        fs::write(
+            target.join("Cargo.toml"),
+            "[workspace]\nmembers = [\"crates/*\"]\nresolver = \"3\"\n",
+        )
+        .unwrap();
+
+        let crate_path = target.join("crates").join("new-mod");
+        fs::create_dir_all(crate_path.join("src")).unwrap();
+        fs::write(
+            crate_path.join("Cargo.toml"),
+            "[package]\nname = \"new-mod\"\nversion = \"0.0.0\"\nedition = \"2024\"\n",
+        )
+        .unwrap();
+        fs::write(crate_path.join("src/lib.rs"), "").unwrap();
+
+        add_to_workspace_if_needed(&crate_path).unwrap();
+
+        let manifest = fs::read_to_string(target.join("Cargo.toml")).unwrap();
+        assert_eq!(workspace_members(&manifest), vec!["crates/*".to_string()]);
+    }
+
+    fn test_artifact_path(path: impl AsRef<Path>) -> PathBuf {
+        let target = env::var("CARGO_TARGET_DIR").unwrap_or("../../target".to_string());
+        let target = PathBuf::from(target)
+            .join(env!("CARGO_CRATE_NAME"))
+            .join(path);
+        let _ = fs::remove_dir_all(&target);
+        fs::create_dir_all(&target).expect("create artifact directory");
+        target
     }
 }

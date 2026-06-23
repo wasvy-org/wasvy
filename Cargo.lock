@@ -6967,6 +6967,7 @@ dependencies = [
  "indexmap",
  "toml_datetime 1.1.0+spec-1.1.0",
  "toml_parser",
+ "toml_writer",
  "winnow 1.0.0",
 ]
 
@@ -7864,6 +7865,7 @@ dependencies = [
  "serde",
  "serde_json",
  "toml 1.1.0+spec-1.1.0",
+ "toml_edit",
  "tracing",
  "ureq",
  "wasmtime",

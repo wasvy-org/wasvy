@@ -309,6 +309,7 @@ impl ModSystemSet {
 /// The default behaviour is to despawn all entities this mod spawned.
 /// See [DespawnEntities](ModDespawnBehaviour::DespawnEntities).
 #[derive(Resource, Debug, Default, PartialEq, Eq)]
+#[component(immutable)]
 pub enum ModDespawnBehaviour {
     /// Do nothing when a mod is despawned
     None,

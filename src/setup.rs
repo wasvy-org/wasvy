@@ -31,7 +31,7 @@ pub(crate) fn run_setup(
         mut events,
         assets,
         mods,
-    } = param.get_mut(world);
+    } = param.get_mut(world).expect("valid system parameter");
 
     // Mod ids who's asset has been loaded (or hot-reloaded)
     let mut loaded_mods = Vec::new();

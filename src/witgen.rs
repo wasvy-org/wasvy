@@ -16,7 +16,6 @@ use bevy_ecs::reflect::AppFunctionRegistry;
 
 use crate::methods::FunctionIndex;
 
-#[derive(Resource, Clone, Debug)]
 /// Settings controlling how `components.wit` is generated.
 ///
 /// # Example
@@ -29,6 +28,8 @@ use crate::methods::FunctionIndex;
 ///     ..Default::default()
 /// };
 /// ```
+#[derive(Resource, Clone, Debug)]
+#[component(immutable)]
 pub struct WitGeneratorSettings {
     /// WIT package namespace
     ///

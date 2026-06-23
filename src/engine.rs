@@ -8,6 +8,7 @@ use crate::host::WasmHost;
 ///
 /// Check the wasmtime [`Engine`](wasmtime::Engine) docs for more information.
 #[derive(Resource, Clone, Deref)]
+#[component(immutable)]
 pub(crate) struct Engine(wasmtime::Engine);
 
 impl Engine {

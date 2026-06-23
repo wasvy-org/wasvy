@@ -74,11 +74,11 @@ publish-wasvy-ecs file_path version:
 bump-toolchain new:
 	rg -l -g '!.?*' -g '.githooks/**' -g '.github/**' 'rust' . | xargs sed -i "/rust/s/1.95.0/{{new}}/g"
 
-# Replace the existing (0.18.0) bevy version with a new one.
+# Replace the existing (0.19.0) bevy version with a new one.
 [group("chores")]
 [arg("new", pattern="^\\d+\\.\\d+\\.\\d+$")]
 bump-bevy new:
-	rg -l -g '!Cargo.lock' 'bevy' . | xargs sed -i "/bevy/s/0.18.0/{{new}}/g"
+	rg -l -g '!Cargo.lock' 'bevy' . | xargs sed -i "/bevy/s/0.19.0/{{new}}/g"
 	cargo check
 
 # Replace the existing (0.0.8) wasvy version with a new one.

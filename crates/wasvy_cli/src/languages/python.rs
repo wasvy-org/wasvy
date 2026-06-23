@@ -1,14 +1,13 @@
 use std::{
     fs::{self, canonicalize},
-    path::Path,
-    process::Stdio,
+    path::{Path, PathBuf},
 };
 
 use anyhow::{Context, Result, anyhow, bail};
-use derive_more::{Deref, DerefMut};
 use error_collection::Errors;
 
 use crate::{
+    command::{Command, CommandType, Logging},
     fs::WriteTo,
     language::{Language, SourceInfo},
     named::Named,
@@ -29,7 +28,7 @@ impl Language for Python {
         })
     }
 
-    fn create(&self, source: &Source) -> Result<()> {
+    fn scaffold(&self, source: &Source, logging: Logging) -> Result<()> {
         let mut errors = Errors::new();
 
         let path = source.path();
@@ -38,7 +37,7 @@ impl Language for Python {
 
         #[derive(askama::Template)]
         #[template(path = "./python/pyproject.toml")]
-        pub struct PyProject<'a> {
+        struct PyProject<'a> {
             namespace: &'a str,
             name: &'a str,
         }
@@ -68,39 +67,34 @@ impl Language for Python {
         // Componentize will fail if the wit is not there
         errors.collect(source.update_deps());
 
-        let mut poetry = Poetry::new(source);
-        poetry
-            .arg("bindings")
-            .arg("src")
-            .arg("--wit-path")
-            .arg("wit/");
-        errors.collect(poetry.run());
+        // Bindings generation
+        errors.collect(Command::run(Poetry::Bindings, source, logging));
 
         errors.into()
     }
 
-    fn build(&self, source: &Source, stdio: Stdio) -> Result<Source> {
+    fn build(&self, source: &Source, logging: Logging) -> Result<Source> {
         let path = source.path();
         let name = source.name();
-        let dest = path.join("dest");
-        let file = canonicalize(dest.join(format!("{name}.wasm")))?;
 
-        let _ = fs::create_dir_all(&dest);
+        let dest = &path.join("dest");
+        let _ = fs::create_dir_all(dest);
 
-        let mut poetry = Poetry::new(source);
-        poetry
-            .arg("componentize")
-            .arg("app")
-            .arg("--wit-path")
-            .arg("../wit/")
-            .arg("-o")
-            .arg(&file)
-            .current_dir(path.join("src"))
-            .stdout(stdio);
-        poetry.run()?;
+        let output = &canonicalize(dest)
+            .with_context(|| anyhow!("{dest:?}"))?
+            .join(format!("{name}.wasm"));
 
-        Source::identify_file(&file, source.runtime())
-            .with_context(|| anyhow!("identifying build artifact {file:?}"))
+        Command::run(Poetry::Componentize { output }, source, logging)?;
+
+        Source::new_wasm(output, Some(source.name().to_string()), source.runtime())
+            .with_context(|| anyhow!("identifying build artifact {output:?}"))
+    }
+
+    fn watch_paths(&self, source: &Source) -> Vec<PathBuf> {
+        vec![
+            source.path().join("src"),
+            source.path().join("pyproject.toml"),
+        ]
     }
 }
 
@@ -114,30 +108,41 @@ fn get_name(path: &Path) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-#[derive(Deref, DerefMut)]
-struct Poetry(std::process::Command);
+enum Poetry<'a> {
+    Bindings,
+    Componentize { output: &'a Path },
+}
 
-impl Poetry {
-    fn new(source: &Source) -> Self {
-        let mut value = Self(std::process::Command::new("poetry"));
-        value
-            .arg("run")
-            .arg("componentize-py")
-            .arg("--world")
-            .arg(source.name())
-            .current_dir(source.path());
-        value
-    }
+impl<'a> CommandType for Poetry<'a> {
+    const PROGRAM: &'static str = "poetry";
 
-    fn run(&mut self) -> anyhow::Result<()> {
-        match self.output() {
-            Err(err) => Err(err.into()),
-            Ok(output) if !output.status.success() => Err(anyhow::anyhow!(
-                "componentize-py failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )),
-            _ => Ok(()),
+    fn setup(self, command: &mut Command, source: &Source) -> Result<()> {
+        command.arg("run").arg("componentize-py");
+        match self {
+            Poetry::Bindings => {
+                command
+                    .arg("--wit-path")
+                    .arg("wit/")
+                    .arg("--world")
+                    .arg(source.world_name())
+                    .arg("bindings")
+                    .arg("src");
+            }
+            Poetry::Componentize { output } => {
+                command
+                    .arg("--wit-path")
+                    .arg("../wit/")
+                    .arg("--world")
+                    .arg(source.world_name())
+                    .arg("componentize")
+                    .arg("app")
+                    .arg("-o")
+                    .arg(output)
+                    .current_dir(source.path().join("src"));
+            }
         }
+
+        Ok(())
     }
 }
 

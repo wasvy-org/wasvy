@@ -7,6 +7,7 @@
 extern crate self as wasvy;
 
 pub mod access;
+pub mod app_extend;
 pub mod asset;
 pub mod authoring;
 pub(crate) mod cleanup;

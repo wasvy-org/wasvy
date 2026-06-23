@@ -20,3 +20,6 @@ wit-bindgen.workspace = true
 
 [lib]
 crate-type = ["cdylib"]
+
+[features]
+setup_only = []

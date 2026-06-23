@@ -6,7 +6,7 @@ use bevy_ecs::{
 
 use crate::{
     bindings::wasvy::ecs::app::{ComponentIndex, QueryFor},
-    component::{ComponentRef, get_component, set_component},
+    component::{ComponentRef, get_component, get_component_id_for_filter, set_component},
     serialize::CodecResource,
     system::Param,
 };
@@ -181,7 +181,9 @@ pub(crate) fn create_query_builder(
 > {
     let mut items = Vec::with_capacity(original_items.len());
     for original in original_items {
-        items.push(QueryForId::new(original, world)?);
+        if let Some(item) = QueryForId::new(original, world)? {
+            items.push(item);
+        }
     }
 
     Ok(QueryParamBuilder::new_box(move |builder| {
@@ -213,19 +215,20 @@ enum QueryForId {
 }
 
 impl QueryForId {
-    fn new(original: &QueryFor, world: &mut World) -> Result<Self> {
+    fn new(original: &QueryFor, world: &mut World) -> Result<Option<Self>> {
         Ok(match original {
-            QueryFor::Ref(type_path) => {
-                Self::Ref(ComponentRef::new(type_path, world)?.component_id())
-            }
-            QueryFor::Mut(type_path) => {
-                Self::Mut(ComponentRef::new(type_path, world)?.component_id())
-            }
-            QueryFor::With(type_path) => {
-                Self::With(ComponentRef::new(type_path, world)?.component_id())
-            }
+            QueryFor::Ref(type_path) => Some(Self::Ref(
+                ComponentRef::new(type_path, world)?.component_id(),
+            )),
+            QueryFor::Mut(type_path) => Some(Self::Mut(
+                ComponentRef::new(type_path, world)?.component_id(),
+            )),
+            QueryFor::With(type_path) => Some(Self::With(
+                get_component_id_for_filter(type_path, world)
+                    .ok_or_else(|| anyhow!("{type_path} is not a component"))?,
+            )),
             QueryFor::Without(type_path) => {
-                Self::Without(ComponentRef::new(type_path, world)?.component_id())
+                get_component_id_for_filter(type_path, world).map(Self::Without)
             }
         })
     }

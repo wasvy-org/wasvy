@@ -1,8 +1,9 @@
 // filename: src/lib.rs
-use bevy_math::{Quat, Vec3};
+use bevy_math::Quat;
 use bevy_transform::components::Transform;
 use serde::{Deserialize, Serialize};
 
+mod bindings;
 use bindings::*;
 
 struct GuestComponent;
@@ -29,11 +30,11 @@ impl Guest for GuestComponent {
 
         commands.spawn(&[(
             "bevy_ecs::name::Name".to_string(),
-            r#"{ "name": "Example entity" }"#,
+            r#""Example entity""#.as_bytes().to_vec(),
         )]);
     }
 
-    fn spin_cube(query: Query) {
+    fn update(query: Query) {
         while let Some(results) = query.iter() {
             // Get the first component
             let component = results.component(0);
@@ -52,16 +53,18 @@ impl Guest for GuestComponent {
 
 export!(GuestComponent);
 
-fn from_json<'a, T>(component: &'a str) -> T
+fn from_json<'a, T>(component: &'a [u8]) -> T
 where
     T: Deserialize<'a>,
 {
-    serde_json::from_str(component).expect("serializable component")
+    serde_json::from_slice(component).expect("serializable component")
 }
 
-fn to_json<T>(component: &T) -> String
+fn to_json<T>(component: &T) -> Vec<u8>
 where
     T: Serialize,
 {
-    serde_json::to_string(&component).expect("serializable component")
+    serde_json::to_string(&component)
+        .expect("serializable component")
+        .into_bytes()
 }

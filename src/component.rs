@@ -169,6 +169,24 @@ impl ComponentRef {
     }
 }
 
+pub(crate) fn get_component_id_for_filter(
+    type_path: &str,
+    world: &mut World,
+) -> Option<ComponentId> {
+    let type_registry = world
+        .get_resource::<AppTypeRegistry>()
+        .expect("there to be an AppTypeRegistry")
+        .read();
+
+    if let Some(type_registration) = type_registry.get_with_type_path(type_path) {
+        let type_id = type_registration.type_id();
+        world.components().get_id(type_id)
+    } else {
+        drop(type_registry);
+        Some(get_wasm_component_id(type_path, world))
+    }
+}
+
 /// Gets the component id given a type path, or registers a new component id for a [WasmComponent]
 fn get_wasm_component_id(type_path: &str, world: &mut World) -> ComponentId {
     let component_registry = world.get_resource_or_init::<WasmComponentRegistry>();

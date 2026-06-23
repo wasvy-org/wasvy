@@ -13,13 +13,13 @@ readme.workspace = true
 publish = true
 
 [workspace]
-members = ["crates/*", "examples/apps/*", "examples/mods/rust/*"]
+members = ["crates/*", "examples/apps/*", "examples/mods/rust/*", "tests/fixtures/crates/*"]
 resolver = "2"
 
 [workspace.package]
 authors = ["EngoDev", "MarcGuiselin"]
 categories = ["wasm", "game-development", "development-tools"]
-rust-version = "1.92.0"
+rust-version = "1.95.0"
 version = "0.0.8"
 edition = "2024"
 description = "Bevy WASM"
@@ -41,38 +41,49 @@ bevy_math = { version = "0.18.0", features = [
     "serialize",
 ], default-features = false }
 bevy_platform = "0.18.0"
+bevy_ratatui = "0.11.1"
 bevy_reflect = { version = "0.18.0", features = [
     "functions",
     "reflect_documentation",
 ] }
 bevy_remote = "0.18.0"
+bevy_state = "0.18.0"
 bevy_transform = { version = "0.18.0", features = [
     "serialize",
 ], default-features = false }
+bevy_internal = "0.18.0"
+clap = { version = "4.6.0", features = ["derive"] }
 derive_more = { version = "2", default-features = false, features = [
     "deref",
     "deref_mut",
 ] }
-error-collection = "1.0.2"
+error-collection = "1.0.4"
 glob = "0.3.3"
+http = { version = "1.1.0", default-features = false, features = ["std"] }
 inventory = "0.3.15"
 proc-macro2 = "1.0.89"
 proc-macro-crate = "3.1.0"
 quote = "1.0.36"
 semver = "1.0.27"
 serde = { version = "1.0.219", features = ["derive"] }
+shlex = "2.0.1"
 serde_json = "1.0.143"
 syn = { version = "2.0.87", features = ["full", "extra-traits"] }
+ratatui = { version = "0.30.0", features = ["unstable-widget-ref"] }
 thiserror = "2.0.16"
 toml = "1.1.0"
 tracing = "0.1.44"
+ureq = { version = "3.3.0", features = ["json"] }
 wasmtime = { version = "40.0.1", features = ["component-model"] }
 wasmtime-wasi = "40.0.1"
 wasvy = { path = "./" }
 wasvy_cli = { path = "./crates/wasvy_cli" }
 wasvy_macros = { version = "0.0.8", path = "crates/wasvy_macros" }
+wasvy_mock = { version = "0.0.8", path = "crates/wasvy_mock" }
 wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
 wit-parser = "0.245.1"
+notify = "7.0.0"
+trybuild = "1.0.111"
 
 [features]
 default = ["devtools", "serde_json"]
@@ -89,6 +100,7 @@ bevy_log.workspace = true
 bevy_platform.workspace = true
 bevy_reflect.workspace = true
 bevy_remote = { workspace = true, optional = true }
+error-collection.workspace = true
 inventory.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, optional = true }
@@ -98,7 +110,11 @@ wasvy_macros.workspace = true
 
 [dev-dependencies]
 wit-bindgen.workspace = true
-trybuild = "1.0.111"
+trybuild.workspace = true
+bevy_math.workspace = true
+bevy_transform.workspace = true
+wasvy_cli.workspace = true
+wasvy_mock.workspace = true
 
 # These lints may be important signals about code quality, but normal Bevy code
 # commonly triggers them and the CI workflow treats them as errors, so we've

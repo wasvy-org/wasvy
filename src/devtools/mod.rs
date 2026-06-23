@@ -1,10 +1,9 @@
 use std::borrow::Cow;
 
-use bevy_ecs::resource::Resource;
 use serde::Serialize;
 
 #[cfg(feature = "devtools")]
-mod mods;
+mod remote;
 
 #[cfg(feature = "devtools")]
 mod plugin;
@@ -22,7 +21,7 @@ impl bevy_app::Plugin for DevtoolsPlugin {
 /// A config for the DevtoolsPlugin.
 ///
 /// See `ModLoaderPlugin::devtools` for examples of how to create one.
-#[derive(Resource, Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Devtools {
     /// The name of your app or game, defaults to "Bevy App powered by Wasvy"
     pub program_name: String,

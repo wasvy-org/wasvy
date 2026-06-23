@@ -4,8 +4,9 @@ use super::*;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct WasmSystem {
-    pub name: String,
     pub args: Vec<Arg>,
+    pub desc: String,
+    pub name: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
@@ -14,7 +15,7 @@ pub struct Arg {
     pub param: SystemParam,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, PartialOrd, Ord)]
 pub enum SystemParam {
     Commands,
     Query,
@@ -33,6 +34,7 @@ impl bindings::HostSystem for Host {
     fn new(&mut self, name: String) -> Result<Resource<WasmSystem>> {
         let system = self.table.push(WasmSystem {
             name,
+            desc: String::new(),
             args: Vec::new(),
         })?;
 

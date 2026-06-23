@@ -1,10 +1,10 @@
 mod bindings {
     wasvy_macros::guest_bindings!({
-        path: "./wit",
+        path: "wit",
         world: "component:guest-wit/example",
         with: {
             "wasvy:ecs/app@0.0.7": generate,
-            "wasvy-examples:bindings/components": generate,
+            "wasvy-examples:bindings/components@0.0.1": generate,
         }
     });
 }

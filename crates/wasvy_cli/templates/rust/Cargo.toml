@@ -4,13 +4,24 @@ name = "{{ name }}"
 version = "0.0.0-alpha"
 description = "My custom mod"
 readme = "README.md"
-categories = ["bevy-engine", "bevy", "wasm", "wasvy"]
+edition = "2024"
+categories = ["wasm", "game-development"]
 rust-version = "{{ rust_version }}"
 
 [dependencies]
-bevy_transform = "0.18.0"
-bevy_math = "0.18.0"
+bevy_transform = { version = "0.18.0", features = [
+    "serialize",
+], default-features = false }
+bevy_math = { version = "0.18.0", features = [
+    "std",
+    "serialize",
+], default-features = false }
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.143"
 wit-bindgen = "0.50.0"
 
 [lib]
 crate-type = ["cdylib"] # Needed for building to wasm
+
+[features]
+setup_only = []

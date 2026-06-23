@@ -1,5 +1,6 @@
 use bevy_ecs::{prelude::*, query::FilteredAccess};
 use bevy_reflect::Reflect;
+use serde::Deserialize;
 
 use crate::prelude::{ModSchedules, Sandbox};
 
@@ -8,8 +9,9 @@ use crate::prelude::{ModSchedules, Sandbox};
 /// Mods can run in the world and/or in [sandboxes](Sandbox) defined by their entity.
 ///
 /// See: [Mods::enable_access](crate::mods::Mods::enable_access)
-#[derive(Reflect, Debug, Eq, PartialEq, Hash, Clone, Copy)]
+#[derive(Reflect, Debug, Eq, PartialEq, Hash, Clone, Copy, Deserialize, Default)]
 pub enum ModAccess {
+    #[default]
     World,
     Sandbox(Entity),
 }
@@ -41,6 +43,29 @@ impl ModAccess {
                 // The sandbox doesn't exist, so there is nothing to match
                 .unwrap_or_else(FilteredAccess::matches_nothing),
             Self::World => Sandbox::access_non_sandboxed(world),
+        }
+    }
+
+    /// Validates a ModAccess is valid before invoking it
+    pub fn validate(&self, world: &World) -> Result<(), String> {
+        if let ModAccess::Sandbox(entity) = self
+            && world.get::<Sandbox>(*entity).is_none()
+        {
+            let display = self.display(world);
+            Err(format!("ModAccess {display} is not valid"))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Like [std::fmt::Display] but requires world access
+    pub fn display(&self, world: &World) -> String {
+        match self {
+            ModAccess::World => "Main World".into(),
+            ModAccess::Sandbox(entity) => match world.get(*entity).map(Name::as_str) {
+                Some(name) => format!("Sandbox \"{name}\""),
+                None => format!("Sandbox ({entity})"),
+            },
         }
     }
 }

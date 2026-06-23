@@ -17,7 +17,7 @@ use crate::fs::{WriteTo, write};
 /// - wasvy-ecs.wit
 ///
 /// And any custom wit we choose to define.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Dependency {
     /// The name of the package
     pub name: String,

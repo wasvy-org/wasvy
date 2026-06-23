@@ -3,8 +3,13 @@
 # Run an example host app
 [group("examples")]
 [arg("app", pattern="^(basic|components|custom_codec)$")]
-run-example app:
-	cargo run -p {{app}}_example_app --features bevy/file_watcher
+run-example app *args:
+	cargo run -p {{app}}_example_app --features bevy/file_watcher {{args}}
+
+# Run the wasvy tui
+[group("examples")]
+run-cli *args:
+	cargo run -p wasvy_cli -- {{args}}
 
 # Build an example guest rust mod to wasm and place it in the shared assets directory
 [group("examples")]
@@ -63,11 +68,11 @@ build-wasvy-ecs:
 publish-wasvy-ecs file_path version:
 	wkg publish --package wasvy:ecs@{{version}} {{file_path}} --registry wa.dev
 
-# Replace the existing (1.92.0) rust toolchain version with a new one.
+# Replace the existing (1.95.0) rust toolchain version with a new one.
 [group("chores")]
 [arg("new", pattern="^\\d+\\.\\d+\\.\\d+$")]
 bump-toolchain new:
-	rg -l 'rust' . | xargs sed -i "/rust/s/1.92.0/{{new}}/g"
+	rg -l -g '!.?*' -g '.githooks/**' -g '.github/**' 'rust' . | xargs sed -i "/rust/s/1.95.0/{{new}}/g"
 
 # Replace the existing (0.18.0) bevy version with a new one.
 [group("chores")]

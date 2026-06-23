@@ -32,7 +32,7 @@ fn main() {
             ModLoaderPlugin::default()
                 // Implement auto_host_components in wasm
                 .add_functionality(add_components_to_linker)
-                // Optional, demonstrates how to use with wasvy-cli
+                // Optional, demonstrates how to use with the wasvy CLI
                 .devtools(
                     Devtools::new("wasvy component example")
                         // Wasvy cli doesn't know about our custom bindings.

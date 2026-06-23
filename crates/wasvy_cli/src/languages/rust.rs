@@ -82,7 +82,7 @@ impl Language for Rust {
             .to_string();
 
         #[derive(askama::Template)]
-        #[template(path = "./rust/Cargo.toml")]
+        #[template(path = "./rust/Cargo.toml.tmpl")]
         struct CargoToml<'a> {
             name: &'a str,
             rust_version: &'a str,

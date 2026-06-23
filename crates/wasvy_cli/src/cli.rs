@@ -38,7 +38,7 @@ pub struct Args {
 
 impl Default for Args {
     fn default() -> Self {
-        Self::parse_from(["wasvy-cli"])
+        Self::parse_from(["wasvy"])
     }
 }
 

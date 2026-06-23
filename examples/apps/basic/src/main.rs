@@ -88,7 +88,7 @@ fn setup(
         },
         children![
             (
-                Text::new("No mods loaded. Run `wasvy-cli` to build mods."),
+                Text::new("No mods loaded. Run `wasvy` CLI to build mods."),
                 TextColor(YELLOW.into()),
                 TextShadow {
                     color: BLACK.into(),

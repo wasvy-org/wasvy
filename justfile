@@ -102,3 +102,4 @@ publish:
 	cargo publish -p wasvy_macros
 	sleep 5 # Give crate.io a few seconds to update
 	cargo publish -p wasvy
+	cargo publish -p wasvy_cli

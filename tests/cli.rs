@@ -30,10 +30,10 @@ fn list() {
 
     let mut app = host.run();
 
-    app.cli("wasvy-cli --path tests/fixtures/crates create -l rust -n list-mod")
+    app.cli("wasvy --path tests/fixtures/crates create -l rust -n list-mod")
         .expect("create");
 
-    app.cli("wasvy-cli --path tests/fixtures/crates load -m list-mod")
+    app.cli("wasvy --path tests/fixtures/crates load -m list-mod")
         .expect("load");
 
     signal_receiver
@@ -121,7 +121,7 @@ fn search_components() {
 fn search_cli_success() {
     let mut app = MockApp::default().run();
 
-    let results = app.cli("wasvy-cli search");
+    let results = app.cli("wasvy search");
     assert!(results.is_ok());
 }
 
@@ -164,10 +164,10 @@ mod rust {
 
         let mut app = host.run();
 
-        app.cli("wasvy-cli --path tests/fixtures/crates create -l rust -n rust-create")
+        app.cli("wasvy --path tests/fixtures/crates create -l rust -n rust-create")
             .expect("create");
 
-        app.cli("wasvy-cli --path tests/fixtures/crates/rust-create load")
+        app.cli("wasvy --path tests/fixtures/crates/rust-create load")
             .expect("load");
 
         let mut world = app.wait(Duration::from_millis(5000));
@@ -197,7 +197,7 @@ mod rust {
 
         let mut app = host.run();
 
-        app.cli("wasvy-cli --path tests/fixtures/crates create -l rust -n watch-create")
+        app.cli("wasvy --path tests/fixtures/crates create -l rust -n watch-create")
             .expect("create");
 
         let args = Args {

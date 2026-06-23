@@ -34,7 +34,7 @@ ureq.workspace = true
 serde.workspace = true
 
 [[bin]]
-name = "wasvy-cli"
+name = "wasvy"
 path = "src/main.rs"
 required-features = ["cli"]
 

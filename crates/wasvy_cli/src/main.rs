@@ -1,5 +1,5 @@
 #[cfg(not(feature = "cli"))]
-compile_error!("The `cli` feature must be enabled to build wasvy-cli.");
+compile_error!("The `cli` feature must be enabled to build `wasvy`, the wasvy_cli binary.");
 
 use clap::Parser;
 use std::process::exit;

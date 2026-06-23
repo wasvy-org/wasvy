@@ -453,7 +453,7 @@ mod tests {
     fn mock(lang: MockLang) -> Runtime {
         let mut config = Config::empty();
         config
-            .add_dependency(include_str!("../../../wit/wasvy-ecs.wit"))
+            .add_dependency(include_str!("../wit/wasvy-ecs.wit"))
             .expect("valid dep");
         config.add_language(lang, &[]);
         Runtime::new(config).expect("valid config")

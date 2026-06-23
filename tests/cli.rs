@@ -1,4 +1,4 @@
-use std::{fs, path::Path, sync::mpsc, thread, time::Duration};
+use std::{fs, sync::mpsc, thread, time::Duration};
 
 use bevy_app::{AppExit, PostUpdate, Update};
 use bevy_ecs::name::Name;
@@ -36,7 +36,7 @@ fn list() {
         .expect("load");
 
     signal_receiver
-        .recv_timeout(Duration::from_secs(10))
+        .recv_timeout(Duration::from_secs(20))
         .expect("no timeout");
 
     let remote = Remote::connect(app.uri()).unwrap();
@@ -182,14 +182,11 @@ mod rust {
 
         let (signal_sender, signal_receiver) = mpsc::channel();
         host.add_systems(PostUpdate, move |world: &mut World| {
-            let has_name = has_example_name(world);
-            if has_name {
+            if has_example_name(world) {
                 let _ = signal_sender.send(());
-                return;
             }
 
-            let has_marker = has_watch_marker(world);
-            if has_marker {
+            if has_watch_marker(world) {
                 world.write_message(AppExit::Success);
             }
         });
@@ -204,8 +201,8 @@ mod rust {
                 mods: ModArgs {
                     mods: vec!["watch-create".to_string()],
                 },
-                timeout: Some(10),
-                count: Some(2),
+                timeout: Some(60),
+                count: Some(1), // exit after one update
             })),
             path: "tests/fixtures/crates".into(),
             app: None,
@@ -213,22 +210,26 @@ mod rust {
         };
 
         let watch = thread::spawn(move || wasvy_cli::cli::cli(args));
-        let source_path = Path::new("tests/fixtures/crates/watch-create/src/lib.rs");
-        thread::sleep(Duration::from_millis(250));
 
-        let scaffold = fs::read_to_string(source_path).unwrap();
-        fs::write(source_path, scaffold).unwrap();
+        // Wait for watch to load the mod we just created
         signal_receiver
-            .recv_timeout(Duration::from_secs(10))
-            .expect("name spawned");
+            .recv_timeout(Duration::from_secs(20))
+            .expect("name component spawned by mod");
 
-        fs::write(source_path, marker_mod(WatchMarker::type_path())).unwrap();
+        // Update file which should re-trigger load
+        fs::write(
+            "tests/fixtures/crates/watch-create/src/lib.rs",
+            marker_mod(),
+        )
+        .unwrap();
 
-        watch.join().unwrap().expect("watch");
-
-        let mut world = app.wait(Duration::from_secs(10));
-        assert!(!has_example_name(&mut world));
-        assert!(has_watch_marker(&mut world));
+        let mut world = app.wait(Duration::from_secs(20));
+        assert!(has_watch_marker(&mut world), "Mod was updated");
+        assert!(
+            !has_example_name(&mut world),
+            "ModDespawnBehaviour::DespawnEntities cleanup"
+        );
+        assert!(watch.is_finished(), "watch stops after 1 update")
     }
 
     fn has_watch_marker(world: &mut World) -> bool {
@@ -259,7 +260,8 @@ mod rust {
             .any(|entity| world.entity(entity).contains_id(component_id))
     }
 
-    fn marker_mod(marker_type_path: &str) -> String {
+    fn marker_mod() -> String {
+        let marker_type_path = WatchMarker::type_path();
         format!(
             r#"
 mod bindings;

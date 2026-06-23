@@ -24,7 +24,7 @@ const WAIT: Duration = Duration::from_millis(10);
 
 /// Prepare and run a [Mock] Bevy app running [ModLoaderPlugin].
 ///
-/// Construct via [MockConfig::default()], use like a Bevy [App].
+/// Construct via [MockApp::default()], use like a Bevy [App].
 #[derive(Default, Debug, Deref, DerefMut)]
 pub struct MockApp {
     #[deref]
@@ -277,4 +277,5 @@ fn host_wait() {
     let world = app.wait(Duration::from_millis(50));
     let count = world.resource::<Count>().0;
     assert!(count > 5);
+    assert!(count < 10);
 }

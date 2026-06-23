@@ -157,6 +157,8 @@ pub fn cli(args: Args) -> Result<Vec<Source>> {
         }
         Command::Watch(args) => {
             let sources = get_sources(&runtime, &args.mods, &remote, path)?;
+            remote.load(&sources, Default::default())?;
+
             let timeout = args
                 .timeout
                 .map(Duration::from_secs)

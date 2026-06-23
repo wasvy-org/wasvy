@@ -3,7 +3,7 @@ use std::process::{self, Stdio};
 use anyhow::{Result, anyhow, bail};
 use derive_more::{Deref, DerefMut};
 
-use crate::{diagnostics, source::Source};
+use crate::source::Source;
 
 /// A domain-specific Command util for commands acting on specific [Source]s.
 #[derive(Deref, DerefMut)]
@@ -32,11 +32,9 @@ impl Command {
 
     pub fn execute(&mut self) -> Result<()> {
         let command = &mut self.0;
-        diagnostics::log(format!("command: executing {command:?}"));
         let status = command
             .status()
             .map_err(|error| anyhow!("> {command:?}\n Failed with {error:?}"))?;
-        diagnostics::log(format!("command: completed {command:?} with {status}"));
 
         if !status.success() {
             bail!("> {command:?}\n  Failed with {status}");

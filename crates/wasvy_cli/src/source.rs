@@ -8,7 +8,6 @@ use std::{
 
 use crate::{
     command::Logging,
-    diagnostics,
     fs::WriteTo,
     id::Id,
     language::BoxedLanguage,
@@ -182,31 +181,18 @@ impl Source {
     /// Builds the source, producing a new Wasm source
     pub fn build(&self, logging: Logging) -> Result<Cow<'_, Source>> {
         if let Some(language) = self.language() {
-            diagnostics::log(format!(
-                "source: build starting source={self:?}, language={}",
-                language.name()
-            ));
             logging.println(format!("Building {self}"));
             let result = language
                 .build(self, logging.clone())
                 .with_context(|| format!("Building {self} with language {}", language.name()));
 
             match &result {
-                Ok(source) => {
-                    diagnostics::log(format!("source: build succeeded built_source={source:?}"));
-                    logging.println(format!("Successfully built {source}"));
-                }
-                Err(err) => {
-                    diagnostics::log(format!("source: build failed source={self:?}, err={err:?}"));
-                    logging.eprintln(format!("Error: {err:?}"));
-                }
+                Ok(source) => logging.println(format!("Successfully built {source}")),
+                Err(err) => logging.eprintln(format!("Error: {err:?}")),
             }
 
             Ok(Cow::Owned(result?))
         } else {
-            diagnostics::log(format!(
-                "source: build skipped for prebuilt source={self:?}"
-            ));
             Ok(Cow::Borrowed(self))
         }
     }
@@ -251,14 +237,10 @@ impl Source {
         } else {
             vec![self.path().to_owned()]
         };
-        let canonicalized = paths
+        paths
             .iter()
             .filter_map(|path| fs::canonicalize(path).ok())
-            .collect();
-        diagnostics::log(format!(
-            "source: watch_paths source={self:?}, raw_paths={paths:?}, canonicalized={canonicalized:?}"
-        ));
-        canonicalized
+            .collect()
     }
 
     /// Consumes and deletes the source from the filesystem

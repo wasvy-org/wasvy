@@ -13,10 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use wit_parser::Resolve;
 
-use crate::{
-    command::Logging, dependency::Dependency, diagnostics, named::Named, source::Source,
-    watch::watch,
-};
+use crate::{command::Logging, dependency::Dependency, named::Named, source::Source, watch::watch};
 
 #[derive(Debug)]
 pub struct Remote {
@@ -32,7 +29,6 @@ impl Remote {
         endpoint: impl TryInto<RemoteUri, Error = impl Into<anyhow::Error>>,
     ) -> Result<Remote> {
         let endpoint = endpoint.try_into().map_err(Into::into)?;
-        diagnostics::log(format!("remote: connecting endpoint={endpoint:?}"));
 
         let res = endpoint.send("wasvy.metadata", Value::Null)?;
 
@@ -95,10 +91,8 @@ impl Remote {
         let to = mods_dir.join(path.as_ref());
 
         // This is obviously quite naive, but for now assume the remote shares the same filesystem
-        diagnostics::log(format!("remote: push copying from={from:?} to={to:?}"));
         fs::copy(from, &to).with_context(|| anyhow!("Copying from {from:?} to {to:?}"))?;
 
-        diagnostics::log(format!("remote: push completed asset_path=mods/{path}"));
         Ok(format!("mods/{path}"))
     }
 
@@ -127,12 +121,9 @@ impl Remote {
 
     /// Returns a list of spawned mod instances for each mod asset
     pub fn list(&self) -> Result<HashMap<String, Vec<u64>>> {
-        diagnostics::log("remote: list starting");
         let value = self.endpoint.send("wasvy.mods.list", Value::Null)?;
-        diagnostics::log(format!("remote: list raw response={value:?}"));
         let map =
             serde_json::from_value(value).context("unexpected response from wasvy.mods.list")?;
-        diagnostics::log(format!("remote: list parsed response={map:?}"));
         Ok(map)
     }
 
@@ -143,7 +134,6 @@ impl Remote {
         access: impl IntoIterator<Item = Access>,
         logging: Logging,
     ) -> Result<Vec<u64>> {
-        diagnostics::log("remote: spawn starting");
         let mut errors = Errors::new();
 
         let access: Vec<Value> = access
@@ -154,7 +144,6 @@ impl Remote {
         let mut mods = Vec::new();
         for source in sources {
             let source = source.borrow();
-            diagnostics::log(format!("remote: spawn preparing source={source:?}"));
 
             // Build the source, ensuring it is wasm
             let result = source
@@ -179,36 +168,21 @@ impl Remote {
 
         let mut ids = None;
         if !mods.is_empty() && !access.is_empty() {
-            diagnostics::log(format!(
-                "remote: spawn sending mods={mods:?}, access={access:?}"
-            ));
             let result = self.endpoint.send("wasvy.mods.spawn", Value::Array(mods));
             if let Some(value) = errors.collect(result) {
-                diagnostics::log(format!("remote: spawn raw response={value:?}"));
                 ids = errors.collect(serde_json::from_value(value));
             }
-        } else {
-            diagnostics::log(format!(
-                "remote: spawn skipped because mods_len={} access_len={}",
-                mods.len(),
-                access.len()
-            ));
         }
 
-        let result = errors.as_result().map(|_| ids.unwrap_or_default());
-        diagnostics::log(format!("remote: spawn completed result={result:?}"));
-        result
+        errors.as_result().map(|_| ids.unwrap_or_default())
     }
 
     /// Despawns mods by their id
     pub fn despawn(&self, mods: impl IntoIterator<Item = u64>) -> Result<()> {
         let mods: Vec<Value> = mods.into_iter().map(Value::from).collect();
         if !mods.is_empty() {
-            diagnostics::log(format!("remote: despawn sending mods={mods:?}"));
             self.endpoint
                 .send("wasvy.mods.despawn", Value::Array(mods))?;
-        } else {
-            diagnostics::log("remote: despawn skipped with no mods");
         }
         Ok(())
     }
@@ -218,14 +192,12 @@ impl Remote {
         sources: impl IntoIterator<Item = impl Borrow<Source>>,
         logging: Logging,
     ) -> Result<()> {
-        diagnostics::log("remote: load starting");
         let mut errors = Errors::new();
 
         // Build a list of mod sources
         let mut mods = Vec::new();
         for source in sources {
             let source = source.borrow();
-            diagnostics::log(format!("remote: load preparing source={source:?}"));
 
             // Build the source, ensuring it is wasm
             let result = source
@@ -243,18 +215,10 @@ impl Remote {
 
             mods.push((source.into_owned(), path));
         }
-        diagnostics::log(format!(
-            "remote: load built/pushed {} mods: {:?}",
-            mods.len(),
-            mods.iter()
-                .map(|(source, path)| format!("{} -> {path}", source.name()))
-                .collect::<Vec<_>>()
-        ));
 
         // Unload existing mods before loading new ones
-        let existing = self.list()?;
-        diagnostics::log(format!("remote: load existing remote mods={existing:?}"));
-        let despawn = existing
+        let despawn = self
+            .list()?
             .into_iter()
             .filter(|(path, _)| mods.iter().any(|(_, p)| path == p))
             .flat_map(|(_, ids)| ids.into_iter());
@@ -269,9 +233,7 @@ impl Remote {
                 .context("Spawning loaded mods"),
         );
 
-        let result = errors.as_result();
-        diagnostics::log(format!("remote: load completed result={result:?}"));
-        result
+        errors.as_result()
     }
 
     pub fn unload(
@@ -321,9 +283,6 @@ impl Remote {
         count: Option<usize>,
         logging: Logging,
     ) -> Result<()> {
-        diagnostics::log(format!(
-            "remote: watch delegating timeout={timeout:?}, count={count:?}"
-        ));
         watch(sources, self, timeout, count, logging)
     }
 }
@@ -362,11 +321,9 @@ impl FromStr for RemoteUri {
 impl RemoteUri {
     /// Send a BRP JSON-RPC 2.0 request and return the result
     pub fn send(&self, method: impl Into<String>, params: Value) -> Result<Value> {
-        let method = method.into();
-        diagnostics::log(format!("remote: send method={method}, params={params:?}"));
         let body = BrpRequest {
             jsonrpc: "2.0".into(),
-            method,
+            method: method.into(),
             id: None,
             params: match params {
                 Value::Null => None,
@@ -380,11 +337,6 @@ impl RemoteUri {
             .body_mut()
             .read_json()
             .context("parsing BrpPayload")?;
-        diagnostics::log(format!(
-            "remote: send response status={} payload={}",
-            response.status_for_log(),
-            response.payload_for_log()
-        ));
 
         match response.payload {
             BrpPayload::Error(error) => Err(anyhow!("BRP error: {error:#?}")),
@@ -400,40 +352,6 @@ impl RemoteUri {
 pub struct BrpResponse {
     #[serde(flatten)]
     pub payload: BrpPayload,
-}
-
-impl BrpResponse {
-    fn status_for_log(&self) -> &str {
-        match &self.payload {
-            BrpPayload::Result(_) => "result",
-            BrpPayload::Error(_) => "error",
-        }
-    }
-
-    fn payload_for_log(&self) -> String {
-        match &self.payload {
-            BrpPayload::Result(value) => describe_value(value),
-            BrpPayload::Error(error) => format!("{error:#?}"),
-        }
-    }
-}
-
-fn describe_value(value: &Value) -> String {
-    match value {
-        Value::Null => "null".to_string(),
-        Value::Bool(value) => format!("bool({value})"),
-        Value::Number(value) => format!("number({value})"),
-        Value::String(value) => format!("string(len={})", value.len()),
-        Value::Array(values) => format!("array(len={})", values.len()),
-        Value::Object(values) => {
-            let fields = values
-                .iter()
-                .map(|(key, value)| format!("{key}: {}", describe_value(value)))
-                .collect::<Vec<_>>()
-                .join(", ");
-            format!("object({fields})")
-        }
-    }
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]

@@ -2,7 +2,6 @@
 pub mod cli;
 pub mod command;
 pub mod dependency;
-mod diagnostics;
 pub mod editor;
 pub mod editors;
 pub mod fs;

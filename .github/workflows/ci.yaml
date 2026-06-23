@@ -10,13 +10,11 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  # Run cargo test
   test:
-    name: CLI watch trace
+    name: Test Suite
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      RUST_BACKTRACE: "1"
-      WASVY_CLI_TRACE: "1"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v4
@@ -29,10 +27,77 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-cli-watch-trace-${{ hashFiles('**/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.toml') }}
       - name: Install Rust
         uses: dtolnay/rust-toolchain@1.95.0
       - name: Install Dependencies
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
-      - name: Run failing watch test with trace logging
-        run: cargo test -p wasvy --test cli rust::watch --all-features -- --nocapture
+      - name: Run cargo test
+        run: cargo test --workspace --all-features
+
+  # Run cargo clippy
+  clippy_check:
+    name: Clippy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.toml') }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          components: clippy
+      - name: Install Dependencies
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  # Run cargo doc with rustdoc warnings denied
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-doc-${{ hashFiles('**/Cargo.toml') }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.95.0
+      - name: Install Dependencies
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
+      - name: Run cargo doc
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features
+
+  # Run cargo fmt
+  format:
+    name: Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@1.95.0
+        with:
+          components: rustfmt
+      - name: Run cargo fmt
+        run: cargo fmt --all -- --check

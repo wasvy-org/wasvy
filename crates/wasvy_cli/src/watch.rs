@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{command::Logging, remote::Remote, source::Source};
+use crate::{command::Logging, diagnostics, named::Named, remote::Remote, source::Source};
 use anyhow::{Context, Result, anyhow};
 use error_collection::Errors;
 use notify::{Event, EventHandler, EventKind, RecursiveMode, Watcher, recommended_watcher};
@@ -23,14 +23,21 @@ pub fn watch(
     let started_at = Instant::now();
     let mut reloads = 0;
     let (handler, rx) = WatchHandler::new();
+    diagnostics::log(format!(
+        "watch: creating watcher timeout={timeout:?}, count={count:?}"
+    ));
     let mut watcher = recommended_watcher(handler).context("Creating file watcher")?;
 
     let sources: Vec<_> = sources.into_iter().collect();
+    diagnostics::log(format!("watch: received {} sources", sources.len()));
     let mut path_to_source: HashMap<PathBuf, usize> = HashMap::new();
 
     let mut errors = Errors::new();
     for (index, source) in sources.iter().enumerate() {
         let source = source.borrow();
+        diagnostics::log(format!(
+            "watch: configuring source index={index}, source={source:?}"
+        ));
         if let Ok(path) = fs::canonicalize(source.path())
             && path.starts_with(&remote.asset_dir)
         {
@@ -45,6 +52,9 @@ pub fn watch(
         }
 
         for path in paths {
+            diagnostics::log(format!(
+                "watch: registering source index={index}, source={source}, path={path:?}"
+            ));
             errors.collect(
                 watcher
                     .watch(&path, RecursiveMode::Recursive)
@@ -54,17 +64,41 @@ pub fn watch(
             path_to_source.insert(path, index);
         }
     }
+    diagnostics::log(format!("watch: path_to_source={path_to_source:?}"));
+    if !errors.is_empty() {
+        diagnostics::log(format!("watch: watcher registration errors={errors:?}"));
+    }
 
     loop {
         let Some(remaining) = timeout.checked_sub(started_at.elapsed()) else {
+            diagnostics::log(format!(
+                "watch: exiting because timeout elapsed after {:?}, reloads={reloads}",
+                started_at.elapsed()
+            ));
             return Ok(());
         };
+        diagnostics::log(format!(
+            "watch: waiting for event remaining={remaining:?}, reloads={reloads}"
+        ));
 
         let Event { paths, .. } = match rx.recv_timeout(remaining) {
-            Ok(Ok(event)) => event,
-            Ok(Err(err)) => return Err(err.into()),
-            Err(RecvTimeoutError::Timeout) => return Ok(()),
+            Ok(Ok(event)) => {
+                diagnostics::log(format!("watch: received event={event:?}"));
+                event
+            }
+            Ok(Err(err)) => {
+                diagnostics::log(format!("watch: received notify error={err:?}"));
+                return Err(err.into());
+            }
+            Err(RecvTimeoutError::Timeout) => {
+                diagnostics::log(format!(
+                    "watch: recv timed out after {:?}, reloads={reloads}",
+                    started_at.elapsed()
+                ));
+                return Ok(());
+            }
             Err(RecvTimeoutError::Disconnected) => {
+                diagnostics::log("watch: event channel disconnected");
                 return Err(anyhow!("watch event channel disconnected"));
             }
         };
@@ -80,6 +114,9 @@ pub fn watch(
                     .cloned()
             })
             .collect();
+        diagnostics::log(format!(
+            "watch: event paths={paths:?}, changed_indices={changed:?}"
+        ));
 
         // If we have changes, reload the affected sources
         let changed: Vec<_> = sources
@@ -90,13 +127,25 @@ pub fn watch(
             .collect();
 
         if changed.is_empty() {
+            diagnostics::log("watch: no sources matched event paths");
             continue;
         }
 
-        let _ = remote.load(changed, logging.clone());
+        diagnostics::log(format!(
+            "watch: reloading sources {:?}",
+            changed
+                .iter()
+                .map(|source| source.name())
+                .collect::<Vec<_>>()
+        ));
+        let load_result = remote.load(changed, logging.clone());
+        diagnostics::log(format!("watch: reload result={load_result:?}"));
         reloads += 1;
 
-        if count.is_some_and(|count| reloads >= count) {
+        if count.is_some_and(|max_reloads| reloads >= max_reloads) {
+            diagnostics::log(format!(
+                "watch: exiting because count reached count={count:?}, reloads={reloads}"
+            ));
             return Ok(());
         }
     }
@@ -128,7 +177,9 @@ impl EventHandler for WatchHandler {
     fn handle_event(&mut self, event: notify::Result<Event>) {
         match event {
             Ok(mut event) => {
+                diagnostics::log(format!("watch-handler: raw event={event:?}"));
                 if matches!(event.kind, EventKind::Access(_)) {
+                    diagnostics::log("watch-handler: ignored access event");
                     return;
                 }
 
@@ -141,6 +192,7 @@ impl EventHandler for WatchHandler {
                     .retain(|path| !self.recently_emitted.contains_key(path));
 
                 if event.paths.is_empty() {
+                    diagnostics::log("watch-handler: ignored event after dedup removed all paths");
                     return;
                 }
 
@@ -150,10 +202,15 @@ impl EventHandler for WatchHandler {
 
                 // Emit event as soon as possible, this allows wasvy cli to hit the package cache before the editor
                 // Results in faster-feeling hot reloading
-                let _ = self.tx.send(Ok(event));
+                if let Err(err) = self.tx.send(Ok(event)) {
+                    diagnostics::log(format!("watch-handler: failed to send event: {err:?}"));
+                }
             }
             Err(err) => {
-                let _ = self.tx.send(Err(err));
+                diagnostics::log(format!("watch-handler: notify error={err:?}"));
+                if let Err(err) = self.tx.send(Err(err)) {
+                    diagnostics::log(format!("watch-handler: failed to send error: {err:?}"));
+                }
             }
         }
     }

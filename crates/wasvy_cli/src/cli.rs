@@ -10,6 +10,7 @@ use std::{
 
 use crate::{
     command::Logging,
+    diagnostics,
     id::Id,
     named::Named,
     remote::{Remote, RemoteUri},
@@ -108,6 +109,9 @@ pub struct WatchArgs {
 }
 
 pub fn cli(args: Args, logging: Logging) -> Result<Vec<Source>> {
+    diagnostics::log(format!(
+        "cli: entered with args={args:?}, logging={logging:?}"
+    ));
     let Args {
         command,
         path,
@@ -120,8 +124,19 @@ pub fn cli(args: Args, logging: Logging) -> Result<Vec<Source>> {
         .as_ref()
         .and_then(|a| a.parse().ok())
         .unwrap_or_default();
+    diagnostics::log(format!(
+        "cli: resolved command={command:?}, path={path:?}, app={app:?}, uri={uri:?}"
+    ));
     let remote = Remote::connect(uri)
         .context("No remote found!\nIs your Bevy app running with wasvy devtools enabled?")?;
+    diagnostics::log(format!(
+        "cli: connected remote name={:?}, endpoint={:?}, asset_dir={:?}, current_exe={:?}, dependencies={}",
+        remote.name,
+        remote.endpoint,
+        remote.asset_dir,
+        remote.current_exe,
+        remote.dependencies.len()
+    ));
 
     // Assert remote is the correct one
     let name = &remote.name;
@@ -132,14 +147,21 @@ pub fn cli(args: Args, logging: Logging) -> Result<Vec<Source>> {
     }
 
     let runtime = Runtime::new(&remote).context("initializing runtime")?;
+    diagnostics::log(format!(
+        "cli: initialized runtime with {} languages and {} dependencies",
+        runtime.languages().len(),
+        runtime.dependencies().len()
+    ));
 
     match command {
         Command::Create(args) => {
             let source = create(path, args, &runtime)?;
+            diagnostics::log(format!("cli: create succeeded source={source:?}"));
             Ok(vec![source])
         }
         Command::Search(mods) => {
             let mut sources = get_sources(&runtime, mods, &remote, path)?;
+            diagnostics::log(format!("cli: search returned {} sources", sources.len()));
             if sources.is_empty() {
                 bail!("no source was found");
             }
@@ -148,24 +170,44 @@ pub fn cli(args: Args, logging: Logging) -> Result<Vec<Source>> {
         }
         Command::Load(mods) => {
             let sources = get_sources(&runtime, mods, &remote, path)?;
+            diagnostics::log(format!("cli: load matched {} sources", sources.len()));
             remote.load(&sources, logging)?;
+            diagnostics::log("cli: load completed");
             Ok(Vec::new()) // TODO: the user probably expects these to be the built, loaded sources
         }
         Command::Unload(mods) => {
             let sources = get_sources(&runtime, mods, &remote, path)?;
+            diagnostics::log(format!("cli: unload matched {} sources", sources.len()));
             remote.unload(&sources, logging)?;
+            diagnostics::log("cli: unload completed");
             Ok(Vec::new()) // TODO: the user probably expects these to be the unloaded sources
         }
         Command::Watch(args) => {
             let sources = get_sources(&runtime, &args.mods, &remote, path)?;
+            diagnostics::log(format!(
+                "cli: watch matched {} sources: {:?}",
+                sources.len(),
+                sources
+                    .iter()
+                    .map(|source| source.name())
+                    .collect::<Vec<_>>()
+            ));
+            diagnostics::log("cli: watch initial load starting");
             remote.load(&sources, logging.clone())?;
+            diagnostics::log("cli: watch initial load completed");
 
             let timeout = args
                 .timeout
                 .map(Duration::from_secs)
                 .unwrap_or(Duration::from_secs(30 * 24 * 60 * 60));
 
-            remote.watch(&sources, timeout, args.count, logging)?;
+            diagnostics::log(format!(
+                "cli: watch loop starting timeout={timeout:?}, count={:?}",
+                args.count
+            ));
+            let result = remote.watch(&sources, timeout, args.count, logging);
+            diagnostics::log(format!("cli: watch loop returned {result:?}"));
+            result?;
             Ok(Vec::new()) // TODO: the user probably expects these to be the watched sources
         }
     }
@@ -179,10 +221,25 @@ fn get_sources(
 ) -> Result<Vec<Source>> {
     let ModArgs { mods } = mods;
 
+    diagnostics::log(format!(
+        "cli: get_sources searching path={path:?}, filters={mods:?}"
+    ));
     let mut sources = runtime.search(remote, path)?;
+    diagnostics::log(format!(
+        "cli: get_sources found {} sources before filtering: {:?}",
+        sources.len(),
+        sources
+            .iter()
+            .map(|source| format!("{} @ {:?}", source.name(), source.path()))
+            .collect::<Vec<_>>()
+    ));
     if !mods.is_empty() {
         sources.retain(|source| mods.iter().any(|pattern| source.name().contains(pattern)));
     }
+    diagnostics::log(format!(
+        "cli: get_sources returning {} sources after filtering",
+        sources.len()
+    ));
 
     Ok(sources)
 }

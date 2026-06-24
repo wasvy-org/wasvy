@@ -141,7 +141,7 @@ impl MockApp {
         });
 
         ready_receiver
-            .recv_timeout(Duration::from_millis(50))
+            .recv_timeout(Duration::from_secs(1))
             .expect("Host app ready");
 
         Mock {

@@ -2,10 +2,6 @@ use core::time::Duration;
 use std::{borrow::Borrow, collections::HashMap, fs, path::PathBuf, str::FromStr};
 
 use anyhow::{Context, Result, anyhow, bail};
-use bevy_remote::{
-    BrpPayload, BrpRequest, BrpResponse,
-    http::{DEFAULT_ADDR, DEFAULT_PORT},
-};
 use derive_more::{Deref, DerefMut};
 use error_collection::Errors;
 use http::{Uri, uri::InvalidUri};
@@ -14,6 +10,9 @@ use serde_json::{Map, Value};
 use wit_parser::Resolve;
 
 use crate::{command::Logging, dependency::Dependency, named::Named, source::Source, watch::watch};
+
+const DEFAULT_ADDR: &str = "127.0.0.1";
+const DEFAULT_PORT: u16 = 15702;
 
 #[derive(Debug)]
 pub struct Remote {
@@ -322,6 +321,7 @@ impl RemoteUri {
     /// Send a BRP JSON-RPC 2.0 request and return the result
     pub fn send(&self, method: impl Into<String>, params: Value) -> Result<Value> {
         let body = BrpRequest {
+            jsonrpc: "2.0",
             method: method.into(),
             id: None,
             params: match params {
@@ -338,10 +338,54 @@ impl RemoteUri {
             .context("parsing BrpPayload")?;
 
         match response.payload {
-            BrpPayload::Error(error) => Err(anyhow!("BRP error: {error:#?}")),
+            BrpPayload::Error(BrpError {
+                code,
+                message,
+                data: Some(data),
+            }) => Err(anyhow!("BRP error {code}: {message}: {data:#}")),
+            BrpPayload::Error(BrpError {
+                code,
+                message,
+                data: None,
+            }) => Err(anyhow!("BRP error {code}: {message}")),
             BrpPayload::Result(value) => Ok(value),
         }
     }
+}
+
+#[derive(Debug, Serialize)]
+struct BrpRequest {
+    jsonrpc: &'static str,
+    method: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    id: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    params: Option<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct BrpResponse {
+    #[serde(rename = "jsonrpc")]
+    _jsonrpc: String,
+    #[serde(rename = "id")]
+    _id: Option<Value>,
+    #[serde(flatten)]
+    payload: BrpPayload,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum BrpPayload {
+    Result(Value),
+    Error(BrpError),
+}
+
+#[derive(Debug, Deserialize)]
+#[allow(unused)]
+struct BrpError {
+    code: i16,
+    message: String,
+    data: Option<Value>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]

@@ -15,7 +15,6 @@ readme.workspace = true
 [dependencies]
 anyhow.workspace = true
 askama.workspace = true
-bevy_remote.workspace = true
 clap = { workspace = true, optional = true }
 derive_more.workspace = true
 error-collection.workspace = true

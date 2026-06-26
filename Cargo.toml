@@ -46,7 +46,7 @@ bevy_reflect = { version = "0.19.0", features = [
     "functions",
     "reflect_documentation",
 ] }
-bevy_remote = "0.19.0"
+bevy_remote = { version = "0.19.0", default-features = false, features = ["http"] }
 bevy_state = "0.19.0"
 bevy_transform = { version = "0.19.0", features = [
     "serialize",
@@ -56,6 +56,7 @@ clap = { version = "4.6.1", features = ["derive"] }
 derive_more = { version = "2", default-features = false, features = [
     "deref",
     "deref_mut",
+    "display",
 ] }
 error-collection = "1.0.4"
 glob = "0.3.3"
@@ -73,9 +74,15 @@ thiserror = "2.0.18"
 toml = "1.1.2"
 toml_edit = "0.25.12"
 tracing = "0.1.44"
-ureq = { version = "3.3.0", features = ["json"] }
-wasmtime = { version = "46.0.1", features = ["component-model"] }
-wasmtime-wasi = "46.0.1"
+ureq = { version = "3.3.0", default-features = false, features = ["json"] }
+wasmtime = { version = "46.0.1", default-features = false, features = [
+    "anyhow",
+    "component-model",
+    "cranelift",
+    "runtime",
+    "std",
+] }
+wasmtime-wasi = { version = "46.0.1", default-features = false, features = ["p2"] }
 wasvy = { path = "./" }
 wasvy_cli = { path = "./crates/wasvy_cli" }
 wasvy_macros = { version = "0.0.8", path = "crates/wasvy_macros" }

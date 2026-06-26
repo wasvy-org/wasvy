@@ -130,22 +130,19 @@ wasvy_mock.workspace = true
 too_many_arguments = "allow"
 type_complexity = "allow"
 
-# Enable high optimizations for wasmtime and its transient dependencies in dev mode.
-# This drastically improves the loading speed for the example mods (python especially)
+# Optimize Wasmtime/Cranelift and hot support crates in dev builds.
+# This improves component loading/execution without optimizing every transient dependency.
 [profile.dev.package]
+wasmtime.opt-level = 2
 wasmtime-environ.opt-level = 2
-wasmtime-internal-cache.opt-level = 2
-wasmtime-internal-component-macro.opt-level = 2
+wasmtime-internal-core.opt-level = 2
 wasmtime-internal-component-util.opt-level = 2
 wasmtime-internal-cranelift.opt-level = 2
 wasmtime-internal-fiber.opt-level = 2
-wasmtime-internal-jit-debug.opt-level = 2
 wasmtime-internal-jit-icache-coherence.opt-level = 2
-wasmtime-internal-math.opt-level = 2
-wasmtime-internal-slab.opt-level = 2
 wasmtime-internal-unwinder.opt-level = 2
-wasmtime-internal-versioned-export-macros.opt-level = 2
-wasmtime-internal-wit-bindgen.opt-level = 2
+wasmtime-wasi.opt-level = 2
+wasmtime-wasi-io.opt-level = 2
 cranelift-assembler-x64.opt-level = 2
 cranelift-bforest.opt-level = 2
 cranelift-bitset.opt-level = 2
@@ -156,17 +153,11 @@ cranelift-entity.opt-level = 2
 cranelift-frontend.opt-level = 2
 cranelift-native.opt-level = 2
 regalloc2.opt-level = 2
-wasmparser.opt-level = 2
 target-lexicon.opt-level = 2
 object.opt-level = 2
 id-arena.opt-level = 2
 bumpalo.opt-level = 2
 memchr.opt-level = 2
-rayon.opt-level = 2
-rayon-core.opt-level = 2
-crossbeam-deque.opt-level = 2
-crossbeam-epoch.opt-level = 2
-crossbeam-utils.opt-level = 2
 smallvec.opt-level = 2
 hashbrown.opt-level = 2
 indexmap.opt-level = 2
@@ -174,6 +165,3 @@ rustc-hash.opt-level = 2
 rustix.opt-level = 2
 linux-raw-sys.opt-level = 2
 memfd.opt-level = 2
-zstd.opt-level = 2
-zstd-safe.opt-level = 2
-zstd-sys.opt-level = 2

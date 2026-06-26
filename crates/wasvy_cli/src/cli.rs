@@ -164,7 +164,7 @@ pub fn cli(args: Args, logging: Logging) -> Result<Vec<Source>> {
                 .unwrap_or(Duration::from_secs(30 * 24 * 60 * 60));
 
             remote.watch(&sources, timeout, args.count, logging)?;
-            Ok(Vec::new()) // TODO: the user probably expects these to be the watched sources
+            Ok(sources)
         }
     }
 }

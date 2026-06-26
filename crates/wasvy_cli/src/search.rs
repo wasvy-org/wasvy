@@ -1,5 +1,6 @@
 use std::{
     collections::HashSet,
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -19,6 +20,7 @@ pub struct SearchBuilder<'a> {
     dir_path: Option<&'a Path>,
     native_path: Option<&'a Path>,
     wasm_path: Option<&'a Path>,
+    ignore: Vec<PathBuf>,
 }
 
 impl<'a> SearchBuilder<'a> {
@@ -28,6 +30,7 @@ impl<'a> SearchBuilder<'a> {
             dir_path: None,
             native_path: None,
             wasm_path: None,
+            ignore: Vec::new(),
         }
     }
 
@@ -48,6 +51,14 @@ impl<'a> SearchBuilder<'a> {
     /// Search for pre-built wasm mods in the location defined by the path.
     pub fn wasm(mut self, path: &'a Path) -> Self {
         self.wasm_path = Some(path);
+        self
+    }
+
+    /// Adds a file system path who's decendants will be ignored
+    pub fn ignore(mut self, path: &'a Path) -> Self {
+        if let Ok(path) = fs::canonicalize(path) {
+            self.ignore.push(path);
+        }
         self
     }
 
@@ -132,6 +143,12 @@ impl<'a> SearchBuilder<'a> {
         let mut sources = native;
         sources.append(&mut mods);
         sources.append(&mut wasm);
+
+        sources.retain(|source| {
+            let path = fs::canonicalize(source.path()).unwrap_or_default();
+            !self.ignore.iter().any(|ignore| path.starts_with(&ignore))
+        });
+
         Ok(sources)
     }
 }

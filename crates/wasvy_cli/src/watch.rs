@@ -1,7 +1,6 @@
 use std::{
     borrow::Borrow,
     collections::{HashMap, HashSet},
-    fs,
     path::PathBuf,
     sync::mpsc::{self, RecvTimeoutError},
     time::{Duration, Instant},
@@ -31,15 +30,8 @@ pub fn watch(
     let mut errors = Errors::new();
     for (index, source) in sources.iter().enumerate() {
         let source = source.borrow();
-        if let Ok(path) = fs::canonicalize(source.path())
-            && path.starts_with(&remote.asset_dir)
-        {
-            logging.eprintln(format!("Ignoring {source} already in asset directory"));
-            continue;
-        }
 
         let paths = source.watch_paths();
-
         if !paths.is_empty() {
             logging.println(format!("Watching {source}: {:?}", source.path()));
         }

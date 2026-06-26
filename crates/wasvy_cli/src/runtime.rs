@@ -200,6 +200,7 @@ impl Runtime {
             .native(&remote.current_exe)
             .dir(path.as_ref())
             .wasm(path.as_ref())
+            .ignore(&remote.asset_dir)
             .search()
     }
 

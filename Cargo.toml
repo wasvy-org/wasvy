@@ -30,8 +30,8 @@ repository = "https://github.com/wasvy-org/wasvy"
 readme = "README.md"
 
 [workspace.dependencies]
-anyhow = "1.0.99"
-askama = "0.14.0"
+anyhow = "1.0.103"
+askama = "0.16.0"
 bevy_asset = "0.19.0"
 bevy_app = { version = "0.19.0", features = ["reflect_functions"] }
 bevy_derive = "0.19.0"
@@ -52,38 +52,38 @@ bevy_transform = { version = "0.19.0", features = [
     "serialize",
 ], default-features = false }
 bevy_internal = "0.19.0"
-clap = { version = "4.6.0", features = ["derive"] }
+clap = { version = "4.6.1", features = ["derive"] }
 derive_more = { version = "2", default-features = false, features = [
     "deref",
     "deref_mut",
 ] }
 error-collection = "1.0.4"
 glob = "0.3.3"
-http = { version = "1.1.0", default-features = false, features = ["std"] }
-inventory = "0.3.15"
-proc-macro2 = "1.0.89"
-proc-macro-crate = "3.1.0"
-quote = "1.0.36"
-semver = "1.0.27"
-serde = { version = "1.0.219", features = ["derive"] }
+http = { version = "1.4.2", default-features = false, features = ["std"] }
+inventory = "0.3.24"
+proc-macro2 = "1.0.106"
+proc-macro-crate = "3.5.0"
+quote = "1.0.46"
+semver = "1.0.28"
+serde = { version = "1.0.228", features = ["derive"] }
 shlex = "2.0.1"
-serde_json = "1.0.143"
-syn = { version = "2.0.87", features = ["full", "extra-traits"] }
-thiserror = "2.0.16"
-toml = "1.1.0"
-toml_edit = "0.25.8"
+serde_json = "1.0.150"
+syn = { version = "2.0.118", features = ["full", "extra-traits"] }
+thiserror = "2.0.18"
+toml = "1.1.2"
+toml_edit = "0.25.12"
 tracing = "0.1.44"
 ureq = { version = "3.3.0", features = ["json"] }
-wasmtime = { version = "40.0.1", features = ["component-model"] }
-wasmtime-wasi = "40.0.1"
+wasmtime = { version = "46.0.1", features = ["component-model"] }
+wasmtime-wasi = "46.0.1"
 wasvy = { path = "./" }
 wasvy_cli = { path = "./crates/wasvy_cli" }
 wasvy_macros = { version = "0.0.8", path = "crates/wasvy_macros" }
 wasvy_mock = { version = "0.0.8", path = "crates/wasvy_mock" }
-wit-bindgen = { version = "0.50.0", features = ["bitflags"] }
-wit-parser = "0.245.1"
-notify = "7.0.0"
-trybuild = "1.0.111"
+wit-bindgen = { version = "0.58.0", features = ["bitflags"] }
+wit-parser = "0.252.0"
+notify = "8.2.0"
+trybuild = "1.0.117"
 
 [features]
 default = ["devtools", "serde_json"]

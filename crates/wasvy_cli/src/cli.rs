@@ -54,22 +54,22 @@ pub enum Command {
     /// Creates a new mod source
     New(NewArgs),
 
+    /// Load mod sources and then watch for changes
+    Dev(DevArgs),
+
     /// Searches the filesystem for compatible sources for the remote app
-    Search(ModArgs),
+    List(ModArgs),
 
     /// Compiles and loads one or more mods into the remote app
     Load(ModArgs),
 
     /// Unloads one or more mods from the remote app
     Unload(ModArgs),
-
-    /// Watch mod sources for changes and compile
-    Watch(WatchArgs),
 }
 
 impl Default for Command {
     fn default() -> Self {
-        Self::Watch(WatchArgs::default())
+        Self::Dev(DevArgs::default())
     }
 }
 
@@ -92,7 +92,7 @@ pub struct ModArgs {
 }
 
 #[derive(clap::Args, Debug, Eq, PartialEq, Default)]
-pub struct WatchArgs {
+pub struct DevArgs {
     #[command(flatten)]
     pub mods: ModArgs,
 
@@ -136,12 +136,12 @@ pub fn cli(args: Args, logging: Logging) -> Result<Vec<Source>> {
             let source = new(path, args, &runtime)?;
             Ok(vec![source])
         }
-        Command::Search(mods) => {
+        Command::List(mods) => {
             let mut sources = get_sources(&runtime, mods, &remote, path)?;
             if sources.is_empty() {
                 bail!("no source was found");
             }
-            print_search(&mut sources);
+            list(&mut sources);
             Ok(sources)
         }
         Command::Load(mods) => {
@@ -154,7 +154,7 @@ pub fn cli(args: Args, logging: Logging) -> Result<Vec<Source>> {
             remote.unload(&sources, logging)?;
             Ok(Vec::new()) // TODO: the user probably expects these to be the unloaded sources
         }
-        Command::Watch(args) => {
+        Command::Dev(args) => {
             let sources = get_sources(&runtime, &args.mods, &remote, path)?;
             remote.load(&sources, logging.clone())?;
 
@@ -244,7 +244,7 @@ impl fmt::Debug for InvalidLanguageError {
     }
 }
 
-fn print_search(sources: &mut [Source]) {
+fn list(sources: &mut [Source]) {
     sources.sort_by(|a, b| a.name().cmp(b.name()));
     for source in sources.iter() {
         println!("- {source}");

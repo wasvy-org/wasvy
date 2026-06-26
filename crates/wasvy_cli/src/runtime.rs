@@ -189,7 +189,7 @@ impl Runtime {
         &self.0.editors
     }
 
-    /// Searches its contents for compatible [Source]s (build files) for Mods
+    /// Searches the current file system for compatible [Source]s (build files) for Mods
     ///
     /// This will locate:
     /// - Native mods in the host app workspace (Rust)

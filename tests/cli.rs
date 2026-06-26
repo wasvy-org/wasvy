@@ -8,7 +8,7 @@ use bevy_reflect::{Reflect, TypePath};
 use bevy_transform::components::Transform;
 use wasvy::{mods::Mod, prelude::Devtools};
 use wasvy_cli::{
-    cli::{Args, Command, ModArgs, WatchArgs},
+    cli::{Args, Command, DevArgs, ModArgs},
     command::Logging,
     named::Named,
     remote::{Remote, RemoteUri},
@@ -47,7 +47,7 @@ fn list() {
 }
 
 #[test]
-fn search_default() {
+fn list_default() {
     let app = MockApp::default().run();
     let remote = Remote::connect(app.uri()).unwrap();
     let runtime = Runtime::new(&remote).unwrap();
@@ -85,7 +85,7 @@ fn search_default() {
 }
 
 #[test]
-fn search_components() {
+fn list_components() {
     let app = MockApp::default()
         .set_devtools(
             Devtools::default()
@@ -118,16 +118,16 @@ fn search_components() {
 }
 
 #[test]
-fn search_cli_success() {
+fn list_cli_success() {
     let mut app = MockApp::default().run();
 
-    let results = app.cli("wasvy search");
+    let results = app.cli("wasvy list");
     assert!(results.is_ok());
 }
 
 #[test]
-fn search_cli_fail() {
-    let mut args: Args = Command::Search(Default::default()).into();
+fn list_cli_fail() {
+    let mut args: Args = Command::List(Default::default()).into();
     args.uri = Some(RemoteUri::new(next_test_port()).to_string());
     let result = wasvy_cli::cli::cli(args, Logging::Ignore);
     assert!(result.is_err());
@@ -142,7 +142,7 @@ mod rust {
 
     #[derive(Component, Reflect, Default)]
     #[reflect(Component)]
-    struct WatchMarker;
+    struct MarkerComponent;
 
     #[test]
     fn create() {
@@ -178,7 +178,7 @@ mod rust {
     }
 
     #[test]
-    fn watch() {
+    fn dev() {
         let mut host = MockApp::default();
         host.register_type::<Name>();
         host.register_type::<Transform>();
@@ -190,7 +190,7 @@ mod rust {
                 let _ = signal_sender.send(());
             }
 
-            if has_watch_marker(world) {
+            if has_marker(world) {
                 world.write_message(AppExit::Success);
             }
         });
@@ -201,7 +201,7 @@ mod rust {
             .expect("create");
 
         let args = Args {
-            command: Some(Command::Watch(WatchArgs {
+            command: Some(Command::Dev(DevArgs {
                 mods: ModArgs {
                     mods: vec!["watch-create".to_string()],
                 },
@@ -213,7 +213,7 @@ mod rust {
             uri: Some(app.uri().to_string()),
         };
 
-        let watch = thread::spawn(move || {
+        let dev = thread::spawn(move || {
             wasvy_cli::cli::cli(args, Logging::Ignore).expect("cli ran with no errors")
         });
 
@@ -230,17 +230,21 @@ mod rust {
         .unwrap();
 
         let mut world = app.wait(Duration::from_secs(20));
-        assert!(has_watch_marker(&mut world), "Mod was updated");
+        assert!(has_marker(&mut world), "Mod was updated");
         assert!(
             !has_example_name(&mut world),
             "ModDespawnBehaviour::DespawnEntities cleanup"
         );
-        assert!(watch.is_finished(), "watch stops after 1 update")
+        assert!(dev.is_finished(), "`wasvy dev` stops after 1 update")
     }
 
-    fn has_watch_marker(world: &mut World) -> bool {
-        let has_concrete_marker = world.query::<&WatchMarker>().iter(world).next().is_some();
-        has_concrete_marker || has_dynamic_component(world, WatchMarker::type_path())
+    fn has_marker(world: &mut World) -> bool {
+        let has_concrete_marker = world
+            .query::<&MarkerComponent>()
+            .iter(world)
+            .next()
+            .is_some();
+        has_concrete_marker || has_dynamic_component(world, MarkerComponent::type_path())
     }
 
     fn has_example_name(world: &mut World) -> bool {
@@ -267,7 +271,7 @@ mod rust {
     }
 
     fn marker_mod() -> String {
-        let marker_type_path = WatchMarker::type_path();
+        let marker_type_path = MarkerComponent::type_path();
         format!(
             r#"
 mod bindings;

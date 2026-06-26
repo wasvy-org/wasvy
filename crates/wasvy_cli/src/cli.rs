@@ -247,12 +247,6 @@ impl fmt::Debug for InvalidLanguageError {
 fn print_search(sources: &mut [Source]) {
     sources.sort_by(|a, b| a.name().cmp(b.name()));
     for source in sources.iter() {
-        let name = source.name();
-        let path = source.path();
-        let language = source
-            .language()
-            .map(|language| language.name())
-            .unwrap_or("wasm");
-        eprintln!("{name} - {path:?} ({language})");
+        println!("- {source}");
     }
 }

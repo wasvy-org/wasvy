@@ -184,7 +184,7 @@ impl Source {
             logging.println(format!("Building {self}"));
             let result = language
                 .build(self, logging.clone())
-                .with_context(|| format!("Building {self} with language {}", language.name()));
+                .with_context(|| format!("Building {self}"));
 
             match &result {
                 Ok(source) => logging.println(format!("Successfully built {source}")),
@@ -403,7 +403,13 @@ impl fmt::Debug for Source {
 
 impl fmt::Display for Source {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name())
+        let name = self.name();
+        let path = self.path();
+        let language = self
+            .language()
+            .map(|language| language.name())
+            .unwrap_or("wasm");
+        write!(f, "{name} - {path:?} ({language})")
     }
 }
 

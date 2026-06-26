@@ -33,7 +33,7 @@ pub fn watch(
 
         let paths = source.watch_paths();
         if !paths.is_empty() {
-            logging.println(format!("Watching {source}: {:?}", source.path()));
+            logging.println(format!("Watching {source}"));
         }
 
         for path in paths {

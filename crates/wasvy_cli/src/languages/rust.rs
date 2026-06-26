@@ -72,6 +72,7 @@ impl Language for Rust {
 
         let path = source.path();
         let name = source.name();
+        let namespace = source.runtime().namespace();
         let rust_version = &self.rust_version.to_string();
         let world_name = &source.world_name();
         let wasvy_wit_version = &source
@@ -85,9 +86,14 @@ impl Language for Rust {
         #[template(path = "./rust/Cargo.toml.tmpl")]
         struct CargoToml<'a> {
             name: &'a str,
+            namespace: &'a str,
             rust_version: &'a str,
         }
-        let file = CargoToml { name, rust_version };
+        let file = CargoToml {
+            name,
+            namespace,
+            rust_version,
+        };
         errors.collect(file.write(path));
 
         #[derive(askama::Template)]

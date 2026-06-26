@@ -1,7 +1,6 @@
 use anyhow::{Context, Result, bail};
 use clap::Parser;
 use derive_more::Display;
-use error_collection::Errors;
 use std::{
     fmt, fs,
     path::{Path, PathBuf},
@@ -10,7 +9,6 @@ use std::{
 
 use crate::{
     command::Logging,
-    id::Id,
     named::Named,
     remote::{Remote, RemoteUri},
     runtime::Runtime,
@@ -54,7 +52,7 @@ impl From<Command> for Args {
 #[derive(clap::Subcommand, Debug, Eq, PartialEq)]
 pub enum Command {
     /// Creates a new mod source
-    Create(CreateArgs),
+    New(NewArgs),
 
     /// Searches the filesystem for compatible sources for the remote app
     Search(ModArgs),
@@ -76,13 +74,13 @@ impl Default for Command {
 }
 
 #[derive(clap::Args, Debug, Eq, PartialEq)]
-pub struct CreateArgs {
+pub struct NewArgs {
     /// What language to use
     #[arg(short, long, default_value = "rust")]
     pub language: String,
 
     /// The project name
-    #[arg(short, long, default_value = "my-bevy-mod")]
+    #[arg(default_value = "my-bevy-mod")]
     pub name: String,
 }
 
@@ -134,8 +132,8 @@ pub fn cli(args: Args, logging: Logging) -> Result<Vec<Source>> {
     let runtime = Runtime::new(&remote).context("initializing runtime")?;
 
     match command {
-        Command::Create(args) => {
-            let source = create(path, args, &runtime)?;
+        Command::New(args) => {
+            let source = new(path, args, &runtime)?;
             Ok(vec![source])
         }
         Command::Search(mods) => {
@@ -187,50 +185,35 @@ fn get_sources(
     Ok(sources)
 }
 
-fn create(path: &Path, args: &CreateArgs, runtime: &Runtime) -> Result<Source> {
-    let mut errors = Errors::new();
-
-    let language = args.language.to_lowercase();
-    let matches: Vec<Id> = runtime
+fn new(path: &Path, args: &NewArgs, runtime: &Runtime) -> Result<Source> {
+    let input = args.language.to_lowercase();
+    let Some((language, name)) = runtime
         .languages()
         .iter()
-        .filter(|(_, (_, synonyms))| synonyms.contains(&language))
-        .map(|(id, _)| id)
-        .cloned()
-        .collect();
-    let language = if matches.len() == 1 {
-        matches.first()
-    } else {
-        errors.push(InvalidLanguageError {
+        .filter(|(_, (_, synonyms))| synonyms.contains(&input))
+        .map(|(id, (language, _))| (id.clone(), language.name().to_string()))
+        .next()
+    else {
+        return Err(InvalidLanguageError {
             language: args.language.clone(),
             runtime: runtime.clone(),
-        });
-        None
+        }
+        .into());
     };
 
-    let directory = path.join(&args.name);
-    let mut source = None;
-    if !path.is_dir() {
-        errors.push(anyhow::anyhow!("Invalid path: {path:?}"));
-    } else if directory.exists() {
-        errors.push(anyhow::anyhow!("Directory already exists: {directory:?}"))
-    } else {
-        errors.collect(
-            fs::create_dir_all(&directory)
-                .with_context(|| format!("Creating directory {directory:?}")),
-        );
+    println!("Scaffolding new {name} mod \"{}\"", &args.name);
 
-        if let Some(language) = language.cloned() {
-            source = errors.collect(runtime.scaffold(
-                &args.name,
-                directory,
-                language,
-                Default::default(),
-            ));
-        }
+    if !path.is_dir() {
+        bail!("Invalid path: {path:?}");
     }
 
-    errors.as_result().map(|_| source.unwrap())
+    let directory = path.join(&args.name);
+    if directory.exists() {
+        bail!("Directory already exists: {directory:?}")
+    }
+    fs::create_dir_all(&directory).with_context(|| format!("Creating directory {directory:?}"))?;
+
+    runtime.scaffold(&args.name, directory, language, Logging::Inherit)
 }
 
 #[derive(Display)]

@@ -176,7 +176,7 @@ impl Mock {
         if args.uri.is_none() {
             args.uri = Some(self.uri.to_string());
         }
-        let require_cleanup = matches!(&args.command, Some(wasvy_cli::cli::Command::Create(_)));
+        let require_cleanup = matches!(&args.command, Some(wasvy_cli::cli::Command::New(_)));
         let mut sources = wasvy_cli::cli::cli(args, self.logging.clone())?;
         if require_cleanup {
             self.cleanup.append(&mut sources);

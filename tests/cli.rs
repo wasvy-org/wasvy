@@ -30,7 +30,7 @@ fn list() {
 
     let mut app = host.run();
 
-    app.cli("wasvy --path tests/fixtures/crates create -l rust -n list-mod")
+    app.cli("wasvy --path tests/fixtures/crates new -l rust list-mod")
         .expect("create");
 
     app.cli("wasvy --path tests/fixtures/crates load -m list-mod")
@@ -164,7 +164,7 @@ mod rust {
 
         let mut app = host.run();
 
-        app.cli("wasvy --path tests/fixtures/crates create -l rust -n rust-create")
+        app.cli("wasvy --path tests/fixtures/crates new -l rust rust-create")
             .expect("create");
 
         app.cli("wasvy --path tests/fixtures/crates/rust-create load")
@@ -197,7 +197,7 @@ mod rust {
 
         let mut app = host.run();
 
-        app.cli("wasvy --path tests/fixtures/crates create -l rust -n watch-create")
+        app.cli("wasvy --path tests/fixtures/crates new -l rust watch-create")
             .expect("create");
 
         let args = Args {

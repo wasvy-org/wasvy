@@ -42,7 +42,7 @@ impl Runner {
         T: Send + 'static,
     {
         let resource = self.table().push(entry)?;
-        resource.try_into_resource_any(&mut self.store)
+        Ok(resource.try_into_resource_any(&mut self.store)?)
     }
 
     pub(crate) fn use_store<'a, 'b, 'c, 'd, 'e, 'f, 'g, F, R>(

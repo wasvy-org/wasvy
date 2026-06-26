@@ -23,27 +23,36 @@ impl WasmQuery {
 }
 
 impl HostQuery for WasmHost {
-    fn iter(&mut self, query: Resource<WasmQuery>) -> Result<Option<Resource<WasmQueryResult>>> {
-        let State::RunSystem { table, queries, .. } = self.access() else {
-            bail!("Query can only be accessed in systems")
-        };
+    fn iter(
+        &mut self,
+        query: Resource<WasmQuery>,
+    ) -> std::result::Result<Option<Resource<WasmQueryResult>>, wasmtime::Error> {
+        (|| -> Result<_> {
+            let State::RunSystem { table, queries, .. } = self.access() else {
+                bail!("Query can only be accessed in systems")
+            };
 
-        let query = table.get_mut(&query)?;
-        let cursor = query.cursor.increment();
-        let Some(entity) = cursor.entity(queries, query.id) else {
-            // We've reached the end of the results
-            return Ok(None);
-        };
+            let query = table.get_mut(&query)?;
+            let cursor = query.cursor.increment();
+            let Some(entity) = cursor.entity(queries, query.id) else {
+                // We've reached the end of the results
+                return Ok(None);
+            };
 
-        let result = WasmQueryResult::new(query.id, entity);
-        let result = table.push(result)?;
-        Ok(Some(result))
+            let result = WasmQueryResult::new(query.id, entity);
+            let result = table.push(result)?;
+            Ok(Some(result))
+        })()
+        .map_err(|err| wasmtime::Error::msg(err.to_string()))
     }
 
     // Note: this is never guaranteed to be called by the wasi binary
-    fn drop(&mut self, query: Resource<WasmQuery>) -> Result<()> {
-        let _ = self.table().delete(query)?;
+    fn drop(&mut self, query: Resource<WasmQuery>) -> std::result::Result<(), wasmtime::Error> {
+        (|| -> Result<()> {
+            let _ = self.table().delete(query)?;
 
-        Ok(())
+            Ok(())
+        })()
+        .map_err(|err| wasmtime::Error::msg(err.to_string()))
     }
 }

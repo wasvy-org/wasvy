@@ -1,4 +1,3 @@
-use anyhow::Result;
 use bevy_ecs::prelude::*;
 use wasmtime::component::Resource;
 
@@ -20,7 +19,7 @@ impl From<Entity> for WasmEntity {
 
 impl HostEntity for WasmHost {
     // Note: this is never guaranteed to be called by the wasi binary
-    fn drop(&mut self, commands: Resource<WasmEntity>) -> Result<()> {
+    fn drop(&mut self, commands: Resource<WasmEntity>) -> Result<(), wasmtime::Error> {
         let _ = self.table().delete(commands)?;
 
         Ok(())

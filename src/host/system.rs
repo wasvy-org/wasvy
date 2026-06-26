@@ -1,4 +1,3 @@
-use anyhow::{Result, bail};
 use bevy_ecs::prelude::*;
 use wasmtime::component::Resource;
 
@@ -26,9 +25,15 @@ impl WasmSystem {
         }
     }
 
-    fn add_param(host: &mut WasmHost, system: Resource<WasmSystem>, param: Param) -> Result<()> {
+    fn add_param(
+        host: &mut WasmHost,
+        system: Resource<WasmSystem>,
+        param: Param,
+    ) -> Result<(), wasmtime::Error> {
         let State::Setup { table, .. } = host.access() else {
-            bail!("Systems can only be modified in a setup function")
+            return Err(wasmtime::Error::msg(
+                "Systems can only be modified in a setup function",
+            ));
         };
 
         let system = table.get_mut(&system)?;
@@ -39,25 +44,41 @@ impl WasmSystem {
 }
 
 impl HostSystem for WasmHost {
-    fn new(&mut self, name: String) -> Result<Resource<WasmSystem>> {
+    fn new(&mut self, name: String) -> Result<Resource<WasmSystem>, wasmtime::Error> {
         let State::Setup { table, world, .. } = self.access() else {
-            bail!("Systems can only be instantiated in a setup function")
+            return Err(wasmtime::Error::msg(
+                "Systems can only be instantiated in a setup function",
+            ));
         };
 
-        Ok(table.push(WasmSystem::new(name, world))?)
+        let system = table.push(WasmSystem::new(name, world))?;
+        Ok(system)
     }
 
-    fn add_commands(&mut self, system: Resource<WasmSystem>) -> Result<()> {
+    fn add_commands(
+        &mut self,
+        system: Resource<WasmSystem>,
+    ) -> std::result::Result<(), wasmtime::Error> {
         WasmSystem::add_param(self, system, Param::Commands)
     }
 
-    fn add_query(&mut self, system: Resource<WasmSystem>, query: Vec<QueryFor>) -> Result<()> {
+    fn add_query(
+        &mut self,
+        system: Resource<WasmSystem>,
+        query: Vec<QueryFor>,
+    ) -> std::result::Result<(), wasmtime::Error> {
         WasmSystem::add_param(self, system, Param::Query(query))
     }
 
-    fn after(&mut self, system: Resource<WasmSystem>, other: Resource<WasmSystem>) -> Result<()> {
+    fn after(
+        &mut self,
+        system: Resource<WasmSystem>,
+        other: Resource<WasmSystem>,
+    ) -> std::result::Result<(), wasmtime::Error> {
         let State::Setup { table, .. } = self.access() else {
-            bail!("Systems can only be modified in a setup function")
+            return Err(wasmtime::Error::msg(
+                "Systems can only be modified in a setup function",
+            ));
         };
 
         let other = table.get(&other)?.id;
@@ -68,13 +89,28 @@ impl HostSystem for WasmHost {
         Ok(())
     }
 
-    fn before(&mut self, system: Resource<WasmSystem>, other: Resource<WasmSystem>) -> Result<()> {
+    fn before(
+        &mut self,
+        system: Resource<WasmSystem>,
+        other: Resource<WasmSystem>,
+    ) -> std::result::Result<(), wasmtime::Error> {
         // In bevy, `a.before(b)` is logically equivalent to `b.after(a)`
-        HostSystem::after(self, other, system)
+        let State::Setup { table, .. } = self.access() else {
+            return Err(wasmtime::Error::msg(
+                "Systems can only be modified in a setup function",
+            ));
+        };
+
+        let other = table.get(&other)?.id;
+        let system = table.get_mut(&system)?;
+
+        system.after.push(other);
+
+        Ok(())
     }
 
     // Note: this is never guaranteed to be called by the wasi binary
-    fn drop(&mut self, _: Resource<WasmSystem>) -> Result<()> {
+    fn drop(&mut self, _: Resource<WasmSystem>) -> std::result::Result<(), wasmtime::Error> {
         // Don't drop! After running setup, wasvy will find and register all
         // [WasmSystems] via [AddSystems]. If they are dropped, they will not be
         // in the wasm resource table when [AddSystems::add_systems] is called.

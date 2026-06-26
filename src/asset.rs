@@ -1,10 +1,13 @@
 use std::fmt;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use bevy_asset::{Asset, AssetId, AssetLoader, Assets, LoadContext, io::Reader};
 use bevy_ecs::{change_detection::Tick, prelude::*};
 use bevy_reflect::TypePath;
-use wasmtime::component::{Component, InstancePre, Val};
+use wasmtime::{
+    component::{Component, InstancePre, Val},
+    error::Context,
+};
 
 use crate::{
     access::ModAccess,

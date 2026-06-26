@@ -8,7 +8,7 @@ mod app;
 mod host;
 mod system;
 
-use anyhow::*;
+use anyhow::Context;
 use askama::Template;
 use error_collection::Errors;
 use semver::Version;
@@ -23,7 +23,7 @@ pub use system::*;
 
 use crate::{fs::WriteTo, named::Named, runtime::Runtime, source::Source};
 
-pub fn write_guest_wit(source: &Source) -> Result<()> {
+pub fn write_guest_wit(source: &Source) -> anyhow::Result<()> {
     let wit = Wit::new(source)?;
     wit.write(source.path())
 }
@@ -40,7 +40,9 @@ pub struct Wit {
 }
 
 impl Wit {
-    pub fn new(config: impl TryInto<WitConfig, Error = impl Into<Error>>) -> Result<Self> {
+    pub fn new(
+        config: impl TryInto<WitConfig, Error = impl Into<anyhow::Error>>,
+    ) -> anyhow::Result<Self> {
         let WitConfig {
             name,
             namespace,
@@ -50,11 +52,13 @@ impl Wit {
 
         let mut errors = Errors::new();
         if !is_valid_wit_ident(&name) {
-            errors.push(anyhow!("invalid wit identifier name: {name}"));
+            errors.push(anyhow::anyhow!("invalid wit identifier name: {name}"));
         }
 
         if !is_valid_wit_ident(&namespace) {
-            errors.push(anyhow!("invalid wit identifier namespace: {namespace}"));
+            errors.push(anyhow::anyhow!(
+                "invalid wit identifier namespace: {namespace}"
+            ));
         }
 
         let mut params: Vec<_> = systems
@@ -77,9 +81,9 @@ impl Wit {
 }
 
 impl TryInto<String> for Wit {
-    type Error = Error;
+    type Error = anyhow::Error;
 
-    fn try_into(self) -> Result<String> {
+    fn try_into(self) -> anyhow::Result<String> {
         let mut buffer = Vec::new();
         self.write_into(&mut buffer)?;
         Ok(String::from_utf8(buffer)?
@@ -123,9 +127,9 @@ impl From<&Runtime> for WitConfig {
 }
 
 impl TryFrom<&Source> for WitConfig {
-    type Error = Error;
+    type Error = anyhow::Error;
 
-    fn try_from(source: &Source) -> Result<Self> {
+    fn try_from(source: &Source) -> anyhow::Result<Self> {
         let mut config: Self = source.runtime().into();
         config.name = source.name().to_string();
 
@@ -191,12 +195,13 @@ pub fn get_systems(
     path: impl AsRef<Path>,
     linker: &mut wasmtime::component::Linker<Host>,
     host: Host,
-) -> Result<Vec<WasmSystem>> {
+) -> anyhow::Result<Vec<WasmSystem>> {
     let mut store = wasmtime::Store::new(linker.engine(), host);
 
     let component = wasmtime::component::Component::from_file(linker.engine(), &path)?;
     let instance = linker
         .instantiate(&mut store, &component)
+        .map_err::<anyhow::Error, _>(Into::into)
         .context("Failed to instantiate component")?;
 
     let app = store
@@ -211,8 +216,7 @@ pub fn get_systems(
         .get_func(&mut store, "setup")
         .context("missing setup function")?;
 
-    func.call(&mut store, &[Val::Resource(app)], &mut [])
-        .context("failed to run the \"setup\" wasm function")?;
+    func.call(&mut store, &[Val::Resource(app)], &mut [])?;
 
     Ok(store.into_data().systems)
 }

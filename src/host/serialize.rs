@@ -1,26 +1,32 @@
 use crate::{bindings::wasvy::ecs::app::HostSerialize, host::WasmHost, runner::State};
-use anyhow::{Result, bail};
 use wasmtime::component::Resource;
 
 #[derive(Default)]
 pub struct WasmSerialize;
 
 impl HostSerialize for WasmHost {
-    fn get_type(&mut self, _: Resource<WasmSerialize>) -> Result<String> {
+    fn get_type(&mut self, _: Resource<WasmSerialize>) -> Result<String, wasmtime::Error> {
         let State::RunSystem { codec, .. } = self.access() else {
-            bail!("Codec can only be instantiated in system")
+            return Err(wasmtime::Error::msg(
+                "Codec can only be instantiated in system",
+            ));
         };
         Ok(codec.get_type())
     }
 
-    fn drop(&mut self, serialize: Resource<WasmSerialize>) -> Result<()> {
+    fn drop(
+        &mut self,
+        serialize: Resource<WasmSerialize>,
+    ) -> std::result::Result<(), wasmtime::Error> {
         let _ = self.table().delete(serialize)?;
         Ok(())
     }
 
-    fn new(&mut self) -> Result<Resource<WasmSerialize>> {
+    fn new(&mut self) -> std::result::Result<Resource<WasmSerialize>, wasmtime::Error> {
         let State::RunSystem { table, .. } = self.access() else {
-            bail!("Serialize can only be instantiated in system")
+            return Err(wasmtime::Error::msg(
+                "Serialize can only be instantiated in system",
+            ));
         };
 
         Ok(table.push(WasmSerialize)?)

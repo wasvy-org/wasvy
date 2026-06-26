@@ -1,4 +1,3 @@
-use anyhow::{Result, bail};
 use bevy_ecs::prelude::*;
 use wasmtime::component::Resource;
 
@@ -29,7 +28,10 @@ impl From<&WasmQueryResult> for Entity {
 }
 
 impl HostQueryResult for WasmHost {
-    fn entity(&mut self, query_result: Resource<WasmQueryResult>) -> Result<Resource<WasmEntity>> {
+    fn entity(
+        &mut self,
+        query_result: Resource<WasmQueryResult>,
+    ) -> Result<Resource<WasmEntity>, wasmtime::Error> {
         map_entity(self, query_result)
     }
 
@@ -37,9 +39,11 @@ impl HostQueryResult for WasmHost {
         &mut self,
         query_result: Resource<WasmQueryResult>,
         index: ComponentIndex,
-    ) -> Result<Resource<WasmComponent>> {
+    ) -> Result<Resource<WasmComponent>, wasmtime::Error> {
         let State::RunSystem { table, .. } = self.access() else {
-            bail!("QueryResult can only be accessed in systems")
+            return Err(wasmtime::Error::msg(
+                "QueryResult can only be accessed in systems",
+            ));
         };
 
         let query_result = table.get(&query_result)?;
@@ -49,7 +53,10 @@ impl HostQueryResult for WasmHost {
     }
 
     // Note: this is never guaranteed to be called by the wasi binary
-    fn drop(&mut self, query_result: Resource<WasmQueryResult>) -> Result<()> {
+    fn drop(
+        &mut self,
+        query_result: Resource<WasmQueryResult>,
+    ) -> std::result::Result<(), wasmtime::Error> {
         let _ = self.table().delete(query_result)?;
 
         Ok(())

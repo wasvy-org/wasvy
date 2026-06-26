@@ -1,4 +1,3 @@
-use anyhow::{Result, bail};
 use bevy_ecs::prelude::*;
 use wasmtime::component::Resource;
 
@@ -27,7 +26,7 @@ impl HostEntityCommands for WasmHost {
     fn id(
         &mut self,
         entity_commands: Resource<WasmEntityCommands>,
-    ) -> Result<Resource<WasmEntity>> {
+    ) -> Result<Resource<WasmEntity>, wasmtime::Error> {
         map_entity(self, entity_commands)
     }
 
@@ -35,7 +34,7 @@ impl HostEntityCommands for WasmHost {
         &mut self,
         entity_commands: Resource<WasmEntityCommands>,
         bundle: Bundle,
-    ) -> Result<()> {
+    ) -> Result<(), wasmtime::Error> {
         insert(self, &entity_commands, bundle)
     }
 
@@ -43,18 +42,24 @@ impl HostEntityCommands for WasmHost {
         &mut self,
         entity_commands: Resource<WasmEntityCommands>,
         bundle: BundleTypes,
-    ) -> Result<()> {
+    ) -> Result<(), wasmtime::Error> {
         remove(self, entity_commands, bundle)
     }
 
-    fn despawn(&mut self, entity_commands: Resource<WasmEntityCommands>) -> Result<()> {
+    fn despawn(
+        &mut self,
+        entity_commands: Resource<WasmEntityCommands>,
+    ) -> Result<(), wasmtime::Error> {
         let mut entity_commands = access(self, entity_commands)?;
         entity_commands.despawn();
 
         Ok(())
     }
 
-    fn try_despawn(&mut self, entity_commands: Resource<WasmEntityCommands>) -> Result<()> {
+    fn try_despawn(
+        &mut self,
+        entity_commands: Resource<WasmEntityCommands>,
+    ) -> std::result::Result<(), wasmtime::Error> {
         let mut entity_commands = access(self, entity_commands)?;
         entity_commands.try_despawn();
 
@@ -62,7 +67,10 @@ impl HostEntityCommands for WasmHost {
     }
 
     // Note: this is never guaranteed to be called by the wasi binary
-    fn drop(&mut self, entity_commands: Resource<WasmEntityCommands>) -> Result<()> {
+    fn drop(
+        &mut self,
+        entity_commands: Resource<WasmEntityCommands>,
+    ) -> std::result::Result<(), wasmtime::Error> {
         let _ = self.table().delete(entity_commands)?;
 
         Ok(())
@@ -72,12 +80,14 @@ impl HostEntityCommands for WasmHost {
 fn access(
     host: &mut WasmHost,
     entity_commands: Resource<WasmEntityCommands>,
-) -> Result<EntityCommands<'_>> {
+) -> Result<EntityCommands<'_>, wasmtime::Error> {
     let State::RunSystem {
         table, commands, ..
     } = host.access()
     else {
-        bail!("EntityCommands resource is only accessible when running systems")
+        return Err(wasmtime::Error::msg(
+            "EntityCommands resource is only accessible when running systems",
+        ));
     };
 
     let entity_commands = table.get(&entity_commands)?;

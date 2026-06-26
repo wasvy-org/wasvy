@@ -1,4 +1,3 @@
-use anyhow::{Result, bail};
 use wasmtime::component::Resource;
 
 use crate::{
@@ -15,13 +14,15 @@ impl HostApp for WasmHost {
         _: Resource<WasmApp>,
         schedule: Schedule,
         systems: Vec<Resource<WasmSystem>>,
-    ) -> Result<()> {
+    ) -> Result<(), wasmtime::Error> {
         if systems.is_empty() {
             return Ok(());
         }
 
         let State::Setup { add_systems, .. } = self.access() else {
-            bail!("App can only be modified in a setup function")
+            return Err(wasmtime::Error::msg(
+                "App can only be modified in a setup function",
+            ));
         };
 
         add_systems.push(schedule, systems);
@@ -30,7 +31,7 @@ impl HostApp for WasmHost {
     }
 
     // Note: this is never guaranteed to be called by the wasi binary
-    fn drop(&mut self, app: Resource<WasmApp>) -> Result<()> {
+    fn drop(&mut self, app: Resource<WasmApp>) -> Result<(), wasmtime::Error> {
         let _ = self.table().delete(app)?;
 
         Ok(())

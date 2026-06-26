@@ -1,6 +1,5 @@
 use std::any::type_name;
 
-use anyhow::{Result, bail};
 use bevy_ecs::prelude::*;
 use bevy_log::prelude::*;
 use wasmtime::component::Resource;
@@ -16,16 +15,19 @@ use crate::{
 };
 
 /// A helper to ingest one host resource and create another with the same entity
-pub(crate) fn map_entity<I, F>(host: &mut WasmHost, input: Resource<I>) -> Result<Resource<F>>
+pub(crate) fn map_entity<I, F>(
+    host: &mut WasmHost,
+    input: Resource<I>,
+) -> Result<Resource<F>, wasmtime::Error>
 where
     for<'a> &'a I: Into<Entity>,
     F: From<Entity> + Send,
 {
     let State::RunSystem { table, .. } = host.access() else {
-        bail!(
-            "{} resource is only accessible when running systems",
-            type_name::<I>()
-        )
+        let ty = type_name::<I>();
+        return Err(wasmtime::Error::msg(format!(
+            "{ty} resource is only accessible when running systems"
+        )));
     };
 
     let input = table.get(&input)?;
@@ -33,7 +35,7 @@ where
     entity_resource(entity, table)
 }
 
-pub(crate) fn spawn_empty<F>(host: &mut WasmHost) -> Result<Resource<F>>
+pub(crate) fn spawn_empty<F>(host: &mut WasmHost) -> Result<Resource<F>, wasmtime::Error>
 where
     F: From<Entity> + Send,
 {
@@ -45,7 +47,9 @@ where
         ..
     } = host.access()
     else {
-        bail!("Commands resource is only accessible when running systems",)
+        return Err(wasmtime::Error::msg(
+            "Commands resource is only accessible when running systems",
+        ));
     };
 
     let mut entity_commands = commands.spawn_empty();
@@ -69,7 +73,11 @@ where
     entity_resource(entity, table)
 }
 
-pub(crate) fn insert<T>(host: &mut WasmHost, input: &Resource<T>, bundle: Bundle) -> Result<()>
+pub(crate) fn insert<T>(
+    host: &mut WasmHost,
+    input: &Resource<T>,
+    bundle: Bundle,
+) -> Result<(), wasmtime::Error>
 where
     for<'a> &'a T: Into<Entity>,
 {
@@ -85,10 +93,10 @@ where
         ..
     } = host.access()
     else {
-        bail!(
-            "{} resource is only accessible when running systems",
-            type_name::<T>()
-        )
+        let ty = type_name::<T>();
+        return Err(wasmtime::Error::msg(format!(
+            "{ty} resource is only accessible when running systems"
+        )));
     };
 
     let input = table.get(input)?;
@@ -103,6 +111,7 @@ where
         #[cfg(not(feature = "serde_json"))]
         trace!("- {type_path}: {:?}", serialized_component);
 
+        // TODO: collect instead of emitting immediately
         insert_component(
             commands,
             type_registry,
@@ -110,13 +119,18 @@ where
             entity,
             type_path,
             serialized_component,
-        )?;
+        )
+        .map_err(wasmtime::Error::msg)?;
     }
 
     Ok(())
 }
 
-pub(crate) fn remove<T>(host: &mut WasmHost, input: Resource<T>, bundle: BundleTypes) -> Result<()>
+pub(crate) fn remove<T>(
+    host: &mut WasmHost,
+    input: Resource<T>,
+    bundle: BundleTypes,
+) -> Result<(), wasmtime::Error>
 where
     for<'a> &'a T: Into<Entity>,
 {
@@ -131,10 +145,10 @@ where
         ..
     } = host.access()
     else {
-        bail!(
-            "{} resource is only accessible when running systems",
-            type_name::<T>()
-        )
+        let ty = type_name::<T>();
+        return Err(wasmtime::Error::msg(format!(
+            "{ty} resource is only accessible when running systems"
+        )));
     };
 
     let input = table.get(&input)?;
@@ -142,13 +156,16 @@ where
     trace!("Remove components from ({entity})");
     for type_path in bundle {
         trace!("- {type_path}");
-        remove_component(commands, wasm_registry, entity, type_path)?;
+        remove_component(commands, wasm_registry, entity, type_path);
     }
 
     Ok(())
 }
 
-fn entity_resource<T>(entity: Entity, table: &mut ResourceTable) -> Result<Resource<T>>
+fn entity_resource<T>(
+    entity: Entity,
+    table: &mut ResourceTable,
+) -> Result<Resource<T>, wasmtime::Error>
 where
     T: From<Entity> + Send,
 {

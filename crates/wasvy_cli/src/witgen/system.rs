@@ -31,7 +31,7 @@ impl fmt::Display for SystemParam {
 }
 
 impl bindings::HostSystem for Host {
-    fn new(&mut self, name: String) -> Result<Resource<WasmSystem>> {
+    fn new(&mut self, name: String) -> Result<Resource<WasmSystem>, wasmtime::Error> {
         let system = self.table.push(WasmSystem {
             name,
             desc: String::new(),
@@ -41,7 +41,7 @@ impl bindings::HostSystem for Host {
         Ok(system)
     }
 
-    fn add_commands(&mut self, system: Resource<WasmSystem>) -> Result<()> {
+    fn add_commands(&mut self, system: Resource<WasmSystem>) -> Result<(), wasmtime::Error> {
         add_param(self, system, SystemParam::Commands)
     }
 
@@ -49,24 +49,36 @@ impl bindings::HostSystem for Host {
         &mut self,
         system: Resource<WasmSystem>,
         _: Vec<bindings::QueryFor>,
-    ) -> Result<()> {
+    ) -> Result<(), wasmtime::Error> {
         add_param(self, system, SystemParam::Query)
     }
 
-    fn after(&mut self, _: Resource<WasmSystem>, _: Resource<WasmSystem>) -> Result<()> {
+    fn after(
+        &mut self,
+        _: Resource<WasmSystem>,
+        _: Resource<WasmSystem>,
+    ) -> Result<(), wasmtime::Error> {
         Ok(())
     }
 
-    fn before(&mut self, _: Resource<WasmSystem>, _: Resource<WasmSystem>) -> Result<()> {
+    fn before(
+        &mut self,
+        _: Resource<WasmSystem>,
+        _: Resource<WasmSystem>,
+    ) -> std::result::Result<(), wasmtime::Error> {
         Ok(())
     }
 
-    fn drop(&mut self, _: Resource<WasmSystem>) -> Result<()> {
+    fn drop(&mut self, _: Resource<WasmSystem>) -> std::result::Result<(), wasmtime::Error> {
         Ok(())
     }
 }
 
-fn add_param(host: &mut Host, system: Resource<WasmSystem>, param: SystemParam) -> Result<()> {
+fn add_param(
+    host: &mut Host,
+    system: Resource<WasmSystem>,
+    param: SystemParam,
+) -> Result<(), wasmtime::Error> {
     let system = host.table.get_mut(&system)?;
     let count = system.args.len();
     system.args.push(Arg {

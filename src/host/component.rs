@@ -28,7 +28,10 @@ impl WasmComponent {
 }
 
 impl HostComponent for WasmHost {
-    fn get(&mut self, component: Resource<WasmComponent>) -> Result<SerializedComponent> {
+    fn get(
+        &mut self,
+        component: Resource<WasmComponent>,
+    ) -> Result<SerializedComponent, wasmtime::Error> {
         let State::RunSystem {
             table,
             queries,
@@ -38,25 +41,29 @@ impl HostComponent for WasmHost {
             ..
         } = self.access()
         else {
-            bail!("Component can only be accessed in systems")
+            return Err(wasmtime::Error::msg(
+                "Component can only be accessed in systems",
+            ));
         };
 
         let component = table.get(&component)?;
-        query_resolver.get(
-            component.id,
-            component.entity,
-            component.index,
-            queries,
-            type_registry,
-            codec,
-        )
+        query_resolver
+            .get(
+                component.id,
+                component.entity,
+                component.index,
+                queries,
+                type_registry,
+                codec,
+            )
+            .map_err(wasmtime::Error::msg)
     }
 
     fn set(
         &mut self,
         component: Resource<WasmComponent>,
         value: SerializedComponent,
-    ) -> Result<()> {
+    ) -> Result<(), wasmtime::Error> {
         let State::RunSystem {
             table,
             queries,
@@ -66,23 +73,27 @@ impl HostComponent for WasmHost {
             ..
         } = self.access()
         else {
-            bail!("Component can only be accessed in systems")
+            return Err(wasmtime::Error::msg(
+                "Component can only be accessed in systems",
+            ));
         };
 
         let component = table.get(&component)?;
-        query_resolver.set(
-            component.id,
-            component.entity,
-            component.index,
-            value,
-            queries,
-            type_registry,
-            codec,
-        )
+        query_resolver
+            .set(
+                component.id,
+                component.entity,
+                component.index,
+                value,
+                queries,
+                type_registry,
+                codec,
+            )
+            .map_err(wasmtime::Error::msg)
     }
 
     // Note: this is never guaranteed to be called by the wasi binary
-    fn drop(&mut self, component: Resource<WasmComponent>) -> Result<()> {
+    fn drop(&mut self, component: Resource<WasmComponent>) -> Result<(), wasmtime::Error> {
         let _ = self.table().delete(component)?;
 
         Ok(())
@@ -93,8 +104,10 @@ impl HostComponent for WasmHost {
         component: Resource<WasmComponent>,
         method: String,
         params: SerializedComponent,
-    ) -> Result<SerializedComponent> {
+    ) -> Result<SerializedComponent, wasmtime::Error> {
         invoke_component_method(self, component, &method, &params)
+            // TODO: collect instead of emitting immediately
+            .map_err(wasmtime::Error::msg)
     }
 }
 

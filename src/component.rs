@@ -98,7 +98,7 @@ pub(crate) fn remove_component(
     wasm_registry: &WasmComponentRegistry,
     entity: Entity,
     type_path: String,
-) -> Result<()> {
+) {
     // Remove guest types (inserted as json strings)
     if let Some(component_id) = wasm_registry.0.get(&type_path) {
         commands.entity(entity).remove_by_id(*component_id);
@@ -107,8 +107,6 @@ pub(crate) fn remove_component(
     else {
         commands.entity(entity).remove_reflect(type_path);
     }
-
-    Ok(())
 }
 
 /// A collection containing a [ComponentId], and a [TypeId]
@@ -235,7 +233,7 @@ pub(crate) fn get_component(
     component: &ComponentRef,
     type_registry: &AppTypeRegistry,
     codec: &CodecResource,
-) -> Result<Vec<u8>> {
+) -> anyhow::Result<Vec<u8>> {
     let val = entity
         .get_by_id(component.component_id)
         .expect("to be able to find this component id on the entity");

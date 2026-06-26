@@ -146,7 +146,7 @@ impl<'a> SearchBuilder<'a> {
 
         sources.retain(|source| {
             let path = fs::canonicalize(source.path()).unwrap_or_default();
-            !self.ignore.iter().any(|ignore| path.starts_with(&ignore))
+            !self.ignore.iter().any(|ignore| path.starts_with(ignore))
         });
 
         Ok(sources)

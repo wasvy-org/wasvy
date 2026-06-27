@@ -3,12 +3,12 @@
 # Run an example host app
 [group("examples")]
 [arg("app", pattern="^(basic|components|custom_codec)$")]
-run-example app *args:
+run app *args:
 	cargo run -p {{app}}_example_app --features bevy/file_watcher {{args}}
 
 # Run the wasvy tui
 [group("examples")]
-run-cli *args:
+cli *args:
 	cargo run -p wasvy_cli -- {{args}}
 
 # Build an example guest rust mod to wasm and place it in the shared assets directory

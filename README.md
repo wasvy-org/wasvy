@@ -25,25 +25,27 @@ Wasvy is an experimental Bevy modding engine, enabling the execution of WebAssem
 
 ## Features
 
-- 🪶 Easy integration with your game (see the example below)
+- 🪶 Easy integration: Just 2 lines of code!
+- 🛠️ Devtools via the `wasvy` CLI: `cargo install wasvy_cli`
 - 🔥 Hot reloading
-- 🛠️ Devtools (soon) via wasvy-cli
-- 🧩 WASI support powered by [wasmtime](https://wasmtime.dev/)
-
-## Vision
-
-The ultimate goal of Wasvy is to create a vibrant ecosystem where:
-
-- Game developers can easily make their games moddable with just a few lines of code
-- The developer experience is fantastic (Hot reloading, live debugging tools, etc)
-- Modders can write mods in their language of choice (Rust, Python, etc.)
-- Performance is close to native
-- Mods are sandboxed and safe to run
-- The ecosystem is vibrant with shared components and tools
+- 🐍 Ready-made templates and support for any language that compiles to wasm!
+- 🧩 Type safe, sandboxed, WASI components powered by [wasmtime](https://wasmtime.dev/)
 
 ## Installation
 
-Run the following command in your project directory:
+Install the `wasvy` CLI:
+
+```bash
+cargo install wasvy_cli
+```
+
+If you are developing rust mods, install the necessary target:
+
+```bash
+rustup target add wasm32-wasip2
+```
+
+Add the crate to your dependencies:
 
 ```bash
 cargo add wasvy
@@ -62,41 +64,83 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         // Adding the [`ModLoaderPlugin`] is all you need 😉
-        // Optionally, enable the devtools for CLI access ⚡
+        // And enable the devtools for CLI access ⚡
         .add_plugins(ModLoaderPlugin::default().devtools("My moddable Bevy app"))
         .run();
 }
 ```
 
-## Creating Mods
+## Your first Mod
 
-Mods are WebAssembly binaries coded in any language of choice. We're working on a way to streamline mod creation with [wasvy-cli](https://github.com/wasvy-org/wasvy-cli), but until that hatches, you can reference the examples in the repo.
-
-To create a WASM component that works with Wasvy, you'll need to use the WebAssembly Component Model and define your interfaces using WIT (WebAssembly Interface Types). Here's how to get started with a new mod written in rust:
-
-### Prerequisites
-
-1. Add the `wasm32-wasip2` target for rust
+Start your app with Wasvy devtools enabled (shown above). Make sure to enable asset hot-reloading!
 
 ```bash
-rustup target add wasm32-wasip2
+cargo run --features bevy/file_watcher
 ```
 
-2. Install `wkg` (WebAssembly Kit Generator from [wasm-pkg-tools](https://github.com/bytecodealliance/wasm-pkg-tools)):
+The `wasvy new` command helps creating new Mods. In another terminal, scaffold a new Rust mod:
 
 ```bash
-cargo install wkg
+wasvy new my-bevy-mod
+
+# Or in another language, such as python (requires poetry)
+wasvy new another-bevy-mod -l py
 ```
 
-And then configure `wkg`:
+The `wasvy` CLI connects to your running Bevy app, and uses metadata such as the wit interfaces of your game to scaffold a new mod that is compatible.
+
+Now, here comes the fun part! Let's build and load the mods you've created:
 
 ```bash
-wkg config --default-registry wa.dev
+wasvy dev
 ```
 
-This will make `wkg` use `wa.dev` as the default registry, which is where the latest version of `wasvy:ecs` is hosted.
+If you make changes to your Mod's code, `wasvy dev` will automatically rebuild the Mod and instruct the game to load it!
 
-### Creating a New WASM Mod
+## The CLI
+
+Search for compatible mod sources within the current directory. Note that not all mods are compatible with all games.
+
+```bash
+wasvy list
+```
+
+Watch matching mods and reload them when their sources change:
+
+```bash
+wasvy dev --mods my-bevy-mod
+```
+
+Build and load a matching mod into the running app:
+
+```bash
+wasvy load --mods my-bevy-mod
+```
+
+Unload a matching mod:
+
+```bash
+wasvy unload --mods my-bevy-mod
+```
+
+Common options:
+
+- `--path <PATH>`: search or create from a different directory. Defaults to the current directory.
+- `--app <APP>`: require the connected devtools app name to contain this pattern.
+- `--uri <URI>`: connect to an alternate remote address.
+- `--mods <MODS>`: filter source names for `list`, `load`, `unload`, and `dev`.
+
+For local development in this repository, you can use `just cli`
+
+```bash
+just cli search --path examples/mods
+```
+
+## Creating Mods from scratch
+
+Mods are just compiled WebAssembly binaries using the wasvy wit interface (or your own).
+
+`wasvy new` can help scaffolding new Mods, but it doesn't support all languages and use-cases. You can also create a mod manually by using the WebAssembly Component Model and defining your interfaces with WIT (WebAssembly Interface Types). Here's how to get started with a new mod written in Rust:
 
 1. Create a new crate:
 
@@ -115,7 +159,7 @@ edition = "2024"
 
 [dependencies]
 # Hassle-less codegen for wit
-wit-bindgen = "0.46"
+wit-bindgen = "0.58.0"
 
 # Wasvy uses json for serializing components. We use serde instead
 # of bevy_reflect since at the moment bevy-reflect bloats the wasm binary considerably
@@ -150,20 +194,13 @@ world example {
 }
 ```
 
-4. Fetch the Wasvy WIT files:
+4. Retrieve the Wasvy WIT files:
 
-> Warning: Due to [#40](https://github.com/wasvy-org/wasvy/issues/40) `wkg wit fetch` will pull the old version 0.0.5.
->
-> For the latest version (v0.0.8) download and add the [wit/ecs/ecs.wit](https://docs.rs/crate/wasvy/0.0.8/source/wit/ecs/ecs.wit) file inside your wit folder manually like so (any file in this `deps` folder should be picked up during compile-time).
->
-> <img width="306" height="172" alt="Image" src="https://github.com/user-attachments/assets/9e238e43-01da-4653-af44-26462c33be24" />
+For the latest version (v0.0.8) download and add the [wit/\*.wit](https://docs.rs/crate/wasvy/0.0.8/source/wit/ecs/ecs.wit) file inside your wit folder manually like so (any file in this `deps` folder should be picked up during compile-time).
 
-```bash
-# Will fetch version 0.0.5
-wkg wit fetch
-```
+<img width="306" height="172" alt="Image" src="https://github.com/user-attachments/assets/9e238e43-01da-4653-af44-26462c33be24" />
 
-This will automatically fetch the ~~latest version~~ of `wasvy:ecs` from [wa.dev](https://wa.dev/wasvy:ecs) and add it to your `wit` folder. You can also copy them directly from the [source](/wit/ecs/ecs.wit).
+> Note: Due to [#40](https://github.com/wasvy-org/wasvy/issues/40), and with the addition of the Cli in [#60](https://github.com/wasvy-org/wasvy/pull/60), usage of `wkg wit fetch` pulling from https://wa.dev/wasvy:ecs is deprecated
 
 5. Modify `my-mod/src/lib.rs` as shown:
 
@@ -212,12 +249,15 @@ The resulting `.wasm` file will be in `target/wasm32-wasip2/release/my-mod.wasm`
 
 Hint: The binary must be in your game's assets library for it to be visible to Bevy. By default this is `assets` in the same directory as `src`. Then, make sure to load it via [Mods::load](https://docs.rs/wasvy/latest/wasvy/mods/struct.Mods.html#method.load) as shown above (e.g. `mods.load("mods/my-mod.wasm")`).
 
-### Tips
-
-- You can enable hot reloading for assets (including wasm files) simply by enabling Bevy's `file_watcher` feature. Try running your game with the command `cargo run --features bevy/file_watcher`
-- The WIT registry at [WebAssembly Components Registry](https://wa.dev/) contains many useful interfaces
-
 ## Examples
+
+Want to see Wasvy in action? Start by running the `basic` app.
+
+1. Clone this repo and [setup your dev environment].
+2. Launch an app with a cube `just run basic`
+3. In another terminal, Compile/Load compatible mods: `just cli dev`
+
+In the [basic mod `lib.rs`](examples/mods/rust/basic/src/lib.rs), try altering the rotation direction of the cube.
 
 ### Apps
 
@@ -229,7 +269,7 @@ Wasvy offers some example host apps to get started:
 
 ### Mods
 
-Since wasvy is built on the wasm component model, mods can be written in almost any language. We provide a few examples to get started:
+Since Wasvy is built on the wasm component model, mods can be written in almost any language. We provide a few examples for reference and experimentation:
 
 - **Rust 🦀**
   - [**Basic**](examples/mods/rust/basic): Spins transforms with a `MyMarker` component. Spawns a custom component. Intended to be run with the [Basic example app](examples/apps/basic).
@@ -315,7 +355,7 @@ Please make sure to:
 ### Phase 2: Enhanced Features
 
 - [x] Hot reloading wasm files
-- [ ] Seamless dev experience building mods (See [wasvy-cli](https://github.com/wasvy-org/wasvy-cli))
+- [x] Seamless dev experience building mods with the `wasvy` CLI
 - [ ] [Mod permissions](https://github.com/wasvy-org/wasvy/issues/22)
 - [ ] Improved rust modding experience (See [wasvy-rust](https://github.com/wasvy-org/wasvy-rust))
 - [ ] Improved python modding experience

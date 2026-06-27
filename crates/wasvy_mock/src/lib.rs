@@ -1,5 +1,6 @@
 use std::{
-    mem,
+    env::temp_dir,
+    fs, mem,
     sync::{
         Arc,
         atomic::{AtomicBool, AtomicU16, Ordering},
@@ -88,11 +89,13 @@ impl MockApp {
                 }
             }
 
+            let pid = std::process::id();
+            let target = temp_dir().join(format!("wasvy-mock/{port}/{pid}"));
             app.add_plugins((
                 MinimalPlugins,
                 AssetPlugin {
-                    file_path: "target/tests/host_assets".into(),
-                    processed_file_path: "target/tests/host_assets/processed".into(),
+                    file_path: target.join("host_assets").to_string_lossy().into(),
+                    processed_file_path: target.join("processed").to_string_lossy().into(),
                     ..Default::default()
                 },
                 RemoteHttpPlugin::default().with_port(port),
@@ -135,6 +138,8 @@ impl MockApp {
             if exit.is_error() {
                 panic!("App exit {exit:?}");
             }
+
+            fs::remove_dir_all(target).expect("no conflicts");
 
             // Handoff world
             receiver.recv().unwrap()

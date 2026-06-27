@@ -138,17 +138,11 @@ fn list_cli_fail() {
 }
 
 #[cfg(test)]
-mod rust {
+mod languages {
     use super::*;
-    use wasvy::component::WasmComponentRegistry;
-    use wasvy_cli::command::Logging;
-
-    #[derive(Component, Reflect, Default)]
-    #[reflect(Component)]
-    struct MarkerComponent;
 
     #[test]
-    fn create() {
+    fn rust() {
         let mut host = MockApp::default();
         host.register_type::<Name>();
         host.register_type::<Transform>();
@@ -179,10 +173,25 @@ mod rust {
         assert_eq!(transform.translation, Vec3::X);
         assert!(transform.rotation.angle_between(Quat::default()) > 1.);
     }
+}
+
+#[cfg(test)]
+mod dev {
+    use super::*;
+    use wasvy::component::WasmComponentRegistry;
+    use wasvy_cli::command::Logging;
+
+    #[derive(Component, Reflect, Default)]
+    #[reflect(Component)]
+    struct MarkerComponent;
+
+    const DYNAMIC_COMPONENT: &str = "dev::DynamicComponent";
 
     #[test]
     fn dev() {
         let mut host = MockApp::default();
+        host.register_type::<MarkerComponent>();
+        // DynamicComponent must exist only in the mod
         host.register_type::<Name>();
         host.register_type::<Transform>();
         host.world_mut().spawn(Transform::default());
@@ -193,7 +202,7 @@ mod rust {
                 let _ = signal_sender.send(());
             }
 
-            if has_marker(world) {
+            if has_marker_component(world) {
                 world.write_message(AppExit::Success);
             }
         });
@@ -233,7 +242,11 @@ mod rust {
         .unwrap();
 
         let mut world = app.wait(Duration::from_secs(20));
-        assert!(has_marker(&mut world), "Mod was updated");
+        assert!(has_marker_component(&mut world), "Mod was updated");
+        assert!(
+            has_dynamic_component(&mut world),
+            "Mod created dynamic component"
+        );
         assert!(
             !has_example_name(&mut world),
             "ModDespawnBehaviour::DespawnEntities cleanup"
@@ -241,40 +254,27 @@ mod rust {
         assert!(dev.is_finished(), "`wasvy dev` stops after 1 update")
     }
 
-    fn has_marker(world: &mut World) -> bool {
-        let has_concrete_marker = world
-            .query::<&MarkerComponent>()
-            .iter(world)
-            .next()
-            .is_some();
-        has_concrete_marker || has_dynamic_component(world, MarkerComponent::type_path())
+    fn has_marker_component(world: &mut World) -> bool {
+        world.query::<&MarkerComponent>().iter(world).count() == 1
     }
 
-    fn has_example_name(world: &mut World) -> bool {
-        world
-            .query::<&Name>()
-            .iter(world)
-            .any(|name| name.as_str() == "Example entity")
-    }
-
-    fn has_dynamic_component(world: &mut World, type_path: &str) -> bool {
+    fn has_dynamic_component(world: &mut World) -> bool {
         let Some(component_id) = world
             .get_resource::<WasmComponentRegistry>()
-            .and_then(|registry| registry.get(type_path))
+            .and_then(|registry| registry.get(DYNAMIC_COMPONENT))
             .copied()
         else {
             return false;
         };
 
-        let mut entities = world.query::<Entity>();
-        let entities: Vec<_> = entities.iter(world).collect();
-        entities
-            .into_iter()
-            .any(|entity| world.entity(entity).contains_id(component_id))
+        let mut builder = QueryBuilder::<()>::new(world);
+        builder.with_id(component_id);
+        let mut query = builder.build();
+        query.iter_mut(world).count() == 1
     }
 
     fn marker_mod() -> String {
-        let marker_type_path = MarkerComponent::type_path();
+        let marker = MarkerComponent::type_path();
         format!(
             r#"
 mod bindings;
@@ -291,7 +291,11 @@ impl Guest for GuestComponent {{
 
     fn start(commands: Commands) {{
         commands.spawn(&[(
-            "{marker_type_path}".to_string(),
+            "{marker}".to_string(),
+            b"{{}}".to_vec(),
+        )]);
+        commands.spawn(&[(
+            "{DYNAMIC_COMPONENT}".to_string(),
             b"{{}}".to_vec(),
         )]);
     }}
@@ -303,4 +307,13 @@ export!(GuestComponent);
 "#
         )
     }
+}
+
+fn has_example_name(world: &mut World) -> bool {
+    world
+        .query::<&Name>()
+        .iter(world)
+        .filter(|name| name.as_str() == "Example entity")
+        .count()
+        == 1
 }

@@ -3,7 +3,7 @@ mod bindings {
         path: "wit",
         world: "component:guest-wit/example",
         with: {
-            "wasvy:ecs/app@0.0.7": generate,
+            "wasvy:ecs/app@0.0.9": generate,
             "wasvy-examples:bindings/components@0.0.1": generate,
         }
     });

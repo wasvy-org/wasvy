@@ -2,7 +2,7 @@
 package wasvy-examples:bindings@0.0.1;
 
 interface components {
-  use wasvy:ecs/app@0.0.7.{component};
+  use wasvy:ecs/app@0.0.9.{component};
 
   /// wasvy:type-path=host_wit_example::components::Health
   resource health {

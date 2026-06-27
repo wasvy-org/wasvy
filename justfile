@@ -81,11 +81,11 @@ bump-bevy new:
 	rg -l -g '!Cargo.lock' 'bevy' . | xargs sed -i "/bevy/s/0.19.0/{{new}}/g"
 	cargo check
 
-# Replace the existing (0.0.8) wasvy version with a new one.
+# Replace the existing (0.0.9) wasvy version with a new one.
 [group("chores")]
 [arg("new", pattern="^\\d+\\.\\d+\\.\\d+$")]
 bump-version new:
-	rg -l -g '!Cargo.lock' 'version' . | xargs sed -i "/version/s/0.0.8/{{new}}/g"
+	rg -l -g '!Cargo.lock' 'version' . | xargs sed -i "/version/s/0.0.9/{{new}}/g"
 	cargo check
 
 # Publishes all crates

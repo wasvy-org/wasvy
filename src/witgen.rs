@@ -48,7 +48,7 @@ pub struct WitGeneratorSettings {
 
     /// Package containing the `wasvy:ecs` types.
     ///
-    /// Defaults to "wasvy:ecs@0.0.7"
+    /// Defaults to "wasvy:ecs@0.0.9"
     pub wasvy_package: String,
 
     /// File path where the generated WIT should be written.
@@ -63,7 +63,7 @@ impl Default for WitGeneratorSettings {
             package: "my-namespace:my-game".to_string(),
             component_interface: "components".to_string(),
             world: "host".to_string(),
-            wasvy_package: "wasvy:ecs@0.0.7".to_string(),
+            wasvy_package: "wasvy:ecs@0.0.9".to_string(),
             output_path: PathBuf::from("wit/bingings.wit"),
         }
     }
@@ -373,7 +373,7 @@ mod tests {
             .expect("AppFunctionRegistry");
 
         let output = generate_wit(&settings, type_registry, function_registry);
-        let wasvy_use = "use wasvy:ecs/app@0.0.7.{component}";
+        let wasvy_use = "use wasvy:ecs/app@0.0.9.{component}";
 
         assert!(output.contains(wasvy_use));
         assert!(output.contains("resource health"));

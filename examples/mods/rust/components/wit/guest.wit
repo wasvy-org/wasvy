@@ -1,11 +1,11 @@
 package component:guest-wit;
 
 world example {
-    use wasvy:ecs/app@0.0.7.{query, schedule, system, query-for};
+    use wasvy:ecs/app@0.0.9.{query, schedule, system, query-for};
     use wasvy-examples:bindings/components@0.0.1.{health};
 
     export heal-system: func(query: query);
     export pct-system: func(query: query);
 
-    include wasvy:ecs/guest@0.0.7;
+    include wasvy:ecs/guest@0.0.9;
 }

@@ -63,7 +63,7 @@ fn generates_wit_resources() {
         .expect("AppFunctionRegistry");
     let output = witgen::generate_wit(&settings, type_registry, function_registry);
 
-    let wasvy_use = "use wasvy:ecs/app@0.0.7.{component}";
+    let wasvy_use = "use wasvy:ecs/app@0.0.9.{component}";
 
     assert!(output.contains("package my-namespace:my-game;"));
     assert!(output.contains("interface components"));

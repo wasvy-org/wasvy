@@ -20,7 +20,7 @@ resolver = "2"
 authors = ["EngoDev", "MarcGuiselin"]
 categories = ["wasm", "game-development", "development-tools"]
 rust-version = "1.95.0"
-version = "0.0.8"
+version = "0.0.9"
 edition = "2024"
 description = "WASI-powered modding for the Bevy engine"
 keywords = ["bevy", "wasm", "wasi", "gamedev", "scripting"]
@@ -85,8 +85,8 @@ wasmtime = { version = "46.0.1", default-features = false, features = [
 wasmtime-wasi = { version = "46.0.1", default-features = false, features = ["p2"] }
 wasvy = { path = "./" }
 wasvy_cli = { path = "./crates/wasvy_cli" }
-wasvy_macros = { version = "0.0.8", path = "crates/wasvy_macros" }
-wasvy_mock = { version = "0.0.8", path = "crates/wasvy_mock" }
+wasvy_macros = { version = "0.0.9", path = "crates/wasvy_macros" }
+wasvy_mock = { version = "0.0.9", path = "crates/wasvy_mock" }
 wit-bindgen = { version = "0.58.0", features = ["bitflags"] }
 wit-parser = "0.252.0"
 notify = "8.2.0"

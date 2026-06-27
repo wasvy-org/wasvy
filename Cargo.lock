@@ -521,7 +521,7 @@ dependencies = [
 
 [[package]]
 name = "basic_example_app"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "bevy",
  "bevy-inspector-egui",
@@ -531,7 +531,7 @@ dependencies = [
 
 [[package]]
 name = "basic_example_mod"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "bevy_math",
  "bevy_transform",
@@ -2534,7 +2534,7 @@ dependencies = [
 
 [[package]]
 name = "components_example_app"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -2548,7 +2548,7 @@ dependencies = [
 
 [[package]]
 name = "components_example_mod"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "serde",
  "serde_json",
@@ -3000,7 +3000,7 @@ checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
 name = "custom_codec_example_app"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "anyhow",
  "bevy",
@@ -7258,7 +7258,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -7286,7 +7286,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_cli"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "anyhow",
  "askama",
@@ -7311,7 +7311,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_macros"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -7322,7 +7322,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_mock"
-version = "0.0.8"
+version = "0.0.9"
 dependencies = [
  "anyhow",
  "bevy_app",

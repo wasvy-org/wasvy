@@ -13,7 +13,7 @@ publish = false
 
 [dependencies]
 # Replace in your own project:
-# wasvy = { version = "0.0.8", default-features = false }
+# wasvy = { version = "0.0.9", default-features = false }
 wasvy = { path = "../../../", default-features = false }
 
 bevy = { version = "0.19.0", features = [

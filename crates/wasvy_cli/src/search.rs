@@ -88,6 +88,7 @@ impl<'a> SearchBuilder<'a> {
 
         // Locate dir mods
         let mut mods: Vec<Source> = if let Some(path) = self.dir_path {
+            let path = normalize_glob_root(path);
             search_glob(path.join("**/wit/*.wit"))
                 .filter_map(|p| p.parent().and_then(Path::parent).map(Path::to_path_buf))
                 .collect::<HashSet<_>>() // Dedupe
@@ -110,6 +111,7 @@ impl<'a> SearchBuilder<'a> {
 
         // Locate wasm mods
         let mut wasm: Vec<Source> = if let Some(path) = self.dir_path {
+            let path = normalize_glob_root(path);
             search_glob(path.join("**/*.wasm"))
                 // Ignore wasm build artifacts located in source directories (such as dest directory for python)
                 .filter(|path| !mods.iter().any(|source| path.starts_with(source.path())))
@@ -166,6 +168,10 @@ fn search_glob(pattern: PathBuf) -> impl Iterator<Item = PathBuf> {
         })
 }
 
+fn normalize_glob_root(path: &Path) -> PathBuf {
+    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
 #[derive(Deserialize, Default)]
 struct Native {
     crate_names: Vec<String>,
@@ -194,5 +200,23 @@ fn find_native(path: impl AsRef<Path>) -> Native {
     Native {
         crate_names,
         workspace_root,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn glob_root_resolves_relative_parent_segments() {
+        let root = normalize_glob_root(Path::new("../../examples/mods"));
+        let matches: Vec<_> = search_glob(root.join("**/wit/*.wit")).collect();
+
+        assert!(
+            matches
+                .iter()
+                .any(|path| path.ends_with("examples/mods/rust/basic/wit/guest.wit")),
+            "relative search roots with parent segments should find example WIT files"
+        );
     }
 }

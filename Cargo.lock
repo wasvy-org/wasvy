@@ -7280,7 +7280,6 @@ dependencies = [
  "wasmtime-wasi",
  "wasvy_cli",
  "wasvy_macros",
- "wasvy_mock",
  "wit-bindgen 0.58.0",
 ]
 
@@ -7330,8 +7329,11 @@ dependencies = [
  "bevy_derive",
  "bevy_ecs",
  "bevy_internal",
+ "bevy_math",
  "bevy_platform",
+ "bevy_reflect",
  "bevy_remote",
+ "bevy_transform",
  "clap",
  "shlex",
  "wasvy",

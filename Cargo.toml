@@ -83,10 +83,9 @@ wasmtime = { version = "46.0.1", default-features = false, features = [
     "std",
 ] }
 wasmtime-wasi = { version = "46.0.1", default-features = false, features = ["p2"] }
-wasvy = { path = "./" }
-wasvy_cli = { path = "./crates/wasvy_cli" }
+wasvy = { version = "0.0.9", path = "./" }
+wasvy_cli = { version = "0.0.9", path = "./crates/wasvy_cli" }
 wasvy_macros = { version = "0.0.9", path = "crates/wasvy_macros" }
-wasvy_mock = { version = "0.0.9", path = "crates/wasvy_mock" }
 wit-bindgen = { version = "0.58.0", features = ["bitflags"] }
 wit-parser = "0.252.0"
 notify = "8.2.0"
@@ -121,7 +120,6 @@ trybuild.workspace = true
 bevy_math.workspace = true
 bevy_transform.workspace = true
 wasvy_cli.workspace = true
-wasvy_mock.workspace = true
 
 # These lints may be important signals about code quality, but normal Bevy code
 # commonly triggers them and the CI workflow treats them as errors, so we've

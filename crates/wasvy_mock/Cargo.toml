@@ -24,3 +24,8 @@ clap.workspace = true
 shlex.workspace = true
 wasvy.workspace = true
 wasvy_cli.workspace = true
+
+[dev-dependencies]
+bevy_math.workspace = true
+bevy_reflect.workspace = true
+bevy_transform.workspace = true

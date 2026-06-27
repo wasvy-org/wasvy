@@ -200,7 +200,7 @@ For the latest version (v0.0.8) download and add the [wit/\*.wit](https://docs.r
 
 <img width="306" height="172" alt="Image" src="https://github.com/user-attachments/assets/9e238e43-01da-4653-af44-26462c33be24" />
 
-> Note: Due to [#40](https://github.com/wasvy-org/wasvy/issues/40), and with the addition of the Cli in [#60](https://github.com/wasvy-org/wasvy/pull/60), usage of `wkg wit fetch` pulling from https://wa.dev/wasvy:ecs is deprecated
+> Note: Due to [#40](https://github.com/wasvy-org/wasvy/issues/40), and with the addition of the Cli in [#60](https://github.com/wasvy-org/wasvy/pull/60), usage of `wkg wit fetch` pulling from [wa.dev/wasvy:ecs](https://wa.dev/wasvy:ecs) is deprecated
 
 5. Modify `my-mod/src/lib.rs` as shown:
 

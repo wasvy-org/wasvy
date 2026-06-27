@@ -133,7 +133,7 @@ pub fn cli(args: Args, logging: Logging) -> Result<Vec<Source>> {
 
     match command {
         Command::New(args) => {
-            let source = new(path, args, &runtime)?;
+            let source = new(path, args, &runtime, logging)?;
             Ok(vec![source])
         }
         Command::List(mods) => {
@@ -185,7 +185,7 @@ fn get_sources(
     Ok(sources)
 }
 
-fn new(path: &Path, args: &NewArgs, runtime: &Runtime) -> Result<Source> {
+fn new(path: &Path, args: &NewArgs, runtime: &Runtime, logging: Logging) -> Result<Source> {
     let input = args.language.to_lowercase();
     let Some((language, name)) = runtime
         .languages()
@@ -213,7 +213,7 @@ fn new(path: &Path, args: &NewArgs, runtime: &Runtime) -> Result<Source> {
     }
     fs::create_dir_all(&directory).with_context(|| format!("Creating directory {directory:?}"))?;
 
-    runtime.scaffold(&args.name, directory, language, Logging::Inherit)
+    runtime.scaffold(&args.name, directory, language, logging)
 }
 
 #[derive(Display)]

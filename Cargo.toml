@@ -5,12 +5,15 @@ categories.workspace = true
 rust-version.workspace = true
 version.workspace = true
 edition.workspace = true
-description.workspace = true
+description = "Host-side modding framework for Bevy. Manages mod lifecycle, scheduling, and access control."
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 readme.workspace = true
 publish = true
+
+[lib]
+name = "wasvy"
 
 [workspace]
 members = ["crates/*", "examples/apps/*", "examples/mods/rust/*", "tests/fixtures/crates/*"]
@@ -83,36 +86,28 @@ wasmtime = { version = "46.0.1", default-features = false, features = [
     "std",
 ] }
 wasmtime-wasi = { version = "46.0.1", default-features = false, features = ["p2"] }
-wasvy = { version = "0.0.9", path = "./" }
+wasvy = { version = "0.0.9", path = "." }
 wasvy_cli = { version = "0.0.9", path = "./crates/wasvy_cli" }
 wasvy_macros = { version = "0.0.9", path = "crates/wasvy_macros" }
+wasvy_mock = { version = "0.0.9", path = "./crates/wasvy_mock" }
+wasvy_runtime = { version = "0.0.9", path = "./crates/wasvy_runtime" }
+wasvy_wasm = { version = "0.0.9", path = "./crates/wasvy_wasm" }
 wit-bindgen = { version = "0.58.0", features = ["bitflags"] }
 wit-parser = "0.252.0"
 notify = "8.2.0"
 trybuild = "1.0.117"
 
 [features]
-default = ["devtools", "serde_json"]
-devtools = ["dep:bevy_remote"]
-serde_json = ["dep:serde_json"]
+default = ["devtools", "serde_json", "wasm"]
+devtools = ["wasvy_runtime/devtools"]
+serde_json = ["wasvy_runtime/serde_json"]
+wasm = ["dep:wasvy_wasm"]
 
 [dependencies]
-anyhow.workspace = true
 bevy_app.workspace = true
-bevy_asset.workspace = true
-bevy_derive.workspace = true
-bevy_ecs.workspace = true
-bevy_log.workspace = true
-bevy_platform.workspace = true
-bevy_reflect.workspace = true
-bevy_remote = { workspace = true, optional = true }
-error-collection.workspace = true
-inventory.workspace = true
-serde.workspace = true
-serde_json = { workspace = true, optional = true }
-wasmtime.workspace = true
-wasmtime-wasi.workspace = true
 wasvy_macros.workspace = true
+wasvy_runtime.workspace = true
+wasvy_wasm = { workspace = true, optional = true }
 
 [dev-dependencies]
 wit-bindgen.workspace = true
@@ -120,6 +115,11 @@ trybuild.workspace = true
 bevy_math.workspace = true
 bevy_transform.workspace = true
 wasvy_cli.workspace = true
+wasvy_mock.workspace = true
+wasvy_wasm.workspace = true
+wasmtime.workspace = true
+bevy_reflect.workspace = true
+bevy_ecs.workspace = true
 
 # These lints may be important signals about code quality, but normal Bevy code
 # commonly triggers them and the CI workflow treats them as errors, so we've

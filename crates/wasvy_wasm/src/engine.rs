@@ -11,12 +11,14 @@ use crate::host::WasmHost;
 #[component(immutable)]
 pub(crate) struct Engine(wasmtime::Engine);
 
-impl Engine {
-    pub(crate) fn new() -> Self {
+impl Default for Engine {
+    fn default() -> Self {
         let engine = wasmtime::Engine::default();
         Self(engine)
     }
+}
 
+impl Engine {
     pub(crate) fn inner(&self) -> &wasmtime::Engine {
         &self.0
     }

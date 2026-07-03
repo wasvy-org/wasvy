@@ -3,11 +3,13 @@ use bevy_ecs::{
     component::ComponentId, prelude::*, query::FilteredAccess, system::QueryParamBuilder,
     world::FilteredEntityMut,
 };
+use wasvy_runtime::{
+    component::{ComponentRef, get_component, get_component_id_for_filter, set_component},
+    serialize::CodecResource,
+};
 
 use crate::{
     bindings::wasvy::ecs::app::{ComponentIndex, QueryFor},
-    component::{ComponentRef, get_component, get_component_id_for_filter, set_component},
-    serialize::CodecResource,
     system::Param,
 };
 

@@ -22,8 +22,9 @@ bevy_platform.workspace = true
 bevy_remote.workspace = true
 clap.workspace = true
 shlex.workspace = true
-wasvy.workspace = true
 wasvy_cli.workspace = true
+wasvy_wasm.workspace = true
+wasvy_runtime.workspace = true
 
 [dev-dependencies]
 bevy_math.workspace = true

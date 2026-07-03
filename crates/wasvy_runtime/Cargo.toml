@@ -1,0 +1,41 @@
+[package]
+name = "wasvy_runtime"
+authors.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+description = "Host-side modding framework for Bevy. Manages mod lifecycle, scheduling, and access control."
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+publish = true
+
+[features]
+default = ["devtools", "serde_json"]
+devtools = ["dep:bevy_remote"]
+serde_json = ["dep:serde_json"]
+
+[dependencies]
+anyhow.workspace = true
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_derive.workspace = true
+bevy_ecs.workspace = true
+bevy_log.workspace = true
+bevy_platform.workspace = true
+bevy_reflect.workspace = true
+bevy_remote = { workspace = true, optional = true }
+error-collection.workspace = true
+inventory.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, optional = true }
+wasvy_macros.workspace = true
+
+[dev-dependencies]
+wit-bindgen.workspace = true
+trybuild.workspace = true
+bevy_math.workspace = true
+bevy_transform.workspace = true
+wasvy_cli.workspace = true

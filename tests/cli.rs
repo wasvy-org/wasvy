@@ -6,7 +6,7 @@ use bevy_ecs::prelude::*;
 use bevy_math::{Quat, Vec3};
 use bevy_reflect::{Reflect, TypePath};
 use bevy_transform::components::Transform;
-use wasvy::{mods::Mod, prelude::Devtools};
+use wasvy::prelude::*;
 use wasvy_cli::{
     cli::{Args, Command, DevArgs, ModArgs},
     command::Logging,
@@ -16,9 +16,9 @@ use wasvy_cli::{
 };
 use wasvy_mock::{MockApp, next_test_port};
 
-const EXAMPLES: &str = "../../examples";
-const EXAMPLE_MODS: &str = "../../examples/mods";
-const FIXTURE_CRATES: &str = "../../tests/fixtures/crates";
+const EXAMPLES: &str = "examples";
+const EXAMPLE_MODS: &str = "examples/mods";
+const FIXTURE_CRATES: &str = "tests/fixtures/crates";
 
 #[test]
 fn list() {
@@ -34,10 +34,10 @@ fn list() {
 
     let mut app = host.run();
 
-    app.cli("wasvy --path ../../tests/fixtures/crates new -l rust list-mod")
+    app.cli("wasvy --path tests/fixtures/crates new -l rust list-mod")
         .expect("create");
 
-    app.cli("wasvy --path ../../tests/fixtures/crates load -m list-mod")
+    app.cli("wasvy --path tests/fixtures/crates load -m list-mod")
         .expect("load");
 
     signal_receiver
@@ -91,9 +91,10 @@ fn list_default() {
 #[test]
 fn list_components() {
     let app = MockApp::default()
-        .set_devtools(Devtools::default().implement(include_str!(
-            "../../../examples/apps/components/wit/bindings.wit"
-        )))
+        .set_devtools(
+            Devtools::default()
+                .implement(include_str!("../examples/apps/components/wit/bindings.wit")),
+        )
         .run();
     let remote = Remote::connect(app.uri()).unwrap();
     let runtime = Runtime::new(&remote).unwrap();
@@ -124,7 +125,7 @@ fn list_components() {
 fn list_cli_success() {
     let mut app = MockApp::default().run();
 
-    let results = app.cli("wasvy --path ../../examples list");
+    let results = app.cli("wasvy --path examples list");
     assert!(results.is_ok());
 }
 
@@ -161,10 +162,10 @@ mod languages {
 
         let mut app = host.run();
 
-        app.cli("wasvy --path ../../tests/fixtures/crates new -l rust rust-create")
+        app.cli("wasvy --path tests/fixtures/crates new -l rust rust-create")
             .expect("create");
 
-        app.cli("wasvy --path ../../tests/fixtures/crates/rust-create load")
+        app.cli("wasvy --path tests/fixtures/crates/rust-create load")
             .expect("load");
 
         let mut world = app.wait(Duration::from_millis(5000));
@@ -178,8 +179,8 @@ mod languages {
 #[cfg(test)]
 mod dev {
     use super::*;
-    use wasvy::component::WasmComponentRegistry;
     use wasvy_cli::command::Logging;
+    use wasvy_runtime::component::WasmComponentRegistry;
 
     #[derive(Component, Reflect, Default)]
     #[reflect(Component)]
@@ -209,7 +210,7 @@ mod dev {
 
         let mut app = host.run();
 
-        app.cli("wasvy --path ../../tests/fixtures/crates new -l rust watch-create")
+        app.cli("wasvy --path tests/fixtures/crates new -l rust watch-create")
             .expect("create");
 
         let args = Args {
@@ -236,7 +237,7 @@ mod dev {
 
         // Update file which should re-trigger load
         fs::write(
-            "../../tests/fixtures/crates/watch-create/src/lib.rs",
+            "tests/fixtures/crates/watch-create/src/lib.rs",
             marker_mod(),
         )
         .unwrap();

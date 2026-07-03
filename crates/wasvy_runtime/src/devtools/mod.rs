@@ -37,8 +37,8 @@ impl Default for Devtools {
         Self {
             program_name: "Bevy App powered by Wasvy".into(),
             interfaces: vec![
-                include_str!("./../../wit/bevy-ecs.wit").into(),
-                include_str!("./../../wit/wasvy-ecs.wit").into(),
+                include_str!("./../../../../wit/bevy-ecs.wit").into(),
+                include_str!("./../../../../wit/wasvy-ecs.wit").into(),
             ],
         }
     }

@@ -1,12 +1,14 @@
 use anyhow::{Result, bail};
 use bevy_ecs::prelude::*;
 use wasmtime::component::Resource;
+use wasvy_runtime::{
+    component::{with_component_mut, with_component_ref},
+    methods::MethodTarget,
+};
 
 use crate::{
     bindings::wasvy::ecs::app::{ComponentIndex, HostComponent, SerializedComponent},
-    component::{with_component_mut, with_component_ref},
     host::WasmHost,
-    methods::MethodTarget,
     query::QueryId,
     runner::State,
 };

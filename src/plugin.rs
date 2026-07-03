@@ -1,218 +1,92 @@
 use std::sync::Mutex;
+use wasvy_runtime::app_extend::AppExtend;
+use wasvy_runtime::devtools;
 
-use bevy_app::prelude::*;
-use bevy_asset::prelude::*;
-use bevy_ecs::reflect::AppFunctionRegistry;
-use bevy_ecs::reflect::AppTypeRegistry;
-use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
-use bevy_log::prelude::*;
+pub use wasvy_macros::WasvyComponent;
+pub use wasvy_runtime::prelude::*;
+#[cfg(feature = "wasm")]
+pub use wasvy_wasm::WasmBackendPlugin;
 
-use crate::app_extend::AppExtend;
-use crate::{
-    asset::{ModAsset, ModAssetLoader},
-    authoring::AutoRegistrationPlugin,
-    cleanup::{DespawnModEntities, DisableSystemSet, disable_mod_system_sets},
-    component::WasmComponentRegistry,
-    devtools,
-    engine::{Engine, Linker, create_linker},
-    methods::FunctionIndex,
-    mods::{Mod, ModDespawnBehaviour},
-    sandbox::Sandboxed,
-    schedule::{ModSchedule, ModSchedules, ModStartup},
-    serialize::{CodecResource, WasvyCodec},
-    setup::run_setup,
-};
-
-/// This plugin adds Wasvy modding support to the [`App`]
-///
-/// ```no_run
-/// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
-/// # use bevy_app::prelude::*;
-/// # struct DefaultPlugins;
-/// # impl Plugin for DefaultPlugins { fn build(&self, app: &mut App){} }
-/// use wasvy::prelude::*;
-///
-/// App::new()
-///    .add_plugins(DefaultPlugins)
-///    .add_plugins(ModLoaderPlugin::default())
-/// #  .run();
-///    // etc
-/// ```
-///
-/// Looking for next steps? See: [`Mods`](crate::mods::Mods)
-///
-/// ## Examples
-///
-/// ### Run custom schedules
-///
-/// In this example, Wasvy is used to load mods that affect a physics simulation.
-///
-/// In the host:
-/// ```no_run
-/// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
-/// # use bevy_app::prelude::*;
-/// use wasvy::prelude::*;
-///
-/// #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
-/// struct SimulationStart;
-///
-/// # let mut app = App::new();
-/// // The schedule must be added to the world's Schedules Resource
-/// app.add_schedule(Schedule::new(SimulationStart));
-///
-/// app.add_plugins(
-///   // We don't want mods to run systems in any other schedules
-///   ModLoaderPlugin::unscheduled()
-///     .enable_schedule(ModSchedule::FixedUpdate)
-///     .enable_schedule(ModSchedule::new_custom("simulation-start", SimulationStart))
-/// );
-/// ```
-///
-/// In the mod:
-/// ```ignore
-/// fn setup(){
-///    ..
-///
-///    app.add_systems(&Schedule::FixedUpdate, vec![..]);
-///    app.add_systems(&Schedule::Custom("simulation-start".to_string()), vec![..]);
-///
-///    // This one will be ignored and throw a warning
-///    app.add_systems(&Schedule::PreUpdate, vec![..]);
-/// }
-/// ```
 pub struct ModLoaderPlugin(Mutex<Option<Inner>>);
 
 struct Inner {
-    engine: Engine,
-    linker: Linker,
-    schedules: ModSchedules,
-    setup_schedule: Interned<dyn ScheduleLabel>,
-    despawn_behaviour: ModDespawnBehaviour,
-    devtools_config: Option<devtools::Devtools>,
-    codec: Option<CodecResource>,
+    runtime: ModRuntimePlugin,
+    #[cfg(feature = "wasm")]
+    wasm: WasmBackendPlugin,
 }
 
 impl Default for ModLoaderPlugin {
     fn default() -> Self {
-        Self::new(ModSchedules::default())
+        Self(Mutex::new(Some(Inner {
+            runtime: Default::default(),
+            #[cfg(feature = "wasm")]
+            wasm: Default::default(),
+        })))
     }
 }
 
 impl ModLoaderPlugin {
     /// Creates a new modloader that will schedule mods be run during the provided Schedules
     pub fn new(schedules: ModSchedules) -> Self {
-        let engine = Engine::new();
-        let linker = create_linker(&engine);
-        let setup_schedule = First.intern();
-        let despawn_behaviour = ModDespawnBehaviour::default();
-
-        // Devtools should be opt-out by default on dev builds, so no config is needed to use the cli.
-        // Opt out by disabling the feature completely.
-        let devtools_config = if cfg!(all(debug_assertions, feature = "devtools")) {
-            Some(Default::default())
-        } else {
-            None
-        };
-
-        let inner = Inner {
-            engine,
-            linker,
-            schedules,
-            setup_schedule,
-            despawn_behaviour,
-            devtools_config,
-            #[cfg(feature = "serde_json")]
-            codec: Some(CodecResource::default()),
-            #[cfg(not(feature = "serde_json"))]
-            codec: None,
-        };
-
-        ModLoaderPlugin(Mutex::new(Some(inner)))
+        Self(Mutex::new(Some(Inner {
+            runtime: ModRuntimePlugin::new(schedules),
+            #[cfg(feature = "wasm")]
+            wasm: Default::default(),
+        })))
     }
 
     /// Creates plugin with no schedules.
-    ///
-    /// This means that by default loaded mods will not run unless you enable schedules manually using [ModLoaderPlugin::enable_schedule]
-    ///
-    /// If you want wasvy to run on all schedules use `ModLoaderPlugin::default()` or [ModLoaderPlugin::new]
     pub fn unscheduled() -> Self {
-        Self::new(ModSchedules::empty())
+        Self(Mutex::new(Some(Inner {
+            runtime: ModRuntimePlugin::unscheduled(),
+            #[cfg(feature = "wasm")]
+            wasm: Default::default(),
+        })))
     }
 
     /// Enables the devtools. The devtools feature must be enabled in your Cargo.toml.
-    ///
-    /// By default it is enabled on debug (non-release) builds, so the cli works as expected.
-    /// Disable the "devtools" feature to disable it completely.
-    ///
-    /// ```
-    /// # use wasvy::prelude::*;
-    /// # let mut modloader = ModLoaderPlugin::default();
-    /// // Enable and use a custom name
-    /// modloader.devtools("My Bevy app");
-    ///
-    /// # let mut modloader = ModLoaderPlugin::default();
-    /// // Host a custom wit interface:
-    /// modloader.devtools(Devtools {
-    ///     program_name: "Expose anything that you can dream of".into(),
-    ///     interfaces: vec![],
-    /// });
-    /// ```
     pub fn devtools(mut self, config: impl Into<devtools::Devtools>) -> Self {
         let inner = self.inner();
-        inner.devtools_config = Some(config.into());
+        inner.runtime = std::mem::take(&mut inner.runtime).devtools(config);
         self
     }
 
     /// Sets the despawn behaviour for when mods are despawned (or reloaded).
-    ///
-    /// The default behaviour is to despawn all entities the mod spawned.
-    /// See [DespawnEntities](ModDespawnBehaviour::DespawnEntities).
     pub fn set_despawn_behaviour(mut self, despawn_behaviour: ModDespawnBehaviour) -> Self {
         let inner = self.inner();
-        inner.despawn_behaviour = despawn_behaviour;
+        inner.runtime = std::mem::take(&mut inner.runtime).set_despawn_behaviour(despawn_behaviour);
         self
     }
 
     /// Enables a new schedule with the modloader.
-    ///
-    /// When mods add a system to this schedule, then wasvy will automatically add them to the schedule.
-    ///
-    /// If a mod tries to call add_system with an schedule that isn't enabled this will just produce a warning.
-    ///
-    /// In debug mode, this will panic if the schedule is already added.
     pub fn enable_schedule(mut self, schedule: ModSchedule) -> Self {
         let inner = self.inner();
-        inner.schedules.push(schedule);
+        inner.runtime = std::mem::take(&mut inner.runtime).enable_schedule(schedule);
         self
     }
 
     /// Configures during which schedule the modloader sets up new systems.
-    ///
-    /// Defaults to Bevy's [First] schedule.
-    ///
-    /// Schedules can't be modified while in use, therefore a schedule can't both be used to setup mods and run mod systems simultaneously.
     pub fn set_setup_schedule(mut self, schedule: impl ScheduleLabel) -> Self {
         let inner = self.inner();
-        inner.setup_schedule = schedule.intern();
-        self
-    }
-
-    /// Use this function to add custom functionality that will be passed to the WASM module.
-    pub fn add_functionality<F>(mut self, mut f: F) -> Self
-    where
-        F: FnMut(&mut Linker),
-    {
-        let inner = self.inner();
-        f(&mut inner.linker);
+        inner.runtime = std::mem::take(&mut inner.runtime).set_setup_schedule(schedule);
         self
     }
 
     /// Apply a custom codec for serializing data to/from mods
-    ///
-    /// Defaults to [JsonCodec](crate::serialize::JsonCodec)
     pub fn with_codec(mut self, codec: impl WasvyCodec) -> Self {
         let inner = self.inner();
-        inner.codec = Some(CodecResource::new(codec));
+        inner.runtime = std::mem::take(&mut inner.runtime).with_codec(codec);
+        self
+    }
+
+    /// Use this function to add custom functionality that will be passed to WASM modules.
+    #[cfg(feature = "wasm")]
+    pub fn add_functionality<F>(mut self, f: F) -> Self
+    where
+        F: FnMut(&mut wasvy_wasm::Linker),
+    {
+        let inner = self.inner();
+        inner.wasm = std::mem::take(&mut inner.wasm).add_functionality(f);
         self
     }
 
@@ -225,16 +99,12 @@ impl ModLoaderPlugin {
     }
 }
 
-impl Plugin for ModLoaderPlugin {
-    fn build(&self, app: &mut App) {
+impl bevy_app::Plugin for ModLoaderPlugin {
+    fn build(&self, app: &mut bevy_app::App) {
         let Inner {
-            engine,
-            linker,
-            schedules,
-            setup_schedule,
-            despawn_behaviour,
-            devtools_config,
-            codec,
+            runtime,
+            #[cfg(feature = "wasm")]
+            wasm,
         } = self
             .0
             .lock()
@@ -242,64 +112,8 @@ impl Plugin for ModLoaderPlugin {
             .take()
             .expect("ModLoaderPlugin is not built");
 
-        if despawn_behaviour == ModDespawnBehaviour::DespawnEntities {
-            // Registers a component that tracks mod entities and despawns them when the mod despawns
-            app.register_required_components::<Mod, DespawnModEntities>();
-        }
-
-        app.init_asset::<ModAsset>()
-            .register_asset_loader(ModAssetLoader { linker })
-            .insert_resource(engine)
-            .insert_resource(despawn_behaviour)
-            .insert_resource(codec.expect("WasvyCodec is necessary"))
-            .init_resource::<WasmComponentRegistry>()
-            .init_resource::<AppTypeRegistry>()
-            .insert_resource(schedules)
-            .add_schedule(ModStartup::new_schedule())
-            .add_message::<DisableSystemSet>()
-            .add_systems(setup_schedule, (run_setup, disable_mod_system_sets))
-            .add_plugins(AutoRegistrationPlugin);
-
-        if let Some(config) = devtools_config {
-            app.add_plugins(devtools::DevtoolsPlugin(config));
-        } else if cfg!(all(not(debug_assertions), feature = "devtools")) {
-            warn!(
-                "consider disabling the unused \"devtools\" feature of the wasvy dependency to reduce build size"
-            );
-        }
-
-        app.insert_resource(FunctionIndex::build(
-            app.world()
-                .get_resource::<AppTypeRegistry>()
-                .expect("AppTypeRegistry to be initialized"),
-            app.world()
-                .get_resource::<AppFunctionRegistry>()
-                .expect("AppFunctionRegistry to be initialized"),
-        ));
-
-        app.world_mut().register_component::<Sandboxed>();
-    }
-
-    fn finish(&self, app: &mut App) {
-        let asset_plugin: &AssetPlugin = app.plugin();
-
-        // Warn a user running the App in debug; they probably want hot-reloading
-        if cfg!(debug_assertions) && !cfg!(test) {
-            let user_overrode_watch_setting = asset_plugin.watch_for_changes_override.is_some();
-            let resolved_watch_setting = app
-                .world()
-                .get_resource::<AssetServer>()
-                .expect("ModLoaderPlugin requires AssetPlugin to be loaded.")
-                .watching_for_changes();
-
-            if !user_overrode_watch_setting && !resolved_watch_setting {
-                warn!(
-                    "Enable Bevy's watch feature to enable hot-reloading Wasvy mods.\
-                    You can do this by running the command `cargo run --features bevy/file_watcher`.\
-                    In order to hide this message, set the `watch_for_changes_override` to\
-                    `Some(true)` or `Some(false)` in the AssetPlugin."
-                );
-            }
-        }
+        app.try_add_plugin(runtime);
+        #[cfg(feature = "wasm")]
+        app.try_add_plugin(wasm);
     }
 }

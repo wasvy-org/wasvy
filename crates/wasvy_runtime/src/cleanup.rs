@@ -7,10 +7,7 @@ use bevy_ecs::{
 use bevy_log::prelude::*;
 use bevy_platform::collections::{HashMap, HashSet};
 
-use crate::{
-    mods::{ModDespawnBehaviour, ModSystemSet},
-    prelude::ModSchedules,
-};
+use crate::{mods::ModSystemSet, prelude::ModSchedules};
 
 /// A [Message] that triggers disabling of scheduled [ModSystemSets](ModSystemSet).
 ///
@@ -87,23 +84,15 @@ pub(crate) fn disable_mod_system_sets(
 /// When a mod is despawned, so will all the entities it spawned due to the `linked_spawn` clause of the relationship.
 #[derive(Component, Default)]
 #[relationship_target(relationship = DespawnModEntity, linked_spawn)]
-pub(crate) struct DespawnModEntities(EntityHashSet);
+pub struct DespawnModEntities(EntityHashSet);
 
 /// A component that tracks the mod responsible for spawning an entity.
 #[derive(Component)]
 #[relationship(relationship_target = DespawnModEntities)]
-pub(crate) struct DespawnModEntity(pub(crate) Entity);
+pub struct DespawnModEntity(pub(crate) Entity);
 
-/// Determines whether [DespawnModEntity] should be inserted to entities spawned by mods
-#[derive(Clone, Copy)]
-pub(crate) struct InsertDespawnComponent(pub(crate) Option<Entity>);
-
-impl InsertDespawnComponent {
-    pub(crate) fn new(mod_id: Entity, world: &World) -> Self {
-        Self(if ModDespawnBehaviour::should_despawn_entities(world) {
-            Some(mod_id)
-        } else {
-            None
-        })
+impl DespawnModEntity {
+    pub fn new(entity: Entity) -> Self {
+        Self(entity)
     }
 }

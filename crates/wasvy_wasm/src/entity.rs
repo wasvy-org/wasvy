@@ -4,12 +4,14 @@ use bevy_ecs::prelude::*;
 use bevy_log::prelude::*;
 use wasmtime::component::Resource;
 use wasmtime_wasi::ResourceTable;
-
-use crate::{
+use wasvy_runtime::{
     access::ModAccess,
-    bindings::wasvy::ecs::app::{Bundle, BundleTypes},
     cleanup::DespawnModEntity,
     component::{insert_component, remove_component},
+};
+
+use crate::{
+    bindings::wasvy::ecs::app::{Bundle, BundleTypes},
     host::WasmHost,
     runner::State,
 };
@@ -63,8 +65,8 @@ where
     };
 
     // Make sure this entity is despawned when the mod is despawned. See [ModDespawnBehaviour]
-    if let Some(mod_id) = insert_despawn_component.0 {
-        entity_commands.insert(DespawnModEntity(mod_id));
+    if let Some(mod_id) = insert_despawn_component.as_ref() {
+        entity_commands.insert(DespawnModEntity::new(*mod_id));
     }
 
     let entity = entity_commands.id();

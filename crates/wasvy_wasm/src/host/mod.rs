@@ -16,6 +16,7 @@ mod entity;
 mod entity_commands;
 mod query;
 mod query_result;
+mod schedule;
 mod serialize;
 mod system;
 

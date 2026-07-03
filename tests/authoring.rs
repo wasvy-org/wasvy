@@ -4,10 +4,10 @@ use bevy_ecs::prelude::{AppTypeRegistry, ReflectComponent};
 use bevy_ecs::reflect::AppFunctionRegistry;
 use bevy_reflect::{Reflect, TypePath};
 
-use wasvy::WasvyComponent;
-use wasvy::methods::MethodTarget;
 use wasvy::prelude::*;
-use wasvy::serialize::CodecResource;
+use wasvy_runtime::methods::MethodTarget;
+use wasvy_runtime::serialize::CodecResource;
+use wasvy_runtime::witgen::generate_wit;
 
 #[derive(Component, Reflect, Default, WasvyComponent)]
 #[reflect(Component)]
@@ -87,7 +87,7 @@ fn methods_macro_registers() {
         )
         .unwrap();
 
-    let pct_val: f32 = wasvy::serialize::wasvy_decode(&pct).unwrap();
+    let pct_val: f32 = wasvy_runtime::serialize::wasvy_decode(&pct).unwrap();
     assert!((pct_val - 0.7).abs() < 1e-6);
 }
 
@@ -108,7 +108,7 @@ fn component_plugin_registers_type() {
         .expect("type registration");
     assert!(
         registration
-            .data::<wasvy::authoring::WasvyExport>()
+            .data::<wasvy_runtime::authoring::WasvyExport>()
             .is_some()
     );
 }
@@ -209,8 +209,8 @@ fn wit_uses_arg_names() {
         .world()
         .get_resource::<AppFunctionRegistry>()
         .expect("AppFunctionRegistry to exist");
-    let settings = wasvy::witgen::WitGeneratorSettings::default();
-    let output = wasvy::witgen::generate_wit(&settings, type_registry, function_registry);
+    let settings = WitGeneratorSettings::default();
+    let output = generate_wit(&settings, type_registry, function_registry);
 
     assert!(output.contains("heal: func(amount: f32)"), "{output}");
 }

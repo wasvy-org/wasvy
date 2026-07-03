@@ -4,17 +4,16 @@ use anyhow::Result;
 use bevy_ecs::{prelude::*, reflect::AppTypeRegistry, world::FilteredEntityMut};
 use wasmtime::component::ResourceAny;
 use wasmtime_wasi::ResourceTable;
+use wasvy_runtime::{
+    access::ModAccess, component::WasmComponentRegistry, mods::InsertDespawnComponent,
+    prelude::FunctionIndex, serialize::CodecResource,
+};
 
 use crate::{
-    access::ModAccess,
-    cleanup::InsertDespawnComponent,
-    component::WasmComponentRegistry,
     engine::Engine,
     host::WasmHost,
-    methods::FunctionIndex,
     query::{Queries, QueryResolver},
     send_sync_ptr::SendSyncPtr,
-    serialize::CodecResource,
     system::AddSystems,
 };
 

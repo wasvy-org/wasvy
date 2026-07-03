@@ -5,10 +5,8 @@ mod fixtures {
 use bevy_app::App;
 use bevy_ecs::prelude::AppTypeRegistry;
 use bevy_ecs::reflect::AppFunctionRegistry;
-use wasvy::{
-    prelude::AutoRegistrationPlugin,
-    witgen::{self, WitGeneratorSettings},
-};
+use wasvy::prelude::*;
+use wasvy_runtime::witgen::generate_wit;
 
 #[test]
 fn include_wasvy_components_preserves_type_path() {
@@ -24,7 +22,7 @@ fn include_wasvy_components_preserves_type_path() {
         .get_resource::<AppFunctionRegistry>()
         .expect("AppFunctionRegistry");
     let settings = WitGeneratorSettings::default();
-    let output = witgen::generate_wit(&settings, type_registry, function_registry);
+    let output = generate_wit(&settings, type_registry, function_registry);
     let expected = format!(
         "wasvy:type-path={}::fixtures::components::Health",
         module_path!()

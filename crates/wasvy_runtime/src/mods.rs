@@ -1,6 +1,7 @@
 use std::fmt;
 
 use bevy_asset::{AssetPath, AssetServer, Handle};
+use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     change_detection::MaybeLocation, error::warn, lifecycle::HookContext, prelude::*,
     system::SystemParam, world::DeferredWorld,
@@ -329,6 +330,20 @@ impl ModDespawnBehaviour {
             None | Some(ModDespawnBehaviour::DespawnEntities) => true,
             Some(ModDespawnBehaviour::None) => false,
         }
+    }
+}
+
+/// Determines whether [DespawnModEntity] should be inserted to entities spawned by mods
+#[derive(Clone, Copy, Deref, DerefMut)]
+pub struct InsertDespawnComponent(Option<Entity>);
+
+impl InsertDespawnComponent {
+    pub fn new(mod_id: Entity, world: &World) -> Self {
+        Self(if ModDespawnBehaviour::should_despawn_entities(world) {
+            Some(mod_id)
+        } else {
+            None
+        })
     }
 }
 

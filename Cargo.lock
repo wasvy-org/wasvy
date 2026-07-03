@@ -527,6 +527,7 @@ dependencies = [
  "bevy-inspector-egui",
  "bevy_egui",
  "wasvy",
+ "wasvy_wasm",
 ]
 
 [[package]]
@@ -2544,6 +2545,7 @@ dependencies = [
  "serde_json",
  "wasmtime",
  "wasvy",
+ "wasvy_wasm",
 ]
 
 [[package]]
@@ -3010,6 +3012,7 @@ dependencies = [
  "rmpv",
  "serde",
  "wasvy",
+ "wasvy_wasm",
 ]
 
 [[package]]
@@ -7260,26 +7263,18 @@ dependencies = [
 name = "wasvy"
 version = "0.0.9"
 dependencies = [
- "anyhow",
  "bevy_app",
- "bevy_asset",
- "bevy_derive",
  "bevy_ecs",
- "bevy_log",
  "bevy_math",
- "bevy_platform",
  "bevy_reflect",
- "bevy_remote",
  "bevy_transform",
- "error-collection",
- "inventory",
- "serde",
- "serde_json",
  "trybuild",
  "wasmtime",
- "wasmtime-wasi",
  "wasvy_cli",
  "wasvy_macros",
+ "wasvy_mock",
+ "wasvy_runtime",
+ "wasvy_wasm",
  "wit-bindgen 0.58.0",
 ]
 
@@ -7336,8 +7331,50 @@ dependencies = [
  "bevy_transform",
  "clap",
  "shlex",
- "wasvy",
  "wasvy_cli",
+ "wasvy_runtime",
+ "wasvy_wasm",
+]
+
+[[package]]
+name = "wasvy_runtime"
+version = "0.0.9"
+dependencies = [
+ "anyhow",
+ "bevy_app",
+ "bevy_asset",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_log",
+ "bevy_math",
+ "bevy_platform",
+ "bevy_reflect",
+ "bevy_remote",
+ "bevy_transform",
+ "error-collection",
+ "inventory",
+ "serde",
+ "serde_json",
+ "trybuild",
+ "wasvy_cli",
+ "wasvy_macros",
+ "wit-bindgen 0.58.0",
+]
+
+[[package]]
+name = "wasvy_wasm"
+version = "0.0.9"
+dependencies = [
+ "anyhow",
+ "bevy_app",
+ "bevy_asset",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_log",
+ "bevy_reflect",
+ "wasmtime",
+ "wasmtime-wasi",
+ "wasvy_runtime",
 ]
 
 [[package]]

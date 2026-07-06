@@ -7,7 +7,7 @@ use bevy_platform::collections::HashSet;
 ///
 /// See the docs for [bevy schedules](bevy_app::Main).
 ///
-/// Call [ModLoaderPlugin::enable_schedule](crate::plugin::ModLoaderPlugin::enable_schedule)
+/// Call [ModRuntimePlugin::enable_schedule](crate::plugin::ModRuntimePlugin::enable_schedule)
 /// to enable new or custom schedules for mods.
 ///
 /// None of the startup schedules (like [PreStartup],
@@ -20,7 +20,7 @@ pub enum ModSchedule {
     ///
     /// It is a custom schedule that runs during the setup schedule
     /// (which defaults to [First]), see
-    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)).
+    /// [ModRuntimePlugin::set_setup_schedule](crate::plugin::ModRuntimePlugin::set_setup_schedule)).
     ///
     /// Upon being loaded, mods are guaranteed to only run this schedule once,
     /// even if other mods are loaded afterwards.
@@ -58,7 +58,7 @@ impl ModSchedule {
     /// - `schedule` is the Bevy schedule this represents. This schedule must be added to the Bevy Schedules.
     ///
     /// Note: Trying to add mod systems to the setup schedule (which defaults to [First], see
-    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule))
+    /// [ModRuntimePlugin::set_setup_schedule](crate::plugin::ModRuntimePlugin::set_setup_schedule))
     /// Bevy's First schedule will do nothing since this is the mod setup phase
     pub fn new_custom(name: impl ToString, schedule: impl ScheduleLabel) -> Self {
         let name = name.to_string();
@@ -110,11 +110,11 @@ impl ModStartup {
 
 /// A collection of the [ModSchedules] where Wasvy will run mod systems.
 ///
-/// Adjust this via [ModLoaderPlugin::new](crate::plugin::ModLoaderPlugin::new). This will only affect
+/// Adjust this via [ModRuntimePlugin::new](crate::plugin::ModRuntimePlugin::new). This will only affect
 /// mods with access to the world.
 ///
-/// Or more simply, call [ModLoaderPlugin::enable_schedule](crate::plugin::ModLoaderPlugin::enable_schedule) with
-/// [ModLoaderPlugin::default](crate::plugin::ModLoaderPlugin::default).
+/// Or more simply, call [ModRuntimePlugin::enable_schedule](crate::plugin::ModRuntimePlugin::enable_schedule) with
+/// [ModRuntimePlugin::default](crate::plugin::ModRuntimePlugin::default).
 ///
 /// When using a [Sandbox](crate::sandbox::Sandbox), this is provided as an argument to adjust schedules for
 /// mod systems that run in that sandbox.

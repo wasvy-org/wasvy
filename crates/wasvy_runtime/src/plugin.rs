@@ -29,11 +29,11 @@ use crate::{
 /// # use bevy_app::prelude::*;
 /// # struct DefaultPlugins;
 /// # impl Plugin for DefaultPlugins { fn build(&self, app: &mut App){} }
-/// use wasvy::prelude::*;
+/// use wasvy_runtime::prelude::*;
 ///
 /// App::new()
 ///    .add_plugins(DefaultPlugins)
-///    .add_plugins(ModLoaderPlugin::default())
+///    .add_plugins(ModRuntimePlugin::default())
 /// #  .run();
 ///    // etc
 /// ```
@@ -50,7 +50,7 @@ use crate::{
 /// ```no_run
 /// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
 /// # use bevy_app::prelude::*;
-/// use wasvy::prelude::*;
+/// use wasvy_runtime::prelude::*;
 ///
 /// #[derive(ScheduleLabel, Clone, Debug, PartialEq, Eq, Hash, Default)]
 /// struct SimulationStart;
@@ -61,7 +61,7 @@ use crate::{
 ///
 /// app.add_plugins(
 ///   // We don't want mods to run systems in any other schedules
-///   ModLoaderPlugin::unscheduled()
+///   ModRuntimePlugin::unscheduled()
 ///     .enable_schedule(ModSchedule::FixedUpdate)
 ///     .enable_schedule(ModSchedule::new_custom("simulation-start", SimulationStart))
 /// );
@@ -125,9 +125,9 @@ impl ModRuntimePlugin {
 
     /// Creates plugin with no schedules.
     ///
-    /// This means that by default loaded mods will not run unless you enable schedules manually using [ModLoaderPlugin::enable_schedule]
+    /// This means that by default loaded mods will not run unless you enable schedules manually using [ModRuntimePlugin::enable_schedule]
     ///
-    /// If you want wasvy to run on all schedules use `ModLoaderPlugin::default()` or [ModLoaderPlugin::new]
+    /// If you want wasvy to run on all schedules use `ModRuntimePlugin::default()` or [ModRuntimePlugin::new]
     pub fn unscheduled() -> Self {
         Self::new(ModSchedules::empty())
     }
@@ -138,12 +138,12 @@ impl ModRuntimePlugin {
     /// Disable the "devtools" feature to disable it completely.
     ///
     /// ```
-    /// # use wasvy::prelude::*;
-    /// # let mut modloader = ModLoaderPlugin::default();
+    /// # use wasvy_runtime::prelude::*;
+    /// # let mut modloader = ModRuntimePlugin::default();
     /// // Enable and use a custom name
     /// modloader.devtools("My Bevy app");
     ///
-    /// # let mut modloader = ModLoaderPlugin::default();
+    /// # let mut modloader = ModRuntimePlugin::default();
     /// // Host a custom wit interface:
     /// modloader.devtools(Devtools {
     ///     program_name: "Expose anything that you can dream of".into(),

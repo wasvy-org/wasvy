@@ -5,7 +5,7 @@
 //!   **no methods**. This is important for components that are queried or
 //!   serialized but never invoked.
 //! - [`WasvyMethods`] registers exported methods (typically via
-//!   [`#[wasvy::methods]`](macro@crate::methods)).
+//!   [`#[wasvy::methods]`](\[wasvy::methods\])).
 //! - [`AutoRegistrationPlugin`] apply all submitted
 //!   registrations to a Bevy `App`.
 //!
@@ -193,7 +193,7 @@ impl<T: WasvyMethods> Plugin for WasvyMethodsPlugin<T> {
 
 /// Plugin that registers all components and methods submitted to inventory.
 ///
-/// This is used by [ModLoaderPlugin](crate::plugin::ModLoaderPlugin) and can be called directly
+/// This is used by [ModRuntimePlugin](crate::plugin::ModRuntimePlugin) and can be called directly
 /// in build scripts that generate WIT.
 pub struct AutoRegistrationPlugin;
 

@@ -66,7 +66,7 @@ impl Mods<'_, '_> {
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
-    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
+    /// [ModRuntimePlugin::set_setup_schedule](crate::plugin::ModRuntimePlugin::set_setup_schedule)) runs.
     #[track_caller]
     pub fn despawn(&mut self, mod_id: Entity) {
         let caller = MaybeLocation::caller();
@@ -89,7 +89,7 @@ impl Mods<'_, '_> {
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
-    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
+    /// [ModRuntimePlugin::set_setup_schedule](crate::plugin::ModRuntimePlugin::set_setup_schedule)) runs.
     #[track_caller]
     pub fn enable_access(&mut self, mod_id: Entity, access: ModAccess) {
         let caller = MaybeLocation::caller();
@@ -121,7 +121,7 @@ impl Mods<'_, '_> {
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
-    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
+    /// [ModRuntimePlugin::set_setup_schedule](crate::plugin::ModRuntimePlugin::set_setup_schedule)) runs.
     #[track_caller]
     pub fn disable_access(&mut self, mod_id: Entity, access: ModAccess) {
         let caller = MaybeLocation::caller();
@@ -194,7 +194,7 @@ impl Mod {
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
-    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
+    /// [ModRuntimePlugin::set_setup_schedule](crate::plugin::ModRuntimePlugin::set_setup_schedule)) runs.
     pub fn enable_access(&mut self, access: ModAccess) -> bool {
         self.access.insert(access)
     }
@@ -205,7 +205,7 @@ impl Mod {
     ///
     /// Note: The effect of this change is not immediate. This change will apply after the setup
     /// schedule (which defaults to [First](bevy_app::First), see
-    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)) runs.
+    /// [ModRuntimePlugin::set_setup_schedule](crate::plugin::ModRuntimePlugin::set_setup_schedule)) runs.
     pub fn disable_access(&mut self, access: &ModAccess) -> bool {
         self.access.remove(access)
     }
@@ -305,7 +305,7 @@ impl ModSystemSet {
 /// An enum that defines what happens when a mod is despawned (or reloaded)
 ///
 /// Set this value during plugin instantiation via
-/// [ModLoaderPlugin::set_despawn_behaviour](crate::plugin::ModLoaderPlugin::set_despawn_behaviour).
+/// [ModRuntimePlugin::set_despawn_behaviour](crate::plugin::ModRuntimePlugin::set_despawn_behaviour).
 ///
 /// The default behaviour is to despawn all entities this mod spawned.
 /// See [DespawnEntities](ModDespawnBehaviour::DespawnEntities).
@@ -333,7 +333,7 @@ impl ModDespawnBehaviour {
     }
 }
 
-/// Determines whether [DespawnModEntity] should be inserted to entities spawned by mods
+/// Determines whether `DespawnModEntities` should be inserted to entities spawned by mods
 #[derive(Clone, Copy, Deref, DerefMut)]
 pub struct InsertDespawnComponent(Option<Entity>);
 

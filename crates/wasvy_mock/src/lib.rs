@@ -24,7 +24,7 @@ use wasvy_wasm::WasmBackendPlugin;
 
 const WAIT: Duration = Duration::from_millis(10);
 
-/// Prepare and run a [Mock] Bevy app running [ModLoaderPlugin].
+/// Prepare and run a [Mock] Bevy app running [ModRuntimePlugin].
 ///
 /// Construct via [MockApp::default()], use like a Bevy [App].
 #[derive(Default, Debug, Deref, DerefMut)]

@@ -26,7 +26,7 @@ pub use wasvy_wasm::WasmBackendPlugin;
 ///    // etc
 /// ```
 ///
-/// Looking for next steps? See: [`Mods`](wasvy_runtime::mods::Mods).
+/// Looking for next steps? See: [`Mods`].
 ///
 /// ## Examples
 ///

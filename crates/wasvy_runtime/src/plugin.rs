@@ -22,7 +22,13 @@ use crate::{
     setup::run_setup,
 };
 
-/// This plugin adds Wasvy modding support to the [`App`]
+/// Adds Wasvy runtime support to a [`bevy_app::App`].
+///
+/// This plugin manages mod lifecycle resources, host-side scheduling, access
+/// control, auto-registration, serialization, and optional devtools. It does
+/// not install a concrete mod execution backend such as the WASM backend; use
+/// the top-level `wasvy::plugin::ModLoaderPlugin` for the bundled runtime plus
+/// backend setup.
 ///
 /// ```no_run
 /// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
@@ -38,13 +44,14 @@ use crate::{
 ///    // etc
 /// ```
 ///
-/// Looking for next steps? See: [`Mods`](crate::mods::Mods)
+/// Looking for next steps? See: [`Mods`](crate::mods::Mods).
 ///
 /// ## Examples
 ///
 /// ### Run custom schedules
 ///
-/// In this example, Wasvy is used to load mods that affect a physics simulation.
+/// In this example, Wasvy is configured to run mod systems as part of a physics
+/// simulation schedule.
 ///
 /// In the host:
 /// ```no_run
@@ -75,7 +82,7 @@ use crate::{
 ///    app.add_systems(&Schedule::FixedUpdate, vec![..]);
 ///    app.add_systems(&Schedule::Custom("simulation-start".to_string()), vec![..]);
 ///
-///    // This one will be ignored and throw a warning
+///    // This one will be ignored and will emit a warning.
 ///    app.add_systems(&Schedule::PreUpdate, vec![..]);
 /// }
 /// ```
@@ -96,7 +103,7 @@ impl Default for ModRuntimePlugin {
 }
 
 impl ModRuntimePlugin {
-    /// Creates a new modloader that will schedule mods be run during the provided Schedules
+    /// Creates a runtime plugin that allows mod systems to run during the provided schedules.
     pub fn new(schedules: ModSchedules) -> Self {
         let setup_schedule = First.intern();
         let despawn_behaviour = ModDespawnBehaviour::default();
@@ -123,29 +130,32 @@ impl ModRuntimePlugin {
         ModRuntimePlugin(Mutex::new(Some(inner)))
     }
 
-    /// Creates plugin with no schedules.
+    /// Creates a runtime plugin with no enabled mod schedules.
     ///
-    /// This means that by default loaded mods will not run unless you enable schedules manually using [ModRuntimePlugin::enable_schedule]
+    /// Loaded mods will not run systems unless you enable schedules manually
+    /// using [`ModRuntimePlugin::enable_schedule`].
     ///
-    /// If you want wasvy to run on all schedules use `ModRuntimePlugin::default()` or [ModRuntimePlugin::new]
+    /// If you want Wasvy to run on the default mod schedules, use
+    /// [`ModRuntimePlugin::default`] or [`ModRuntimePlugin::new`].
     pub fn unscheduled() -> Self {
         Self::new(ModSchedules::empty())
     }
 
     /// Enables the devtools. The devtools feature must be enabled in your Cargo.toml.
     ///
-    /// By default it is enabled on debug (non-release) builds, so the cli works as expected.
-    /// Disable the "devtools" feature to disable it completely.
+    /// By default, devtools are enabled on debug (non-release) builds, so the
+    /// CLI works without extra configuration. Disable the `devtools` feature to
+    /// disable them completely.
     ///
     /// ```
     /// # use wasvy_runtime::prelude::*;
-    /// # let mut modloader = ModRuntimePlugin::default();
-    /// // Enable and use a custom name
-    /// modloader.devtools("My Bevy app");
+    /// # let runtime = ModRuntimePlugin::default();
+    /// // Enable and use a custom name.
+    /// runtime.devtools("My Bevy app");
     ///
-    /// # let mut modloader = ModRuntimePlugin::default();
-    /// // Host a custom wit interface:
-    /// modloader.devtools(Devtools {
+    /// # let runtime = ModRuntimePlugin::default();
+    /// // Host a custom WIT interface:
+    /// runtime.devtools(Devtools {
     ///     program_name: "Expose anything that you can dream of".into(),
     ///     interfaces: vec![],
     /// });
@@ -166,33 +176,37 @@ impl ModRuntimePlugin {
         self
     }
 
-    /// Enables a new schedule with the modloader.
+    /// Enables a new schedule for mod systems.
     ///
-    /// When mods add a system to this schedule, then wasvy will automatically add them to the schedule.
+    /// When mods add a system to this schedule, Wasvy automatically adds it to
+    /// the host schedule.
     ///
-    /// If a mod tries to call add_system with an schedule that isn't enabled this will just produce a warning.
+    /// If a mod tries to add a system to a schedule that is not enabled, Wasvy
+    /// emits a warning instead.
     ///
-    /// In debug mode, this will panic if the schedule is already added.
+    /// In debug mode, this panics if the schedule is already enabled.
     pub fn enable_schedule(mut self, schedule: ModSchedule) -> Self {
         let inner = self.inner();
         inner.schedules.insert(schedule);
         self
     }
 
-    /// Configures during which schedule the modloader sets up new systems.
+    /// Configures the schedule where Wasvy discovers newly loaded mods and sets up their systems.
     ///
     /// Defaults to Bevy's [First] schedule.
     ///
-    /// Schedules can't be modified while in use, therefore a schedule can't both be used to setup mods and run mod systems simultaneously.
+    /// Schedules cannot be modified while in use, so this schedule cannot also
+    /// be used to run mod systems.
     pub fn set_setup_schedule(mut self, schedule: impl ScheduleLabel) -> Self {
         let inner = self.inner();
         inner.setup_schedule = schedule.intern();
         self
     }
 
-    /// Apply a custom codec for serializing data to/from mods
+    /// Applies a custom codec for serializing data to and from mods.
     ///
-    /// Defaults to [JsonCodec](crate::serialize::JsonCodec)
+    /// Defaults to [`JsonCodec`](crate::serialize::JsonCodec) when the
+    /// `serde_json` feature is enabled.
     pub fn with_codec(mut self, codec: impl WasvyCodec) -> Self {
         let inner = self.inner();
         inner.codec = Some(CodecResource::new(codec));
@@ -219,9 +233,9 @@ impl Plugin for ModRuntimePlugin {
         } = self
             .0
             .lock()
-            .expect("ModLoaderPlugin is not locked")
+            .expect("ModRuntimePlugin is not locked")
             .take()
-            .expect("ModLoaderPlugin is not built");
+            .expect("ModRuntimePlugin is not built");
 
         if despawn_behaviour == ModDespawnBehaviour::DespawnEntities {
             // Registers a component that tracks mod entities and despawns them when the mod despawns
@@ -268,7 +282,7 @@ impl Plugin for ModRuntimePlugin {
             let resolved_watch_setting = app
                 .world()
                 .get_resource::<AssetServer>()
-                .expect("ModLoaderPlugin requires AssetPlugin to be loaded.")
+                .expect("ModRuntimePlugin requires AssetPlugin to be loaded.")
                 .watching_for_changes();
 
             if !user_overrode_watch_setting && !resolved_watch_setting {

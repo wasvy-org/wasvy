@@ -22,6 +22,6 @@ pub mod wasm {
 }
 
 pub use wasvy_macros::{
-    auto_host_components, component, guest_bindings, guest_type_paths, include_wasvy_components,
-    methods, skip, WasvyComponent,
+    WasvyComponent, auto_host_components, component, guest_bindings, guest_type_paths,
+    include_wasvy_components, methods, skip,
 };

@@ -11,6 +11,11 @@ run app *args:
 cli *args:
 	cargo run -p wasvy_cli -- {{args}}
 
+# Run the throwaway executor-seam prototype for GitHub issue #81.
+[group("examples")]
+prototype-executor-seam:
+	cargo run --release --example prototype_executor_seam
+
 # Build an example guest rust mod to wasm and place it in the shared assets directory
 [group("examples")]
 [arg("mod", pattern="^(basic|components)$")]

@@ -14,6 +14,7 @@ cli *args:
 # Run the throwaway executor-seam prototype for GitHub issue #81.
 [group("examples")]
 prototype-executor-seam:
+	cargo build --manifest-path examples/prototypes/executor_seam/guest/Cargo.toml --target wasm32-wasip2 --release --target-dir target/prototype-executor-seam-guest
 	cargo run --release --example prototype_executor_seam
 
 # Build an example guest rust mod to wasm and place it in the shared assets directory

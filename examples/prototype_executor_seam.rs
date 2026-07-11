@@ -6,6 +6,8 @@
 
 #[path = "prototypes/executor_seam/logic.rs"]
 mod logic;
+#[path = "prototypes/executor_seam/real_wasm.rs"]
+mod real_wasm;
 
 use std::{
     io::{self, Write},
@@ -19,18 +21,18 @@ use bevy_ecs::prelude::*;
 use logic::{
     ACTIVE_PLAN, ArtifactKind, INVOCATION_CHANGED_PLAN, PrototypeState, SCHEDULING_CHANGED_PLAN,
 };
-use serde::{Deserialize, Serialize};
+use real_wasm::WasmArtifact;
 
 const BOLD: &str = "\x1b[1m";
 const DIM: &str = "\x1b[2m";
 const RESET: &str = "\x1b[0m";
 
-#[derive(Resource, Clone, Debug, Serialize, Deserialize)]
+#[derive(Resource, Clone, Debug)]
 struct Counter {
     ticks: u64,
 }
 
-#[derive(Component, Clone, Debug, Serialize, Deserialize)]
+#[derive(Component, Clone, Debug)]
 struct Actor {
     energy: i64,
 }
@@ -46,12 +48,14 @@ struct ActiveRuntime {
 #[derive(Resource)]
 struct ExecutionSlot {
     active: AtomicPtr<ActiveRuntime>,
+    wasm: WasmArtifact,
 }
 
 impl ExecutionSlot {
-    fn new(generation: u64, kind: ArtifactKind) -> Self {
+    fn new(generation: u64, kind: ArtifactKind, wasm: WasmArtifact) -> Self {
         Self {
             active: AtomicPtr::new(Box::into_raw(Box::new(ActiveRuntime { generation, kind }))),
+            wasm,
         }
     }
 
@@ -73,7 +77,9 @@ struct Telemetry {
     executor_runs: AtomicU64,
     native_calls: AtomicU64,
     wasm_calls: AtomicU64,
-    serialized_values: AtomicU64,
+    wasm_host_calls: AtomicU64,
+    resource_changes: AtomicU64,
+    component_changes: AtomicU64,
 }
 
 #[derive(Clone, Copy)]
@@ -81,7 +87,9 @@ struct TelemetrySnapshot {
     executor_runs: u64,
     native_calls: u64,
     wasm_calls: u64,
-    serialized_values: u64,
+    wasm_host_calls: u64,
+    resource_changes: u64,
+    component_changes: u64,
 }
 
 impl Telemetry {
@@ -90,7 +98,9 @@ impl Telemetry {
             executor_runs: self.executor_runs.load(Ordering::Relaxed),
             native_calls: self.native_calls.load(Ordering::Relaxed),
             wasm_calls: self.wasm_calls.load(Ordering::Relaxed),
-            serialized_values: self.serialized_values.load(Ordering::Relaxed),
+            wasm_host_calls: self.wasm_host_calls.load(Ordering::Relaxed),
+            resource_changes: self.resource_changes.load(Ordering::Relaxed),
+            component_changes: self.component_changes.load(Ordering::Relaxed),
         }
     }
 }
@@ -100,7 +110,7 @@ fn wasvy_executor(
     slot: Res<ExecutionSlot>,
     telemetry: Res<Telemetry>,
     mut counter: ResMut<Counter>,
-    mut actors: Query<&mut Actor>,
+    mut actors: Query<(Entity, &mut Actor)>,
 ) {
     telemetry.executor_runs.fetch_add(1, Ordering::Relaxed);
     let active = slot.load();
@@ -113,44 +123,47 @@ fn wasvy_executor(
         }
         ArtifactKind::Wasm => {
             telemetry.wasm_calls.fetch_add(1, Ordering::Relaxed);
-            wasm_bridge(&mut counter, &mut actors, &telemetry);
+            let host_calls = slot
+                .wasm
+                .invoke(&mut counter, &mut actors)
+                .expect("real prototype Component invocation");
+            telemetry
+                .wasm_host_calls
+                .fetch_add(host_calls, Ordering::Relaxed);
         }
     }
 }
 
 /// Native path: direct access to real typed Bevy parameters. No reflection,
 /// serialization, allocation, hash lookup, or dynamic query reconstruction.
-fn native_export(counter: &mut Counter, actors: &mut Query<&mut Actor>) {
-    counter.ticks += 1;
-    for mut actor in actors.iter_mut() {
-        actor.energy += 1;
-    }
+fn observe_changes(counter: Res<Counter>, actors: Query<Ref<Actor>>, telemetry: Res<Telemetry>) {
+    telemetry
+        .resource_changes
+        .fetch_add(u64::from(counter.is_changed()), Ordering::Relaxed);
+    let changed = actors.iter().filter(|actor| actor.is_changed()).count() as u64;
+    telemetry
+        .component_changes
+        .fetch_add(changed, Ordering::Relaxed);
 }
 
-/// Simulates the WASM transport while deliberately reusing the same typed
-/// executor and Bevy access declaration. Different behavior makes swaps visible.
-fn wasm_bridge(counter: &mut Counter, actors: &mut Query<&mut Actor>, telemetry: &Telemetry) {
-    let bytes = serde_json::to_vec(counter).unwrap();
-    let mut guest_counter: Counter = serde_json::from_slice(&bytes).unwrap();
-    telemetry.serialized_values.fetch_add(1, Ordering::Relaxed);
-    guest_counter.ticks += 10;
-    *counter = guest_counter;
-
-    for mut actor in actors.iter_mut() {
-        let bytes = serde_json::to_vec(&*actor).unwrap();
-        let mut guest_actor: Actor = serde_json::from_slice(&bytes).unwrap();
-        telemetry.serialized_values.fetch_add(1, Ordering::Relaxed);
-        guest_actor.energy += 10;
-        *actor = guest_actor;
+fn native_export(counter: &mut Counter, actors: &mut Query<(Entity, &mut Actor)>) {
+    counter.ticks += 1;
+    for (_, mut actor) in actors.iter_mut() {
+        actor.energy += 1;
     }
 }
 
 fn main() {
     let mut app = App::new();
+    let wasm = WasmArtifact::load(
+        "target/prototype-executor-seam-guest/wasm32-wasip2/release/executor_seam_guest.wasm",
+    )
+    .expect("build the prototype through `just prototype-executor-seam`");
+
     app.insert_resource(Counter { ticks: 0 })
-        .insert_resource(ExecutionSlot::new(1, ArtifactKind::Native))
+        .insert_resource(ExecutionSlot::new(1, ArtifactKind::Native, wasm))
         .init_resource::<Telemetry>()
-        .add_systems(Update, wasvy_executor);
+        .add_systems(Update, (wasvy_executor, observe_changes).chain());
     app.world_mut().spawn(Actor { energy: 0 });
 
     let mut state = PrototypeState::default();
@@ -234,8 +247,10 @@ fn render(app: &mut App, state: &PrototypeState, benchmark: &str) {
     println!("{BOLD}Executor telemetry{RESET}");
     println!("  executor runs:         {}", telemetry.executor_runs);
     println!("  direct Native calls:   {}", telemetry.native_calls);
-    println!("  bridged Wasm calls:    {}", telemetry.wasm_calls);
-    println!("  serialized values:     {}", telemetry.serialized_values);
+    println!("  real Wasm calls:       {}", telemetry.wasm_calls);
+    println!("  WASM host calls:       {}", telemetry.wasm_host_calls);
+    println!("  resource change ticks: {}", telemetry.resource_changes);
+    println!("  component change ticks:{}", telemetry.component_changes);
     println!("  benchmark:             {benchmark}\n");
 
     println!("{BOLD}Last action{RESET}");

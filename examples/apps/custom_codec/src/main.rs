@@ -10,7 +10,7 @@ use bevy::{
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use serde::de::DeserializeSeed;
-use wasvy::{plugin::ModLoaderPlugin, serialize::WasvyCodec};
+use wasvy::prelude::*;
 
 /// My custom codec
 pub struct MessagePack;

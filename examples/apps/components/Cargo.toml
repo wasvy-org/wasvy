@@ -16,6 +16,7 @@ build = "build.rs"
 [dependencies]
 # Replace in your own project:
 wasvy.workspace = true # wasvy = { version = "0.0.9" }
+wasvy_wasm.workspace = true
 
 bevy_app.workspace = true
 bevy_asset.workspace = true

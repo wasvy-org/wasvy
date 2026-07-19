@@ -1,0 +1,36 @@
+[package]
+name = "wasvy_wasm"
+authors.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+description = "WASM backend for wasvy_runtime. Execute WebAssembly mods powered by Wasmtime and WASI."
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+publish = true
+
+[features]
+default = []
+serde_json = ["wasvy_runtime/serde_json"]
+
+[dependencies]
+anyhow.workspace = true
+bevy_app.workspace = true
+bevy_asset.workspace = true
+bevy_derive.workspace = true
+bevy_ecs.workspace = true
+bevy_log.workspace = true
+bevy_reflect.workspace = true
+wasmtime.workspace = true
+wasmtime-wasi.workspace = true
+wasvy_runtime.workspace = true
+
+# These lints may be important signals about code quality, but normal Bevy code
+# commonly triggers them and the CI workflow treats them as errors, so we've
+# chosen to allow them.
+[lints.clippy]
+too_many_arguments = "allow"
+type_complexity = "allow"

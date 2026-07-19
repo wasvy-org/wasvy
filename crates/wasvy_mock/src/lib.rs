@@ -18,12 +18,13 @@ use bevy_internal::MinimalPlugins;
 use bevy_platform::thread::sleep;
 use bevy_remote::http::{DEFAULT_PORT, RemoteHttpPlugin};
 use clap::Parser;
-use wasvy::prelude::{Devtools, ModLoaderPlugin};
 use wasvy_cli::{cli::Args, command::Logging, remote::RemoteUri, source::Source};
+use wasvy_runtime::{plugin::ModRuntimePlugin, prelude::Devtools};
+use wasvy_wasm::WasmBackendPlugin;
 
 const WAIT: Duration = Duration::from_millis(10);
 
-/// Prepare and run a [Mock] Bevy app running [ModLoaderPlugin].
+/// Prepare and run a [Mock] Bevy app running [ModRuntimePlugin].
 ///
 /// Construct via [MockApp::default()], use like a Bevy [App].
 #[derive(Default, Debug, Deref, DerefMut)]
@@ -99,7 +100,8 @@ impl MockApp {
                     ..Default::default()
                 },
                 RemoteHttpPlugin::default().with_port(port),
-                ModLoaderPlugin::default().devtools(devtools),
+                ModRuntimePlugin::default().devtools(devtools),
+                WasmBackendPlugin::default(),
             ))
             .add_systems(PostStartup, ready)
             .add_systems(Last, exit);

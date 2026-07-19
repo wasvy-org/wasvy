@@ -3,9 +3,8 @@ use bevy_ecs::component::Component;
 use bevy_ecs::prelude::{AppFunctionRegistry, AppTypeRegistry, ReflectComponent};
 use bevy_reflect::Reflect;
 
-use wasvy::WasvyComponent;
-use wasvy::prelude::AutoRegistrationPlugin;
-use wasvy::witgen::{self, WitGeneratorSettings};
+use wasvy::prelude::*;
+use wasvy_runtime::witgen::generate_wit;
 
 #[derive(Component, Reflect, Default, WasvyComponent)]
 #[reflect(Component)]
@@ -61,7 +60,7 @@ fn generates_wit_resources() {
         .world()
         .get_resource::<AppFunctionRegistry>()
         .expect("AppFunctionRegistry");
-    let output = witgen::generate_wit(&settings, type_registry, function_registry);
+    let output = generate_wit(&settings, type_registry, function_registry);
 
     let wasvy_use = "use wasvy:ecs/app@0.0.9.{component}";
 
@@ -90,7 +89,7 @@ fn wit_handles_collisions_and_empty_methods() {
         .get_resource::<AppFunctionRegistry>()
         .expect("AppFunctionRegistry");
     let settings = WitGeneratorSettings::default();
-    let output = witgen::generate_wit(&settings, type_registry, function_registry);
+    let output = generate_wit(&settings, type_registry, function_registry);
 
     assert!(output.contains("resource health"));
     assert!(output.contains("resource health-1"));

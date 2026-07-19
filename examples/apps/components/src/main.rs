@@ -30,15 +30,14 @@ fn main() {
             },
             ScheduleRunnerPlugin::run_loop(Duration::from_millis(16)),
             ModLoaderPlugin::default()
-                // Implement auto_host_components in wasm
-                .add_functionality(add_components_to_linker)
                 // Optional, demonstrates how to use with the wasvy CLI
                 .devtools(
                     Devtools::new("wasvy component example")
                         // Wasvy cli doesn't know about our custom bindings.
                         // Adding them here will share them with the cli when it connects to the app.
                         .implement(include_str!("../wit/bindings.wit")),
-                ),
+                )
+                .add_functionality(add_components_to_linker),
             // This plugin generates wit bindings for the components we have reflected.
             // Note: This plugin is only needed to generate the wit once. It isn't useful for releases.
             WitGeneratorPlugin::new(WitGeneratorSettings {

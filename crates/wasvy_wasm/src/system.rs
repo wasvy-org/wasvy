@@ -1,7 +1,5 @@
 use anyhow::Result;
-use bevy_asset::{AssetId, Assets};
 use bevy_ecs::{
-    change_detection::Tick,
     error::Result as BevyResult,
     prelude::*,
     resource::Resource as BevyResource,
@@ -10,22 +8,23 @@ use bevy_ecs::{
     world::FilteredEntityMut,
 };
 use bevy_log::prelude::*;
-use wasmtime::component::{Resource, Val};
+use wasmtime::component::{InstancePre, Resource, Val};
 use wasmtime_wasi::ResourceTable;
+use wasvy_runtime::{
+    access::ModAccess,
+    component::WasmComponentRegistry,
+    mods::{InsertDespawnComponent, ModSystemSet},
+    prelude::FunctionIndex,
+    serialize::CodecResource,
+};
 
 use crate::{
-    access::ModAccess,
-    asset::ModAsset,
     bindings::wasvy::ecs::app::{QueryFor, Schedule},
-    cleanup::InsertDespawnComponent,
-    component::WasmComponentRegistry,
     engine::Engine,
-    host::{WasmCommands, WasmQuery, WasmSystem},
-    methods::FunctionIndex,
-    mods::ModSystemSet,
+    host::{WasmCommands, WasmHost, WasmQuery, WasmSystem},
     query::{QueryId, QueryIdGenerator, QueryResolver, create_query_builder},
-    runner::{ConfigRunSystem, Runner},
-    serialize::CodecResource,
+    runner::{Config, ConfigRunSystem, Runner},
+    wasm_asset::call,
 };
 
 /// A helper struct that stores dynamic systems that a mod would like to register.
@@ -46,8 +45,7 @@ impl AddSystems {
         table: &ResourceTable,
         mod_id: Entity,
         mod_name: &str,
-        asset_id: &AssetId<ModAsset>,
-        asset_version: &Tick,
+        instance_pre: &InstancePre<WasmHost>,
     ) -> Result<()> {
         // Each access needs dedicated systems that run inside it
         for access in accesses {
@@ -55,8 +53,9 @@ impl AddSystems {
             for (schedule, systems) in self.0.iter() {
                 // Validate that the schedule requested by the mod is enabled
                 let Some(schedule) = mod_schedules
-                    .evaluate(schedule)
-                    .map(|schedule| schedule.schedule_label())
+                    .iter()
+                    .find(|s| schedule == *s)
+                    .map(|s| s.schedule_label())
                 else {
                     warn!(
                         "Mod tried adding systems to schedule {schedule:?}, but that schedule is not enabled. See ModSchedules docs."
@@ -74,9 +73,8 @@ impl AddSystems {
                         world,
                         mod_id,
                         mod_name,
-                        asset_id,
-                        asset_version,
                         access,
+                        instance_pre,
                     )?;
                 }
             }
@@ -91,18 +89,16 @@ impl AddSystems {
         world: &mut World,
         mod_id: Entity,
         mod_name: &str,
-        asset_id: &AssetId<ModAsset>,
-        asset_version: &Tick,
         access: &ModAccess,
+        instance_pre: &InstancePre<WasmHost>,
     ) -> Result<()> {
         let schedule_config = Self::schedule(
             system,
             world,
             mod_id,
             mod_name,
-            asset_id,
-            asset_version,
             access,
+            instance_pre.clone(),
         )?
         .in_set(ModSystemSet::All)
         .in_set(ModSystemSet::Mod(mod_id))
@@ -121,9 +117,8 @@ impl AddSystems {
         world: &mut World,
         mod_id: Entity,
         mod_name: &str,
-        asset_id: &AssetId<ModAsset>,
-        asset_version: &Tick,
         access: &ModAccess,
+        instance_pre: InstancePre<WasmHost>,
     ) -> Result<ScheduleConfigs<BoxedSystem>> {
         // The input struct contains various data used at runtime
         let built_params = BuiltParam::new_vec(&sys.params);
@@ -132,12 +127,11 @@ impl AddSystems {
         let input = Input {
             mod_name: mod_name.to_string(),
             system_name: sys.name.clone(),
-            asset_id: *asset_id,
-            asset_version: *asset_version,
             built_params,
             query_resolver,
             access: *access,
             insert_despawn_component,
+            instance_pre,
         };
 
         // Generate the queries necessary to run this system
@@ -150,7 +144,6 @@ impl AddSystems {
         let system = (
             LocalBuilder(input),
             LocalBuilder(Vec::with_capacity(queries.len())),
-            ParamBuilder,
             ParamBuilder,
             ParamBuilder,
             ParamBuilder,
@@ -182,12 +175,11 @@ impl AddSystems {
 struct Input {
     mod_name: String,
     system_name: String,
-    asset_id: AssetId<ModAsset>,
-    asset_version: Tick,
     built_params: Vec<BuiltParam>,
     query_resolver: QueryResolver,
     access: ModAccess,
     insert_despawn_component: InsertDespawnComponent,
+    instance_pre: InstancePre<WasmHost>,
 }
 
 impl FromWorld for Input {
@@ -202,7 +194,6 @@ impl FromWorld for Input {
 fn dynamic_system(
     input: Local<Input>,
     mut params: Local<Vec<Val>>,
-    assets: Res<Assets<ModAsset>>,
     engine: Res<Engine>,
     type_registry: Res<AppTypeRegistry>,
     codec: Res<CodecResource>,
@@ -212,16 +203,6 @@ fn dynamic_system(
     // TODO: mut resources: FilteredResourcesMut,
     mut queries: ParamSet<Vec<Query<FilteredEntityMut>>>,
 ) -> BevyResult {
-    // Skip no longer loaded mods
-    let Some(asset) = assets.get(input.asset_id) else {
-        return Ok(());
-    };
-
-    // Skip mismatching system versions
-    if asset.version() != Some(input.asset_version) {
-        return Ok(());
-    }
-
     let mut runner = Runner::new(&engine);
     initialize_params(&mut params, &input.built_params, &mut runner)?;
 
@@ -229,21 +210,25 @@ fn dynamic_system(
         "Running system \"{}\" from \"{}\"",
         input.system_name, input.mod_name
     );
-    asset.run_system(
+
+    let config = ConfigRunSystem {
+        commands: &mut commands,
+        type_registry: &type_registry,
+        codec: &codec,
+        wasm_registry: &wasm_registry,
+        function_index: &function_index,
+        queries: &mut queries,
+        query_resolver: &input.query_resolver,
+        access: input.access,
+        insert_despawn_component: input.insert_despawn_component,
+    };
+    call(
         &mut runner,
+        &input.instance_pre,
+        Config::RunSystem(config),
         &input.system_name,
-        ConfigRunSystem {
-            commands: &mut commands,
-            type_registry: &type_registry,
-            codec: &codec,
-            wasm_registry: &wasm_registry,
-            function_index: &function_index,
-            queries: &mut queries,
-            query_resolver: &input.query_resolver,
-            access: input.access,
-            insert_despawn_component: input.insert_despawn_component,
-        },
         &params[..],
+        &mut [],
     )?;
 
     Ok(())

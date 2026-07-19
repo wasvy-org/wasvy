@@ -66,7 +66,7 @@ impl Command for InsertWasmComponent {
     }
 }
 
-pub(crate) fn insert_component(
+pub fn insert_component(
     commands: &mut Commands,
     type_registry: &AppTypeRegistry,
     codec: &CodecResource,
@@ -93,7 +93,7 @@ pub(crate) fn insert_component(
     Ok(())
 }
 
-pub(crate) fn remove_component(
+pub fn remove_component(
     commands: &mut Commands,
     wasm_registry: &WasmComponentRegistry,
     entity: Entity,
@@ -118,7 +118,7 @@ pub(crate) fn remove_component(
 /// - If type id is [Some], then it is registered in the [AppTypeRegistry]
 /// - If type id is [Some], then component_id must be of the same type
 #[derive(Clone)]
-pub(crate) struct ComponentRef {
+pub struct ComponentRef {
     component_id: ComponentId,
     type_id: Option<TypeId>,
     type_path: TypePath,
@@ -126,7 +126,7 @@ pub(crate) struct ComponentRef {
 
 impl ComponentRef {
     /// See [ComponentRef]
-    pub(crate) fn new(type_path: &str, world: &mut World) -> Result<Self> {
+    pub fn new(type_path: &str, world: &mut World) -> Result<Self> {
         let type_registry = world
             .get_resource::<AppTypeRegistry>()
             .expect("there to be an AppTypeRegistry")
@@ -160,19 +160,16 @@ impl ComponentRef {
         }
     }
 
-    pub(crate) fn component_id(&self) -> ComponentId {
+    pub fn component_id(&self) -> ComponentId {
         self.component_id
     }
 
-    pub(crate) fn type_path(&self) -> &str {
+    pub fn type_path(&self) -> &str {
         &self.type_path
     }
 }
 
-pub(crate) fn get_component_id_for_filter(
-    type_path: &str,
-    world: &mut World,
-) -> Option<ComponentId> {
+pub fn get_component_id_for_filter(type_path: &str, world: &mut World) -> Option<ComponentId> {
     let type_registry = world
         .get_resource::<AppTypeRegistry>()
         .expect("there to be an AppTypeRegistry")
@@ -228,7 +225,7 @@ fn get_wasm_component_id(type_path: &str, world: &mut World) -> ComponentId {
 }
 
 /// Retrieves the value of a component on an entity given a json string
-pub(crate) fn get_component(
+pub fn get_component(
     entity: &FilteredEntityRef,
     component: &ComponentRef,
     type_registry: &AppTypeRegistry,
@@ -263,7 +260,7 @@ pub(crate) fn get_component(
 }
 
 /// Sets the value of a component on an entity given a json string
-pub(crate) fn set_component(
+pub fn set_component(
     entity: &mut FilteredEntityMut,
     component_ref: &ComponentRef,
     serialized_value: Vec<u8>,
@@ -304,7 +301,7 @@ pub(crate) fn set_component(
     }
 }
 
-pub(crate) fn with_component_ref<R>(
+pub fn with_component_ref<R>(
     entity: &FilteredEntityRef,
     component_ref: &ComponentRef,
     type_registry: &AppTypeRegistry,
@@ -335,7 +332,7 @@ pub(crate) fn with_component_ref<R>(
     f(reflect)
 }
 
-pub(crate) fn with_component_mut<R>(
+pub fn with_component_mut<R>(
     entity: &mut FilteredEntityMut,
     component_ref: &ComponentRef,
     type_registry: &AppTypeRegistry,

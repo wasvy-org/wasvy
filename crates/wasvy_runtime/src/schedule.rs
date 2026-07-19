@@ -1,26 +1,26 @@
 use bevy_app::prelude::*;
+use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{intern::Interned, prelude::*, schedule::ScheduleLabel};
-
-use crate::bindings::wasvy::ecs::app::Schedule as WitSchedule;
+use bevy_platform::collections::HashSet;
 
 /// This is an enum representing schedules in Bevy where mods can also be run.
 ///
 /// See the docs for [bevy schedules](bevy_app::Main).
 ///
-/// Call [ModLoaderPlugin::enable_schedule](crate::plugin::ModLoaderPlugin::enable_schedule)
+/// Call [ModRuntimePlugin::enable_schedule](crate::plugin::ModRuntimePlugin::enable_schedule)
 /// to enable new or custom schedules for mods.
 ///
 /// None of the startup schedules (like [PreStartup],
 /// [Startup], etc) are included since mods can't usually run
 /// within them, since mods take time to load and begin loading these schedules
 /// have finished running.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ModSchedule {
     /// A custom schedule that runs the first time a mod is loaded.
     ///
     /// It is a custom schedule that runs during the setup schedule
     /// (which defaults to [First]), see
-    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule)).
+    /// [ModRuntimePlugin::set_setup_schedule](crate::plugin::ModRuntimePlugin::set_setup_schedule)).
     ///
     /// Upon being loaded, mods are guaranteed to only run this schedule once,
     /// even if other mods are loaded afterwards.
@@ -58,7 +58,7 @@ impl ModSchedule {
     /// - `schedule` is the Bevy schedule this represents. This schedule must be added to the Bevy Schedules.
     ///
     /// Note: Trying to add mod systems to the setup schedule (which defaults to [First], see
-    /// [ModLoaderPlugin::set_setup_schedule](crate::plugin::ModLoaderPlugin::set_setup_schedule))
+    /// [ModRuntimePlugin::set_setup_schedule](crate::plugin::ModRuntimePlugin::set_setup_schedule))
     /// Bevy's First schedule will do nothing since this is the mod setup phase
     pub fn new_custom(name: impl ToString, schedule: impl ScheduleLabel) -> Self {
         let name = name.to_string();
@@ -110,83 +110,35 @@ impl ModStartup {
 
 /// A collection of the [ModSchedules] where Wasvy will run mod systems.
 ///
-/// Adjust this via [ModLoaderPlugin::new](crate::plugin::ModLoaderPlugin::new). This will only affect
+/// Adjust this via [ModRuntimePlugin::new](crate::plugin::ModRuntimePlugin::new). This will only affect
 /// mods with access to the world.
 ///
-/// Or more simply, call [ModLoaderPlugin::enable_schedule](crate::plugin::ModLoaderPlugin::enable_schedule) with
-/// [ModLoaderPlugin::default](crate::plugin::ModLoaderPlugin::default).
+/// Or more simply, call [ModRuntimePlugin::enable_schedule](crate::plugin::ModRuntimePlugin::enable_schedule) with
+/// [ModRuntimePlugin::default](crate::plugin::ModRuntimePlugin::default).
 ///
 /// When using a [Sandbox](crate::sandbox::Sandbox), this is provided as an argument to adjust schedules for
 /// mod systems that run in that sandbox.
-#[derive(Resource, Debug, Clone)]
-pub struct ModSchedules(pub Vec<ModSchedule>);
+#[derive(Resource, Debug, Clone, Deref, DerefMut)]
+pub struct ModSchedules(pub HashSet<ModSchedule>);
 
 impl Default for ModSchedules {
     fn default() -> Self {
-        Self(vec![
-            ModSchedule::ModStartup,
-            ModSchedule::PreUpdate,
-            ModSchedule::Update,
-            ModSchedule::PostUpdate,
-            ModSchedule::FixedPreUpdate,
-            ModSchedule::FixedUpdate,
-            ModSchedule::FixedPostUpdate,
-        ])
+        let mut set = HashSet::with_capacity(8);
+        set.insert(ModSchedule::ModStartup);
+        set.insert(ModSchedule::ModStartup);
+        set.insert(ModSchedule::PreUpdate);
+        set.insert(ModSchedule::Update);
+        set.insert(ModSchedule::PostUpdate);
+        set.insert(ModSchedule::FixedPreUpdate);
+        set.insert(ModSchedule::FixedUpdate);
+        set.insert(ModSchedule::FixedPostUpdate);
+        Self(set)
     }
 }
 
 impl ModSchedules {
     /// Returns an empty Schedules.
     pub fn empty() -> Self {
-        Self(Vec::new())
+        Self(HashSet::new())
     }
-
-    pub fn push(&mut self, schedule: ModSchedule) {
-        assert!(
-            !self.0.contains(&schedule),
-            "Duplicate schedule {:?} added to ModLoaderPlugin",
-            &schedule
-        );
-
-        self.0.push(schedule);
-    }
-
-    /// If this schedule was enabled during plugin instantiation, this returns the correct schedule
-    ///
-    /// Returns None if the schedule was never added.
-    pub(crate) fn evaluate(&self, schedule: &WitSchedule) -> Option<ModSchedule> {
-        let schedule_or_custom_name = match schedule {
-            WitSchedule::ModStartup => Either::Left(ModSchedule::ModStartup),
-            WitSchedule::PreUpdate => Either::Left(ModSchedule::PreUpdate),
-            WitSchedule::Update => Either::Left(ModSchedule::Update),
-            WitSchedule::PostUpdate => Either::Left(ModSchedule::PostUpdate),
-            WitSchedule::FixedPreUpdate => Either::Left(ModSchedule::FixedPreUpdate),
-            WitSchedule::FixedUpdate => Either::Left(ModSchedule::FixedUpdate),
-            WitSchedule::FixedPostUpdate => Either::Left(ModSchedule::FixedPostUpdate),
-            WitSchedule::Custom(custom_name) => Either::Right(custom_name),
-        };
-
-        match schedule_or_custom_name {
-            Either::Left(schedule) => {
-                if self.0.contains(&schedule) {
-                    Some(schedule)
-                } else {
-                    None
-                }
-            }
-            Either::Right(custom_name) => self
-                .0
-                .iter()
-                .find(|schedule| match schedule {
-                    ModSchedule::Custom { name, .. } => name == custom_name,
-                    _ => false,
-                })
-                .cloned(),
-        }
-    }
-}
-
-enum Either<L, R> {
-    Left(L),
-    Right(R),
 }

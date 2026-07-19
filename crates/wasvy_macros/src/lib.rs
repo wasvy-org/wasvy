@@ -20,7 +20,7 @@ pub fn skip(_attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_derive(WasvyComponent)]
 pub fn derive_wasvy_component(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
-    let wasvy_path = wasvy_path();
+    let wasvy_path = wasvy_runtime_path();
     let ident = &input.ident;
     let register_ident = format_ident!("__wasvy_register_component_{}", ident);
 
@@ -143,25 +143,25 @@ pub fn include_wasvy_components(input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as Item);
-    let wasvy_path = wasvy_path();
+    let runtime_path = wasvy_runtime_path();
 
     let expanded = match input {
-        Item::Struct(item) => expand_component_struct(item, &wasvy_path),
+        Item::Struct(item) => expand_component_struct(item, &runtime_path),
         Item::Enum(item) => {
             let ident = &item.ident;
             let register_ident = format_ident!("__wasvy_register_component_{}", ident);
             quote! {
                 #item
 
-                impl #wasvy_path::authoring::WasvyComponent for #ident {}
+                impl #runtime_path::authoring::WasvyComponent for #ident {}
 
                 #[allow(non_snake_case)]
-                fn #register_ident(app: &mut #wasvy_path::authoring::App) {
-                    <#ident as #wasvy_path::authoring::WasvyComponent>::register(app);
+                fn #register_ident(app: &mut #runtime_path::authoring::App) {
+                    <#ident as #runtime_path::authoring::WasvyComponent>::register(app);
                 }
 
-                #wasvy_path::__wasvy_submit_component_registration!(
-                    #wasvy_path::authoring::WasvyComponentRegistration { register: #register_ident }
+                #runtime_path::__wasvy_submit_component_registration!(
+                    #runtime_path::authoring::WasvyComponentRegistration { register: #register_ident }
                 );
             }
         }
@@ -196,7 +196,7 @@ pub fn component(_attr: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as ItemImpl);
-    let wasvy_path = wasvy_path();
+    let wasvy_path = wasvy_runtime_path();
 
     let Some(self_ty) = extract_type_path(&input.self_ty) else {
         return syn::Error::new_spanned(
@@ -395,13 +395,33 @@ fn extract_type_path(ty: &Type) -> Option<&TypePath> {
     }
 }
 
-fn wasvy_path() -> proc_macro2::TokenStream {
-    let name = match crate_name("wasvy") {
-        Ok(FoundCrate::Name(name)) => name,
-        Ok(FoundCrate::Itself) | Err(_) => "wasvy".to_string(),
-    };
-    let ident = Ident::new(&name, proc_macro2::Span::call_site());
+fn crate_ident(name: &str) -> proc_macro2::TokenStream {
+    let ident = Ident::new(name, proc_macro2::Span::call_site());
     quote!(::#ident)
+}
+
+fn wasvy_path(name: &str, fallback: &str) -> proc_macro2::TokenStream {
+    match crate_name(name) {
+        Ok(FoundCrate::Itself) => quote!(crate),
+        Ok(FoundCrate::Name(name)) => crate_ident(&name),
+        Err(_) => match crate_name("wasvy") {
+            Ok(FoundCrate::Itself) => quote!(crate),
+            Ok(FoundCrate::Name(name)) => {
+                let ident1 = Ident::new(&name, proc_macro2::Span::call_site());
+                let ident2 = Ident::new(fallback, proc_macro2::Span::call_site());
+                quote!(::#ident1::#ident2)
+            }
+            Err(_) => crate_ident(name),
+        },
+    }
+}
+
+fn wasvy_runtime_path() -> proc_macro2::TokenStream {
+    wasvy_path("wasvy_runtime", "runtime")
+}
+
+fn wasvy_wasm_path() -> proc_macro2::TokenStream {
+    wasvy_path("wasvy_wasm", "wasm")
 }
 
 struct AutoHostArgs {
@@ -509,7 +529,8 @@ impl syn::parse::Parse for IncludeComponentsArgs {
 }
 
 fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::TokenStream> {
-    let wasvy_path = wasvy_path();
+    let wasm_path = wasvy_wasm_path();
+    let runtime_path = wasvy_runtime_path();
     let path_value = resolve_wit_path_with_fallbacks(&args.path);
     let world_value = args.world.value();
 
@@ -570,12 +591,12 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
             name
         );
         let lit = syn::LitStr::new(&path, proc_macro2::Span::call_site());
-        with_entries.push(quote!(#lit: #wasvy_path::host::WasmComponent));
+        with_entries.push(quote!(#lit: #wasm_path::host::WasmComponent));
     }
 
     let wasvy_component =
         syn::LitStr::new("wasvy:ecs/app.component", proc_macro2::Span::call_site());
-    with_entries.push(quote!(#wasvy_component: #wasvy_path::host::WasmComponent));
+    with_entries.push(quote!(#wasvy_component: #wasm_path::host::WasmComponent));
 
     let mut impls = Vec::new();
 
@@ -590,9 +611,9 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
         for function in interface.functions.values() {
             match function.kind {
                 FunctionKind::Constructor(id) if id == *type_id => {
-                    let params = render_params(&resolve, &function.params, &wasvy_path, true);
+                    let params = render_params(&resolve, &function.params, &wasm_path, true);
                     let ret_tokens =
-                        quote!(::wasmtime::component::Resource<#wasvy_path::host::WasmComponent>);
+                        quote!(::wasmtime::component::Resource<#wasm_path::host::WasmComponent>);
                     let body = quote!(component);
                     methods.push(quote! {
                         fn new(&mut self, #params) -> #ret_tokens {
@@ -603,13 +624,14 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
                 FunctionKind::Method(id) if id == *type_id => {
                     let method_name = method_name(&function.name);
                     let method_ident = rust_ident(&method_name);
-                    let params = render_params(&resolve, &function.params, &wasvy_path, false);
-                    let ret = render_return(&resolve, function.result.as_ref(), &wasvy_path);
+                    let params = render_params(&resolve, &function.params, &wasm_path, false);
+                    let ret = render_return(&resolve, function.result.as_ref(), &wasm_path);
                     let invoke = render_invoke_body(
                         &method_name,
                         &function.params,
                         function.result.as_ref(),
-                        &wasvy_path,
+                        &runtime_path,
+                        &wasm_path,
                     );
                     methods.push(quote! {
                         fn #method_ident(&mut self, #params) #ret {
@@ -622,7 +644,7 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
         }
 
         methods.push(quote! {
-            fn drop(&mut self, component: ::wasmtime::component::Resource<#wasvy_path::host::WasmComponent>) -> Result<(), ::wasmtime::Error> {
+            fn drop(&mut self, component: ::wasmtime::component::Resource<#wasm_path::host::WasmComponent>) -> Result<(), ::wasmtime::Error> {
                 let _ = component;
                 Ok(())
             }
@@ -631,7 +653,7 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
         let trait_path =
             quote!(#module_ident::#pkg_namespace::#pkg_name::#interface_name::#trait_ident);
         impls.push(quote! {
-            impl #trait_path for #wasvy_path::host::WasmHost {
+            impl #trait_path for #wasm_path::host::WasmHost {
                 #(#methods)*
             }
         });
@@ -650,13 +672,13 @@ fn expand_auto_host_components(args: AutoHostArgs) -> syn::Result<proc_macro2::T
             });
         }
 
-        pub fn add_components_to_linker(linker: &mut #wasvy_path::engine::Linker) {
-            type Data = ::wasmtime::component::HasSelf<#wasvy_path::host::WasmHost>;
+        pub fn add_components_to_linker(linker: &mut #wasm_path::engine::Linker) {
+            type Data = ::wasmtime::component::HasSelf<#wasm_path::host::WasmHost>;
             #add_to_linker_path::<_, Data>(linker, |state| state)
                 .expect("implement components interface");
         }
 
-        impl #trait_host_path for #wasvy_path::host::WasmHost {}
+        impl #trait_host_path for #wasm_path::host::WasmHost {}
 
         #(#impls)*
     };
@@ -824,18 +846,18 @@ fn expand_include_components(args: IncludeComponentsArgs) -> syn::Result<proc_ma
 fn render_params(
     resolve: &Resolve,
     params: &[wit_parser::Param],
-    wasvy_path: &proc_macro2::TokenStream,
+    wasm_path: &proc_macro2::TokenStream,
     is_constructor: bool,
 ) -> proc_macro2::TokenStream {
     let mut out = Vec::new();
     if !is_constructor {
         out.push(
-            quote!(component: ::wasmtime::component::Resource<#wasvy_path::host::WasmComponent>),
+            quote!(component: ::wasmtime::component::Resource<#wasm_path::host::WasmComponent>),
         );
     }
     for param in params.iter().filter(|param| param.name != "self") {
         let ident = rust_ident(&param.name);
-        let ty_tokens = ty_to_tokens(resolve, &param.ty, wasvy_path);
+        let ty_tokens = ty_to_tokens(resolve, &param.ty, wasm_path);
         out.push(quote!(#ident: #ty_tokens));
     }
     quote!(#(#out),*)
@@ -859,7 +881,8 @@ fn render_invoke_body(
     method: &str,
     params: &[wit_parser::Param],
     result: Option<&wit_parser::Type>,
-    wasvy_path: &proc_macro2::TokenStream,
+    runtime_path: &proc_macro2::TokenStream,
+    wasm_path: &proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
     let arg_idents: Vec<Ident> = params
         .iter()
@@ -875,18 +898,18 @@ fn render_invoke_body(
     match result {
         None => quote! {
             #[allow(unused_imports)]
-            use #wasvy_path::serialize::*;
+            use #runtime_path::serialize::*;
             // Note: when implementing a custom codec, a wasvy_encode method is expected to be in scope
             let params = wasvy_encode(&#args_expr).expect("serialize params");
-            let _ = #wasvy_path::host::invoke_component_method(self, component, #method_lit, &params)
+            let _ = #wasm_path::host::invoke_component_method(self, component, #method_lit, &params)
                 .expect("invoke method");
         },
         Some(_) => quote! {
             #[allow(unused_imports)]
-            use #wasvy_path::serialize::*;
+            use #runtime_path::serialize::*;
             // Note: when implementing a custom codec, a wasvy_encode and wasvy_decode method is expected to be in scope
             let params = wasvy_encode(&#args_expr).expect("serialize params");
-            let output = #wasvy_path::host::invoke_component_method(self, component, #method_lit, &params)
+            let output = #wasm_path::host::invoke_component_method(self, component, #method_lit, &params)
                 .expect("invoke method");
             wasvy_decode(&output).expect("deserialize")
         },
@@ -896,7 +919,7 @@ fn render_invoke_body(
 fn ty_to_tokens(
     resolve: &Resolve,
     ty: &wit_parser::Type,
-    wasvy_path: &proc_macro2::TokenStream,
+    wasm_path: &proc_macro2::TokenStream,
 ) -> proc_macro2::TokenStream {
     match ty {
         wit_parser::Type::Bool => quote!(bool),
@@ -914,19 +937,19 @@ fn ty_to_tokens(
         wit_parser::Type::String => quote!(String),
         wit_parser::Type::Id(id) => match &resolve.types[*id].kind {
             TypeDefKind::Resource => {
-                quote!(::wasmtime::component::Resource<#wasvy_path::host::WasmComponent>)
+                quote!(::wasmtime::component::Resource<#wasm_path::host::WasmComponent>)
             }
             TypeDefKind::Handle(handle) => match handle {
                 wit_parser::Handle::Borrow(_) | wit_parser::Handle::Own(_) => {
-                    quote!(::wasmtime::component::Resource<#wasvy_path::host::WasmComponent>)
+                    quote!(::wasmtime::component::Resource<#wasm_path::host::WasmComponent>)
                 }
             },
             TypeDefKind::Option(inner) => {
-                let inner = ty_to_tokens(resolve, inner, wasvy_path);
+                let inner = ty_to_tokens(resolve, inner, wasm_path);
                 quote!(Option<#inner>)
             }
             TypeDefKind::List(inner) => {
-                let inner = ty_to_tokens(resolve, inner, wasvy_path);
+                let inner = ty_to_tokens(resolve, inner, wasm_path);
                 quote!(Vec<#inner>)
             }
             _ => quote!(String),

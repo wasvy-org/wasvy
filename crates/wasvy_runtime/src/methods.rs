@@ -342,10 +342,9 @@ fn normalize_type_path(path: &str) -> String {
         trimmed
     };
 
-    if let Some(rest) = stripped.strip_prefix("build_script_build::")
-        && let Ok(pkg) = std::env::var("CARGO_PKG_NAME")
-    {
-        return format!("{pkg}::{rest}");
+    if let Some(rest) = stripped.strip_prefix("build_script_build::") {
+        let crate_name = option_env!("CARGO_CRATE_NAME").unwrap_or(env!("CARGO_PKG_NAME"));
+        return format!("{crate_name}::{rest}");
     }
 
     stripped.to_string()
@@ -354,7 +353,6 @@ fn normalize_type_path(path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::WasvyComponent;
     use crate::authoring::{WasvyExport, WasvyMethodMetadata, inventory};
     use crate::prelude::AutoRegistrationPlugin;
     use crate::serialize::CodecResource;
@@ -363,6 +361,7 @@ mod tests {
     use bevy_ecs::prelude::ReflectComponent;
     use bevy_ecs::reflect::AppFunctionRegistry;
     use bevy_reflect::{Reflect, TypePath};
+    use wasvy_macros::*;
 
     #[derive(Component, Reflect, Default, WasvyComponent)]
     #[reflect(Component)]
@@ -371,7 +370,7 @@ mod tests {
         max: f32,
     }
 
-    #[wasvy::methods]
+    #[methods]
     impl Health {
         fn heal(&mut self, amount: f32) {
             self.current = (self.current + amount).min(self.max);

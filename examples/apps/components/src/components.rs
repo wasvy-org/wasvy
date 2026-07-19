@@ -1,6 +1,6 @@
 use bevy_ecs::prelude::*;
-use bevy_reflect::Reflect;
-use wasvy::WasvyComponent;
+use bevy_reflect::prelude::*;
+use wasvy::prelude::*;
 
 #[derive(Component, Reflect, Default, WasvyComponent)]
 #[reflect(Component)]

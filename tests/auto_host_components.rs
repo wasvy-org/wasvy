@@ -1,4 +1,4 @@
-use wasvy::engine::Linker;
+use wasvy_wasm::engine::Linker;
 
 wasvy::auto_host_components! {
     path = "tests/fixtures/auto_host",

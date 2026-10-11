@@ -196,7 +196,7 @@ world example {
 
 4. Retrieve the Wasvy WIT files:
 
-For v0.0.9, download `bevy-ecs.wit` and `wasvy-ecs.wit` from the [wasvy_interface WIT files](https://docs.rs/crate/wasvy_interface/0.0.9/source/wit/) into `wit/deps/` (any file in this `deps` folder should be picked up during compile-time). Rust tooling can also write `wasvy_interface::BEVY_ECS` and `wasvy_interface::WASVY_ECS` into that directory. Bindgen macros require WIT literals or paths, so depending on the interface crate alone does not make these packages available to `wit_bindgen::generate!`.
+For v0.0.9, download `bevy-ecs.wit` and `wasvy-ecs.wit` from the [wasvy_interface WIT files](https://docs.rs/crate/wasvy_interface/0.0.9/source/wit/) into `wit/deps/` (any file in this `deps` folder should be picked up during compile-time).
 
 <img width="306" height="172" alt="Image" src="https://github.com/user-attachments/assets/9e238e43-01da-4653-af44-26462c33be24" />
 

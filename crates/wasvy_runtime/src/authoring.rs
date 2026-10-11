@@ -44,7 +44,7 @@ pub use bevy_app::App;
 use bevy_app::Plugin;
 use bevy_ecs::component::Component;
 use bevy_ecs::reflect::{AppFunctionRegistry, AppTypeRegistry};
-use bevy_reflect::{FromType, GetTypeRegistration, Reflect, TypePath};
+use bevy_reflect::{CreateTypeData, GetTypeRegistration, Reflect, TypePath};
 
 /// Inventory entry that registers a component with a Bevy app.
 #[derive(Clone, Copy)]
@@ -110,8 +110,8 @@ pub use inventory;
 #[derive(Clone)]
 pub struct WasvyExport;
 
-impl<T> FromType<T> for WasvyExport {
-    fn from_type() -> Self {
+impl<T> CreateTypeData<T> for WasvyExport {
+    fn create_type_data(_: ()) -> Self {
         WasvyExport
     }
 }

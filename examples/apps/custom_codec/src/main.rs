@@ -8,7 +8,6 @@ use bevy::{
     },
 };
 use bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use serde::de::DeserializeSeed;
 use wasvy::prelude::*;
 
@@ -91,7 +90,6 @@ fn main() {
                 .devtools("wasvy custom codec example"),
             FpsOverlayPlugin::default(),
             EguiPlugin::default(),
-            WorldInspectorPlugin::new(),
         ))
         .run();
 }

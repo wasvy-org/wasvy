@@ -85,16 +85,19 @@ pub(crate) fn call(
     results: &mut [Val],
 ) -> Result<()> {
     runner.use_store(config, move |mut store| {
-        let instance = instance_pre
-            .instantiate(&mut store)
-            .context("Failed to instantiate component")?;
+        let instance = Context::context(
+            instance_pre.instantiate(&mut store),
+            "Failed to instantiate component",
+        )?;
 
         let func = instance
             .get_func(&mut store, name)
             .ok_or(anyhow!("Missing {name} function"))?;
 
-        func.call(&mut store, params, results)
-            .context("Failed to run the desired wasm function")?;
+        Context::context(
+            func.call(&mut store, params, results),
+            "Failed to run the desired wasm function",
+        )?;
 
         Ok(())
     })

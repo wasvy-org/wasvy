@@ -208,6 +208,7 @@ fn get_wasm_component_id(type_path: &str, world: &mut World) -> ComponentId {
                     ptr.drop_as::<WasmComponent>();
                 }),
                 true,
+                false,
                 WasmComponent::clone_behavior(),
                 None,
             )
@@ -246,7 +247,7 @@ pub fn get_component(
             .expect("ReflectFromPtr to be registered");
 
         // SAFETY: val is of the same type that reflect_from_ptr was constructed for
-        let reflect = unsafe { reflect_from_ptr.as_reflect(val) };
+        let reflect = unsafe { reflect_from_ptr.ptr_as_reflect(val) };
         let value = codec.encode_reflect(reflect, &type_registry)?;
 
         Ok(value)
@@ -286,7 +287,7 @@ pub fn set_component(
             codec.decode_reflect(&serialized_value, type_registration, &type_registry)?;
 
         // SAFETY: val is of the same type that ReflectFromPtr was constructed for
-        let reflect = unsafe { reflect_from_ptr.as_reflect_mut(val.as_mut()) };
+        let reflect = unsafe { reflect_from_ptr.ptr_as_reflect_mut(val.as_mut()) };
         reflect.apply(boxed_dyn_reflect.as_partial_reflect());
 
         Ok(())
@@ -327,7 +328,7 @@ pub fn with_component_ref<R>(
         .expect("ReflectFromPtr to be registered");
 
     // SAFETY: val is of the same type that reflect_from_ptr was constructed for
-    let reflect = unsafe { reflect_from_ptr.as_reflect(val) };
+    let reflect = unsafe { reflect_from_ptr.ptr_as_reflect(val) };
 
     f(reflect)
 }
@@ -358,7 +359,7 @@ pub fn with_component_mut<R>(
         .expect("ReflectFromPtr to be registered");
 
     // SAFETY: val is of the same type that reflect_from_ptr was constructed for
-    let reflect = unsafe { reflect_from_ptr.as_reflect_mut(val.as_mut()) };
+    let reflect = unsafe { reflect_from_ptr.ptr_as_reflect_mut(val.as_mut()) };
 
     f(reflect)
 }

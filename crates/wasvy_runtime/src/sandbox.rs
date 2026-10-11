@@ -191,6 +191,7 @@ impl Sandbox {
                 Layout::new::<SandboxedMarker>(),
                 None,
                 false,
+                false,
                 clone_behavior,
                 None,
             )
@@ -357,7 +358,7 @@ impl Relationship for Sandboxed {
 
 impl Sandboxed {
     /// An observer that Ensures that new children inside a [Sandbox] get the [Sandboxed] component
-    fn propagate(add: On<Insert, ChildOf>, mut world: DeferredWorld) {
+    fn propagate(add: On<Insert<ChildOf>>, mut world: DeferredWorld) {
         let mut entity = add.entity;
         while let Some(ChildOf(parent)) = world.get(entity) {
             entity = *parent;

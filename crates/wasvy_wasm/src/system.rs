@@ -150,7 +150,7 @@ impl AddSystems {
             ParamBuilder,
             ParamBuilder,
             ParamBuilder,
-            // TODO: FilteredResourcesMutParamBuilder::new(|builder| {}),
+            // TODO: QueryParamBuilder for filtered resource access.
             ParamSetBuilder(queries),
         )
             .build_state(world)
@@ -200,7 +200,7 @@ fn dynamic_system(
     wasm_registry: Res<WasmComponentRegistry>,
     function_index: Res<FunctionIndex>,
     mut commands: Commands,
-    // TODO: mut resources: FilteredResourcesMut,
+    // TODO: Query for filtered resource access.
     mut queries: ParamSet<Vec<Query<FilteredEntityMut>>>,
 ) -> BevyResult {
     let mut runner = Runner::new(&engine);

@@ -1,6 +1,7 @@
 use anyhow::{Result, bail};
 use bevy::{
     dev_tools::fps_overlay::FpsOverlayPlugin,
+    dev_tools::render_debug::RenderDebugOverlayKeybindings,
     prelude::*,
     reflect::{
         TypeRegistration, TypeRegistry,
@@ -8,7 +9,6 @@ use bevy::{
     },
 };
 use bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use serde::de::DeserializeSeed;
 use wasvy::prelude::*;
 
@@ -91,7 +91,10 @@ fn main() {
                 .devtools("wasvy custom codec example"),
             FpsOverlayPlugin::default(),
             EguiPlugin::default(),
-            WorldInspectorPlugin::new(),
         ))
+        .insert_resource(RenderDebugOverlayKeybindings {
+            enable_keybindings: true,
+            ..default()
+        })
         .run();
 }

@@ -9,7 +9,7 @@
 [![Crates.io](https://img.shields.io/crates/v/wasvy.svg)](https://crates.io/crates/wasvy)
 [![Downloads](https://img.shields.io/crates/d/wasvy.svg)](https://crates.io/crates/wasvy)
 [![Docs](https://docs.rs/wasvy/badge.svg)](https://docs.rs/wasvy)
-[![Rust Version](https://img.shields.io/badge/rust-1.95.0+-blue.svg)](https://www.rust-lang.org)
+[![Rust Version](https://img.shields.io/badge/rust-1.97.1+-blue.svg)](https://www.rust-lang.org)
 [![CI](https://github.com/wasvy-org/wasvy/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/wasvy-org/wasvy/actions)
 [![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.com/channels/691052431525675048/1492230910383357992/1492230910383357992)
 
@@ -168,8 +168,8 @@ serde_json = "1.0"
 
 # Import any bevy-sub crates for any components you will be using
 # Note: enable the serialize feature to allow using serde
-bevy_transform = { version = "0.19.0", features = ["serialize"], default-features = false }
-bevy_math = { version = "0.19.0", features = ["serialize"], default-features = false }
+bevy_transform = { version = "0.20.0", features = ["serialize"], default-features = false }
+bevy_math = { version = "0.20.0", features = ["serialize"], default-features = false }
 
 [lib]
 crate-type = ["cdylib"] # necessary for wasm
@@ -267,6 +267,8 @@ Wasvy offers some example host apps to get started:
 - [**Components**](examples/apps/components): A Bevy app that exposes component bindings in wit. This allows mods to directly call methods within the host to mutate components/resources.
 - [**Custom Codec**](examples/apps/custom_codec): A Bevy app that demonstrates using a custom codec implementation for Wasvy.
 
+The Basic and Custom Codec apps support Bevy's render-debug overlay: press `F1` to cycle modes and `F2` to cycle opacity.
+
 ### Mods
 
 Since Wasvy is built on the wasm component model, mods can be written in almost any language. We provide a few examples for reference and experimentation:
@@ -301,7 +303,7 @@ Once allowed, direnv will automatically enter the development shell for this rep
 
 If you are not using Nix, install the required tooling manually:
 
-- Install [Rust 1.95.0+](https://www.rust-lang.org/tools/install)
+- Install [Rust 1.97.1+](https://www.rust-lang.org/tools/install)
 - Install [`just`](https://github.com/casey/just)
 - Run `just enable-git-hooks`
 

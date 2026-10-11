@@ -22,7 +22,7 @@ resolver = "2"
 [workspace.package]
 authors = ["EngoDev", "MarcGuiselin"]
 categories = ["wasm", "game-development", "development-tools"]
-rust-version = "1.95.0"
+rust-version = "1.97.1"
 version = "0.0.9"
 edition = "2024"
 description = "WASI-powered modding for the Bevy engine"
@@ -35,26 +35,26 @@ readme = "README.md"
 [workspace.dependencies]
 anyhow = "1.0.103"
 askama = "0.16.0"
-bevy_asset = "0.19.0"
-bevy_app = { version = "0.19.0", features = ["reflect_functions"] }
-bevy_derive = "0.19.0"
-bevy_ecs = { version = "0.19.0", features = ["reflect_functions"] }
-bevy_log = "0.19.0"
-bevy_math = { version = "0.19.0", features = [
+bevy_asset = "0.20.0"
+bevy_app = { version = "0.20.0", features = ["reflect_functions"] }
+bevy_derive = "0.20.0"
+bevy_ecs = { version = "0.20.0", features = ["reflect_functions"] }
+bevy_log = "0.20.0"
+bevy_math = { version = "0.20.0", features = [
     "std",
     "serialize",
 ], default-features = false }
-bevy_platform = "0.19.0"
-bevy_reflect = { version = "0.19.0", features = [
+bevy_platform = "0.20.0"
+bevy_reflect = { version = "0.20.0", features = [
     "functions",
     "reflect_documentation",
 ] }
-bevy_remote = { version = "0.19.0", default-features = false, features = ["http"] }
-bevy_state = "0.19.0"
-bevy_transform = { version = "0.19.0", features = [
+bevy_remote = { version = "0.20.0", default-features = false, features = ["http"] }
+bevy_state = "0.20.0"
+bevy_transform = { version = "0.20.0", features = [
     "serialize",
 ], default-features = false }
-bevy_internal = "0.19.0"
+bevy_internal = "0.20.0"
 clap = { version = "4.6.1", features = ["derive"] }
 derive_more = { version = "2", default-features = false, features = [
     "deref",

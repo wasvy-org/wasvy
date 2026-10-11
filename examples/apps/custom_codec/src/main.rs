@@ -1,6 +1,7 @@
 use anyhow::{Result, bail};
 use bevy::{
     dev_tools::fps_overlay::FpsOverlayPlugin,
+    dev_tools::render_debug::RenderDebugOverlayKeybindings,
     prelude::*,
     reflect::{
         TypeRegistration, TypeRegistry,
@@ -91,5 +92,9 @@ fn main() {
             FpsOverlayPlugin::default(),
             EguiPlugin::default(),
         ))
+        .insert_resource(RenderDebugOverlayKeybindings {
+            enable_keybindings: true,
+            ..default()
+        })
         .run();
 }

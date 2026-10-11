@@ -1,5 +1,6 @@
 use bevy::color::palettes::css::{BLACK, YELLOW};
 use bevy::dev_tools::fps_overlay::FpsOverlayPlugin;
+use bevy::dev_tools::render_debug::RenderDebugOverlayKeybindings;
 use bevy::prelude::*;
 use bevy::{DefaultPlugins, app::App};
 use bevy_egui::EguiPlugin;
@@ -23,6 +24,10 @@ fn main() {
             FpsOverlayPlugin::default(),
             EguiPlugin::default(),
         ))
+        .insert_resource(RenderDebugOverlayKeybindings {
+            enable_keybindings: true,
+            ..default()
+        })
         .add_systems(Startup, (load_mods, setup))
         .add_systems(Update, hide_disclaimer)
         .run();
@@ -81,7 +86,7 @@ fn setup(
             width: percent(100),
             position_type: PositionType::Absolute,
             top: px(0),
-            padding: UiRect::all(px(20)),
+            padding: UiRect::all(rem(1)),
             ..default()
         },
         children![

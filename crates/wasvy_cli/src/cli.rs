@@ -201,7 +201,7 @@ fn new(path: &Path, args: &NewArgs, runtime: &Runtime, logging: Logging) -> Resu
         .into());
     };
 
-    println!("Scaffolding new {name} mod \"{}\"", &args.name);
+    println!("Scaffolding new {name} mod \"{}\"", args.name);
 
     if !path.is_dir() {
         bail!("Invalid path: {path:?}");

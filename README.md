@@ -267,6 +267,8 @@ Wasvy offers some example host apps to get started:
 - [**Components**](examples/apps/components): A Bevy app that exposes component bindings in wit. This allows mods to directly call methods within the host to mutate components/resources.
 - [**Custom Codec**](examples/apps/custom_codec): A Bevy app that demonstrates using a custom codec implementation for Wasvy.
 
+The Basic and Custom Codec apps support Bevy's render-debug overlay: press `F1` to cycle modes and `F2` to cycle opacity.
+
 ### Mods
 
 Since Wasvy is built on the wasm component model, mods can be written in almost any language. We provide a few examples for reference and experimentation:

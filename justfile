@@ -61,7 +61,7 @@ enable-git-hooks:
 # Build the ECS WIT package.
 [group("chores")]
 build-wasvy-ecs:
-	wkg wit build --wit-dir ./wit/
+	wkg wit build --wit-dir ./interface/wit/
 
 # Publish the ECS package to wa.dev.
 [group("chores")]
@@ -99,6 +99,7 @@ publish:
 	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features
 
 	# Publish
+	cargo publish -p wasvy_interface
 	cargo publish -p wasvy_macros
 	cargo publish -p wasvy_cli
 	cargo publish -p wasvy

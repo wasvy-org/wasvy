@@ -20,3 +20,4 @@ quote.workspace = true
 syn.workspace = true
 proc-macro-crate.workspace = true
 wit-parser.workspace = true
+wasvy_interface.workspace = true

@@ -27,6 +27,7 @@ bevy_reflect.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
 wasvy_runtime.workspace = true
+wasvy_macros.workspace = true
 
 # These lints may be important signals about code quality, but normal Bevy code
 # commonly triggers them and the CI workflow treats them as errors, so we've

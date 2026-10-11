@@ -1,0 +1,13 @@
+[package]
+name = "wasvy_interface"
+authors.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+version.workspace = true
+edition.workspace = true
+description = "Re-exported WIT declarations for Wasvy and the Bevy ECS"
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme = "README.md"
+publish = true

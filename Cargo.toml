@@ -16,7 +16,7 @@ publish = true
 name = "wasvy"
 
 [workspace]
-members = ["crates/*", "examples/apps/*", "examples/mods/rust/*", "tests/fixtures/crates/*"]
+members = ["interface", "crates/*", "examples/apps/*", "examples/mods/rust/*", "tests/fixtures/crates/*"]
 resolver = "2"
 
 [workspace.package]
@@ -88,6 +88,7 @@ wasmtime = { version = "46.0.1", default-features = false, features = [
 wasmtime-wasi = { version = "46.0.1", default-features = false, features = ["p2"] }
 wasvy = { version = "0.0.9", path = "." }
 wasvy_cli = { version = "0.0.9", path = "./crates/wasvy_cli" }
+wasvy_interface = { version = "0.0.9", path = "interface" }
 wasvy_macros = { version = "0.0.9", path = "crates/wasvy_macros" }
 wasvy_mock = { version = "0.0.9", path = "./crates/wasvy_mock" }
 wasvy_runtime = { version = "0.0.9", path = "./crates/wasvy_runtime" }
@@ -110,6 +111,8 @@ wasvy_runtime.workspace = true
 wasvy_wasm = { workspace = true, optional = true }
 
 [dev-dependencies]
+wasvy_interface.workspace = true
+wit-parser.workspace = true
 wit-bindgen.workspace = true
 trybuild.workspace = true
 bevy_math.workspace = true

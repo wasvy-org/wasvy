@@ -7,6 +7,29 @@ use std::path::{Path, PathBuf};
 use syn::{Attribute, DeriveInput, Ident, ImplItem, Item, ItemImpl, ItemStruct, Type, TypePath};
 use wit_parser::{FunctionKind, Resolve, TypeDefKind, WorldItem};
 
+/// A wrapper around wasmtime::component::bindgen that includes the wasvy wit
+/// declarations from the wasvy_interface crate.
+///
+/// # Example
+/// ```ignore
+/// wasvy_macros::wasvy_bindgen! {
+///     world: "host",
+///     imports: { default: trappable },
+/// }
+/// ```
+#[proc_macro]
+pub fn wasvy_bindgen(input: TokenStream) -> TokenStream {
+    let options = proc_macro2::TokenStream::from(input);
+    let declaration = wasvy_interface::WASVY_ECS;
+    quote! {
+        ::wasmtime::component::bindgen!({
+            inline: #declaration,
+            #options
+        });
+    }
+    .into()
+}
+
 /// Attribute used to skip exporting a method in a `#[wasvy::methods]` impl.
 #[proc_macro_attribute]
 pub fn skip(_attr: TokenStream, item: TokenStream) -> TokenStream {

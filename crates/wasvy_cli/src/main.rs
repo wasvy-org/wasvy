@@ -11,7 +11,7 @@ use wasvy_cli::{
 
 pub fn main() {
     let version = env!("CARGO_PKG_VERSION");
-    let bevy = "0.20.0"; // Updated by ci
+    let bevy = wasvy_interface::BEVY_VERSION;
     println!("Wasvy CLI v{version} for Bevy v{bevy}");
     println!();
     let args = Args::parse();

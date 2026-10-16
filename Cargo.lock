@@ -7456,11 +7456,13 @@ dependencies = [
  "trybuild",
  "wasmtime",
  "wasvy_cli",
+ "wasvy_interface",
  "wasvy_macros",
  "wasvy_mock",
  "wasvy_runtime",
  "wasvy_wasm",
  "wit-bindgen 0.58.0",
+ "wit-parser 0.252.0",
 ]
 
 [[package]]
@@ -7484,9 +7486,14 @@ dependencies = [
  "ureq",
  "wasmtime",
  "wasmtime-wasi",
+ "wasvy_interface",
  "wasvy_macros",
  "wit-parser 0.252.0",
 ]
+
+[[package]]
+name = "wasvy_interface"
+version = "0.0.9"
 
 [[package]]
 name = "wasvy_macros"
@@ -7496,6 +7503,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
+ "wasvy_interface",
  "wit-parser 0.252.0",
 ]
 
@@ -7542,6 +7550,7 @@ dependencies = [
  "serde_json",
  "trybuild",
  "wasvy_cli",
+ "wasvy_interface",
  "wasvy_macros",
  "wit-bindgen 0.58.0",
 ]
@@ -7559,6 +7568,7 @@ dependencies = [
  "bevy_reflect",
  "wasmtime",
  "wasmtime-wasi",
+ "wasvy_macros",
  "wasvy_runtime",
 ]
 

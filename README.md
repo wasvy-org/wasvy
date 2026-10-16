@@ -196,7 +196,7 @@ world example {
 
 4. Retrieve the Wasvy WIT files:
 
-For the latest version (v0.0.9) download and add the [wit/\*.wit](https://docs.rs/crate/wasvy/0.0.9/source/wit/ecs/ecs.wit) file inside your wit folder manually like so (any file in this `deps` folder should be picked up during compile-time).
+For v0.0.9, download `bevy-ecs.wit` and `wasvy-ecs.wit` from the [wasvy_interface WIT files](https://docs.rs/crate/wasvy_interface/0.0.9/source/wit/) into `wit/deps/` (any file in this `deps` folder should be picked up during compile-time).
 
 <img width="306" height="172" alt="Image" src="https://github.com/user-attachments/assets/9e238e43-01da-4653-af44-26462c33be24" />
 

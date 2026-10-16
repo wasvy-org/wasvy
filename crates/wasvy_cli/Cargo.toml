@@ -27,6 +27,7 @@ toml_edit.workspace = true
 wasmtime.workspace = true
 wasmtime-wasi.workspace = true
 wasvy_macros.workspace = true
+wasvy_interface.workspace = true
 wit-parser.workspace = true
 notify.workspace = true
 tracing.workspace = true

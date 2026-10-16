@@ -12,8 +12,7 @@ pub(crate) mod send_sync_ptr;
 pub(crate) mod system;
 
 pub(crate) mod bindings {
-    wasmtime::component::bindgen!({
-        path: "wit/wasvy-ecs.wit",
+    wasvy_macros::wasvy_bindgen! {
         world: "host",
         imports: { default: trappable },
         with: {
@@ -27,7 +26,7 @@ pub(crate) mod bindings {
             "wasvy:ecs/app.query-result": crate::host::WasmQueryResult,
             "wasvy:ecs/app.component": crate::host::WasmComponent,
         },
-    });
+    }
 }
 
 pub use engine::Linker;

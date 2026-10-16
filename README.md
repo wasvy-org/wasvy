@@ -281,7 +281,7 @@ Since Wasvy is built on the wasm component model, mods can be written in almost 
 
 Don't see an example in your favorite language? **Consider contributing it to our repo!** See the guidelines below.
 
-## Contributing
+## [Contributing](CONTRIBUTING.md)
 
 Contributions come in many forms, and we welcome all kinds of help! Here's how you can contribute:
 

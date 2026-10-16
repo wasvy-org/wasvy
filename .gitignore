@@ -1,5 +1,7 @@
 *.wasm
 target/
-.direnv
 
-.pi/
+# Ignore agentic directories
+.*/
+!.githooks/
+!.github/

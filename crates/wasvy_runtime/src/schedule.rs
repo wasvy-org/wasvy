@@ -1,7 +1,67 @@
 use bevy_app::prelude::*;
 use bevy_derive::{Deref, DerefMut};
-use bevy_ecs::{intern::Interned, prelude::*, schedule::ScheduleLabel};
+use bevy_ecs::{
+    intern::Interned,
+    prelude::*,
+    schedule::{InternedScheduleLabel, ScheduleLabel},
+};
 use bevy_platform::collections::HashSet;
+
+/// A schedule name, resolved to a Bevy schedule by the runtime for each mod access.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ModScheduleName {
+    /// A custom schedule that runs the first time a mod is loaded.
+    ///
+    /// It is a custom schedule that runs during the setup schedule
+    /// (which defaults to [First]), see
+    /// [ModRuntimePlugin::set_setup_schedule](crate::plugin::ModRuntimePlugin::set_setup_schedule)).
+    ///
+    /// Upon being loaded, mods are guaranteed to only run this schedule once,
+    /// even if other mods are loaded afterwards.
+    ModStartup,
+
+    /// See the Bevy schedule [PreUpdate]
+    PreUpdate,
+
+    /// See the Bevy schedule [Update]
+    Update,
+
+    /// See the Bevy schedule [PostUpdate]
+    PostUpdate,
+
+    /// See the Bevy schedule [FixedPreUpdate]
+    FixedPreUpdate,
+
+    /// See the Bevy schedule [FixedUpdate]
+    FixedUpdate,
+
+    /// See the Bevy schedule [FixedPostUpdate]
+    FixedPostUpdate,
+
+    /// A custom schedule. See [ModSchedule::new_custom] for more details.
+    Custom(String),
+}
+
+impl ModScheduleName {
+    pub(crate) fn matches(&self, schedule: &ModSchedule) -> bool {
+        self == &Self::from(schedule)
+    }
+}
+
+impl From<&ModSchedule> for ModScheduleName {
+    fn from(schedule: &ModSchedule) -> Self {
+        match schedule {
+            ModSchedule::ModStartup => Self::ModStartup,
+            ModSchedule::PreUpdate => Self::PreUpdate,
+            ModSchedule::Update => Self::Update,
+            ModSchedule::PostUpdate => Self::PostUpdate,
+            ModSchedule::FixedPreUpdate => Self::FixedPreUpdate,
+            ModSchedule::FixedUpdate => Self::FixedUpdate,
+            ModSchedule::FixedPostUpdate => Self::FixedPostUpdate,
+            ModSchedule::Custom { name, .. } => Self::Custom(name.clone()),
+        }
+    }
+}
 
 /// This is an enum representing schedules in Bevy where mods can also be run.
 ///
@@ -67,7 +127,7 @@ impl ModSchedule {
     }
 
     /// Returns a bevy [ScheduleLabel]. This can be passed into any methods that accept an `impl ScheduleLabel`.
-    pub fn schedule_label(&self) -> Interned<dyn ScheduleLabel> {
+    pub fn schedule_label(&self) -> InternedScheduleLabel {
         match self {
             Self::ModStartup => ModStartup.intern(),
             Self::PreUpdate => PreUpdate.intern(),

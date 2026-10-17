@@ -26,9 +26,9 @@ use crate::{
 ///
 /// This plugin manages mod lifecycle resources, host-side scheduling, access
 /// control, auto-registration, serialization, and optional devtools. It does
-/// not install a concrete mod execution backend such as the WASM backend; use
+/// not install a mod loader such as the WASM mod loader; use
 /// the top-level `wasvy::plugin::ModLoaderPlugin` for the bundled runtime plus
-/// backend setup.
+/// mod loader setup.
 ///
 /// ```no_run
 /// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};

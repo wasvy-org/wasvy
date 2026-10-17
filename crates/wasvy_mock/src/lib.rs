@@ -20,7 +20,7 @@ use bevy_remote::http::{DEFAULT_PORT, RemoteHttpPlugin};
 use clap::Parser;
 use wasvy_cli::{cli::Args, command::Logging, remote::RemoteUri, source::Source};
 use wasvy_runtime::{plugin::ModRuntimePlugin, prelude::Devtools};
-use wasvy_wasm::WasmBackendPlugin;
+use wasvy_wasm::WasmLoaderPlugin;
 
 const WAIT: Duration = Duration::from_millis(10);
 
@@ -101,7 +101,7 @@ impl MockApp {
                 },
                 RemoteHttpPlugin::default().with_port(port),
                 ModRuntimePlugin::default().devtools(devtools),
-                WasmBackendPlugin::default(),
+                WasmLoaderPlugin::default(),
             ))
             .add_systems(PostStartup, ready)
             .add_systems(Last, exit);

@@ -5,12 +5,12 @@ use wasvy_runtime::devtools;
 pub use wasvy_macros::WasvyComponent;
 pub use wasvy_runtime::prelude::*;
 #[cfg(feature = "wasm")]
-pub use wasvy_wasm::WasmBackendPlugin;
+pub use wasvy_wasm::WasmLoaderPlugin;
 
 /// This plugin adds Wasvy modding support to the [`bevy_app::App`].
 ///
 /// The high-level loader installs the runtime plugin and, when the `wasm`
-/// feature is enabled, the WASM backend.
+/// feature is enabled, the WASM mod loader.
 ///
 /// ```no_run
 /// # use bevy_app::prelude::*;
@@ -74,7 +74,7 @@ pub struct ModLoaderPlugin(Mutex<Option<Inner>>);
 struct Inner {
     runtime: ModRuntimePlugin,
     #[cfg(feature = "wasm")]
-    wasm: WasmBackendPlugin,
+    wasm: WasmLoaderPlugin,
 }
 
 impl Default for ModLoaderPlugin {

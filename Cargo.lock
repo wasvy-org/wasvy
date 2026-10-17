@@ -4775,10 +4775,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mod_empty"
-version = "0.0.0"
-
-[[package]]
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7496,6 +7492,13 @@ name = "wasvy_interface"
 version = "0.0.9"
 
 [[package]]
+name = "wasvy_loader_fixture"
+version = "0.0.0"
+dependencies = [
+ "wit-bindgen 0.58.0",
+]
+
+[[package]]
 name = "wasvy_macros"
 version = "0.0.9"
 dependencies = [
@@ -7543,6 +7546,7 @@ dependencies = [
  "bevy_platform",
  "bevy_reflect",
  "bevy_remote",
+ "bevy_scene",
  "bevy_transform",
  "error-collection",
  "inventory",
@@ -7566,6 +7570,8 @@ dependencies = [
  "bevy_ecs",
  "bevy_log",
  "bevy_reflect",
+ "bevy_transform",
+ "error-collection",
  "wasmtime",
  "wasmtime-wasi",
  "wasvy_macros",

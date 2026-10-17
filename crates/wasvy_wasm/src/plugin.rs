@@ -6,24 +6,24 @@ use wasvy_runtime::asset::ModAsset;
 
 use crate::{
     engine::{Engine, Linker, create_linker},
-    wasm_asset::ModAssetLoader,
+    wasm_asset::WasmAssetLoader,
 };
 
-/// Adds the Wasmtime backend for [`wasvy_runtime`].
-pub struct WasmBackendPlugin(Mutex<Option<Inner>>);
+/// Adds the Wasm mod loader for [`wasvy_runtime`].
+pub struct WasmLoaderPlugin(Mutex<Option<Inner>>);
 
 struct Inner {
     engine: Engine,
     linker: Linker,
 }
 
-impl Default for WasmBackendPlugin {
+impl Default for WasmLoaderPlugin {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl WasmBackendPlugin {
+impl WasmLoaderPlugin {
     pub fn new() -> Self {
         let engine = Engine::default();
         let linker = create_linker(&engine);
@@ -43,23 +43,23 @@ impl WasmBackendPlugin {
     fn inner(&mut self) -> &mut Inner {
         self.0
             .get_mut()
-            .expect("WasmBackendPlugin is not locked")
+            .expect("WasmLoaderPlugin is not locked")
             .as_mut()
-            .expect("WasmBackendPlugin is not built")
+            .expect("WasmLoaderPlugin is not built")
     }
 }
 
-impl Plugin for WasmBackendPlugin {
+impl Plugin for WasmLoaderPlugin {
     fn build(&self, app: &mut bevy_app::App) {
         let Inner { engine, linker } = self
             .0
             .lock()
-            .expect("WasmBackendPlugin is not locked")
+            .expect("WasmLoaderPlugin is not locked")
             .take()
-            .expect("WasmBackendPlugin is not built");
+            .expect("WasmLoaderPlugin is not built");
 
         app.init_asset::<ModAsset>()
-            .register_asset_loader(ModAssetLoader::new(linker))
+            .register_asset_loader(WasmAssetLoader::new(linker))
             .insert_resource(engine);
     }
 }

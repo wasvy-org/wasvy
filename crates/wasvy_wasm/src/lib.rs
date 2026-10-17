@@ -1,4 +1,4 @@
-#![doc = "WASM backend for wasvy_runtime, powered by Wasmtime and WASI."]
+#![doc = "WASM mod loader for wasvy_runtime, powered by Wasmtime and WASI."]
 
 pub mod engine;
 pub mod host;
@@ -30,5 +30,5 @@ pub(crate) mod bindings {
 }
 
 pub use engine::Linker;
-pub use plugin::WasmBackendPlugin;
-pub use wasm_asset::{ModAssetLoader, WasmModBackend};
+pub use plugin::WasmLoaderPlugin;
+pub use wasm_asset::WasmAssetLoader;

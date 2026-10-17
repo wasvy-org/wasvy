@@ -1,2 +1,2 @@
 crates/*
-!crates/empty
+!crates/loader_discovery

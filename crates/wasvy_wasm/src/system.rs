@@ -1,25 +1,29 @@
+use std::collections::{BTreeMap, HashSet};
+
+use error_collection::Errors;
+
 use anyhow::Result;
 use bevy_ecs::{
     error::Result as BevyResult,
     prelude::*,
-    resource::Resource as BevyResource,
-    schedule::{ScheduleConfigs, ScheduleLabel},
-    system::{BoxedSystem, Commands, LocalBuilder, ParamBuilder, ParamSetBuilder, Query},
+    system::{BoxedSystem, LocalBuilder, ParamBuilder, ParamSetBuilder, Query},
     world::FilteredEntityMut,
 };
 use bevy_log::prelude::*;
 use wasmtime::component::{InstancePre, Resource, Val};
 use wasmtime_wasi::ResourceTable;
 use wasvy_runtime::{
-    access::ModAccess,
+    asset::ModDiscovery,
+    commands::RuntimeCommands,
     component::WasmComponentRegistry,
-    mods::{InsertDespawnComponent, ModSystemSet},
     prelude::FunctionIndex,
+    schedule::ModScheduleName,
     serialize::CodecResource,
+    system::{ModSystemBuild, ModSystemContext, ModSystemDefinition, ModSystemName},
 };
 
 use crate::{
-    bindings::wasvy::ecs::app::{QueryFor, Schedule},
+    bindings::wasvy::ecs::app::QueryFor,
     engine::Engine,
     host::{WasmCommands, WasmHost, WasmQuery, WasmSystem},
     query::{QueryId, QueryIdGenerator, QueryResolver, create_query_builder},
@@ -31,114 +35,120 @@ use crate::{
 ///
 /// Wasvy only registers systems after mod's setup method has successfully run.
 #[derive(Default)]
-pub(crate) struct AddSystems(Vec<(Schedule, Vec<Resource<WasmSystem>>)>);
+pub(crate) struct AddSystems(Vec<(ModScheduleName, Vec<Resource<WasmSystem>>)>);
 
 impl AddSystems {
-    pub(crate) fn push(&mut self, schedule: Schedule, systems: Vec<Resource<WasmSystem>>) {
+    pub(crate) fn push(&mut self, schedule: ModScheduleName, systems: Vec<Resource<WasmSystem>>) {
         self.0.push((schedule, systems));
     }
 
-    pub(crate) fn add_systems(
+    pub(crate) fn definitions(
         self,
-        world: &mut World,
-        accesses: &[ModAccess],
         table: &ResourceTable,
-        mod_id: Entity,
-        mod_name: &str,
         instance_pre: &InstancePre<WasmHost>,
-    ) -> Result<()> {
-        // Each access needs dedicated systems that run inside it
-        for access in accesses {
-            let mod_schedules = access.schedules(world);
-            for (schedule, systems) in self.0.iter() {
-                // Validate that the schedule requested by the mod is enabled
-                let Some(schedule) = mod_schedules
-                    .iter()
-                    .find(|s| schedule == *s)
-                    .map(|s| s.schedule_label())
-                else {
-                    warn!(
-                        "Mod tried adding systems to schedule {schedule:?}, but that schedule is not enabled. See ModSchedules docs."
-                    );
-                    continue;
-                };
+    ) -> ModDiscovery {
+        let requests = self.group_schedules();
+        let scheduled = requests.keys().copied().collect();
+        let mut discovery = ModDiscovery::default();
 
-                for system in systems
-                    .iter()
-                    .map(|system| table.get(system).expect("Resource not be dropped"))
-                {
-                    Self::add_system(
-                        schedule,
-                        system,
-                        world,
-                        mod_id,
-                        mod_name,
-                        access,
-                        instance_pre,
-                    )?;
-                }
+        for (resource, schedules) in requests {
+            let system = table.get(&Resource::<WasmSystem>::new_borrow(resource));
+            let Some(system) = discovery.errors.collect(system) else {
+                continue;
+            };
+            discovery.systems.push(system.definition(
+                schedules,
+                table,
+                &scheduled,
+                instance_pre,
+                &mut discovery.errors,
+            ));
+        }
+        discovery
+    }
+
+    fn group_schedules(self) -> BTreeMap<u32, HashSet<ModScheduleName>> {
+        let mut requests: BTreeMap<_, HashSet<_>> = BTreeMap::new();
+        for (schedule, systems) in self.0 {
+            for system in systems {
+                requests
+                    .entry(system.rep())
+                    .or_default()
+                    .insert(schedule.clone());
             }
         }
-
-        Ok(())
+        requests
     }
+}
 
-    fn add_system(
-        schedule: impl ScheduleLabel,
-        system: &WasmSystem,
-        world: &mut World,
-        mod_id: Entity,
-        mod_name: &str,
-        access: &ModAccess,
+impl WasmSystem {
+    fn definition(
+        &self,
+        schedules: HashSet<ModScheduleName>,
+        table: &ResourceTable,
+        scheduled: &HashSet<u32>,
         instance_pre: &InstancePre<WasmHost>,
-    ) -> Result<()> {
-        let schedule_config = Self::schedule(
-            system,
+        errors: &mut Errors,
+    ) -> ModSystemDefinition {
+        let mut definition = ModSystemDefinition::new(
+            self.name.clone(),
+            WasmSystemFactory {
+                export_name: self.name.clone(),
+                params: self.params.clone(),
+                instance_pre: instance_pre.clone(),
+            },
+        )
+        .in_schedules(schedules);
+        definition.before = ordering_names(&self.before, table, scheduled, errors);
+        definition.after = ordering_names(&self.after, table, scheduled, errors);
+        definition
+    }
+}
+
+fn ordering_names(
+    references: &[u32],
+    table: &ResourceTable,
+    scheduled: &HashSet<u32>,
+    errors: &mut Errors,
+) -> HashSet<ModSystemName> {
+    references
+        .iter()
+        .filter(|reference| scheduled.contains(reference))
+        .filter_map(|reference| {
+            errors.collect(table.get(&Resource::<WasmSystem>::new_borrow(*reference)))
+        })
+        .map(|system| system.name.clone().into())
+        .collect()
+}
+
+struct WasmSystemFactory {
+    export_name: String,
+    params: Vec<Param>,
+    instance_pre: InstancePre<WasmHost>,
+}
+
+impl ModSystemBuild for WasmSystemFactory {
+    fn build(&self, context: ModSystemContext<'_>) -> Result<BoxedSystem> {
+        let ModSystemContext {
             world,
-            mod_id,
             mod_name,
             access,
-            instance_pre.clone(),
-        )?
-        .in_set(ModSystemSet::All)
-        .in_set(ModSystemSet::Mod(mod_id))
-        .in_set(ModSystemSet::Access(*access));
-
-        world
-            .get_resource_mut::<Schedules>()
-            .expect("running in an App")
-            .add_systems(schedule, schedule_config);
-
-        Ok(())
-    }
-
-    pub(crate) fn schedule(
-        sys: &WasmSystem,
-        world: &mut World,
-        mod_id: Entity,
-        mod_name: &str,
-        access: &ModAccess,
-        instance_pre: InstancePre<WasmHost>,
-    ) -> Result<ScheduleConfigs<BoxedSystem>> {
+        } = context;
         // The input struct contains various data used at runtime
-        let built_params = BuiltParam::new_vec(&sys.params);
-        let query_resolver = QueryResolver::new(&sys.params, world)?;
-        let insert_despawn_component = InsertDespawnComponent::new(mod_id, world);
+        let built_params = BuiltParam::new_vec(&self.params);
+        let query_resolver = QueryResolver::new(&self.params, world)?;
         let input = Input {
             mod_name: mod_name.to_string(),
-            system_name: sys.name.clone(),
+            system_name: self.export_name.clone(),
             built_params,
             query_resolver,
-            access: *access,
-            insert_despawn_component,
-            instance_pre,
+            instance_pre: self.instance_pre.clone(),
         };
 
         // Generate the queries necessary to run this system
-        let filtered_access = access.filtered_access(world);
-        let mut queries = Vec::with_capacity(sys.params.len());
-        for items in sys.params.iter().filter_map(Param::filter_query) {
-            queries.push(create_query_builder(items, world, filtered_access.clone())?);
+        let mut queries = Vec::with_capacity(self.params.len());
+        for items in self.params.iter().filter_map(Param::filter_query) {
+            queries.push(create_query_builder(items, world, access.clone())?);
         }
 
         let system = (
@@ -155,20 +165,10 @@ impl AddSystems {
         )
             .build_state(world)
             .build_system(dynamic_system)
-            .with_name(format!("wasvy[{mod_name}]::{}", sys.name));
+            .with_name(format!("wasvy[{mod_name}]::{}", self.export_name));
 
-        let boxed_system = Box::new(IntoSystem::into_system(system));
-
-        let mut schedule_config = boxed_system
-            // See docs for [SystemIdentifier]
-            .in_set(sys.id);
-
-        // Implement system ordering
-        for after in sys.after.iter() {
-            schedule_config = schedule_config.after(*after);
-        }
-
-        Ok(schedule_config)
+        let boxed_system: BoxedSystem = Box::new(IntoSystem::into_system(system));
+        Ok(boxed_system)
     }
 }
 
@@ -177,8 +177,6 @@ struct Input {
     system_name: String,
     built_params: Vec<BuiltParam>,
     query_resolver: QueryResolver,
-    access: ModAccess,
-    insert_despawn_component: InsertDespawnComponent,
     instance_pre: InstancePre<WasmHost>,
 }
 
@@ -199,7 +197,7 @@ fn dynamic_system(
     codec: Res<CodecResource>,
     wasm_registry: Res<WasmComponentRegistry>,
     function_index: Res<FunctionIndex>,
-    mut commands: Commands,
+    mut commands: RuntimeCommands,
     // TODO: Query for filtered resource access.
     mut queries: ParamSet<Vec<Query<FilteredEntityMut>>>,
 ) -> BevyResult {
@@ -219,8 +217,6 @@ fn dynamic_system(
         function_index: &function_index,
         queries: &mut queries,
         query_resolver: &input.query_resolver,
-        access: input.access,
-        insert_despawn_component: input.insert_despawn_component,
     };
     call(
         &mut runner,
@@ -235,6 +231,7 @@ fn dynamic_system(
 }
 
 /// A system param (what a mod system requests as parameters)
+#[derive(Clone)]
 pub(crate) enum Param {
     Commands,
     Query(Vec<QueryFor>),
@@ -283,41 +280,3 @@ fn initialize_params(
     }
     Ok(())
 }
-
-/// Bevy doesn't return an identifier for systems added directly to the scheduler. There is
-/// [NodeId](bevy_ecs::schedule::NodeId) but that has no clear way of being used for system ordering.
-///
-/// So instead we take inspiration from bevy's [AnonymousSet](bevy_ecs::schedule::AnonymousSet)
-/// and we identify each system with an extra [SystemSet] all to itself.
-// Note: Using an AnonymousSet could work but unfortunately the method used to create one is private.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-pub struct DynamicSystemId(usize);
-
-impl DynamicSystemId {
-    /// Initialize a unique identifier in the world
-    pub(crate) fn new(world: &mut World) -> Self {
-        world.init_resource::<DynamicSystemSetCount>();
-        let mut count = world
-            .get_resource_mut::<DynamicSystemSetCount>()
-            .expect("SystemIdentifierCount to be initialized");
-        let identifier = DynamicSystemId(count.0);
-        count.0 += 1;
-        identifier
-    }
-}
-
-impl SystemSet for DynamicSystemId {
-    // As of bevy 0.18 this function's only purpose is for debugging
-    fn is_anonymous(&self) -> bool {
-        // This is technically incorrect, but it makes bevy use the system name as node name instead of DynamicSystemId(usize)
-        true
-    }
-
-    fn dyn_clone(&self) -> Box<dyn SystemSet> {
-        Box::new(*self)
-    }
-}
-
-/// An tracker to ensure unique [DynamicSystemId]s in the world
-#[derive(Default, BevyResource)]
-struct DynamicSystemSetCount(usize);

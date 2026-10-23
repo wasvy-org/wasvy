@@ -408,7 +408,7 @@ impl Sandboxed {
             world
                 .commands()
                 .entity(ctx.entity)
-                .remove_by_id(component_id);
+                .queue_silenced(bevy_ecs::system::entity_command::remove_by_id(component_id));
         }
 
         // Relationship impl

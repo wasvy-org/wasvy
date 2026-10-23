@@ -105,11 +105,17 @@ pub(crate) fn run_setup(
     // Initiate mods with exclusive world access (runs the mod setup)
     let mut run_startup_schedule = false;
     for (asset_id, mod_id, name, accesses) in setup {
-        if ModAsset::initiate(world, &asset_id, mod_id, &name, &accesses[..]).is_ok() {
-            info!("Successfully initialized mod \"{name}\"");
-            run_startup_schedule = true;
-            continue;
-        };
+        match ModAsset::initiate(world, &asset_id, mod_id, &name, &accesses[..]) {
+            Ok(errors) => {
+                if errors.is_empty() {
+                    info!("Successfully initialized mod \"{name}\"");
+                } else {
+                    warn!("Errors initializing mod \"{name}\": {errors:?}");
+                }
+                run_startup_schedule = true;
+            }
+            Err(error) => warn!("Failed to initialize mod \"{name}\": {error:?}"),
+        }
     }
 
     if run_startup_schedule {

@@ -1,27 +1,26 @@
-use bevy_ecs::prelude::*;
 use wasmtime::component::Resource;
 
 use crate::{
     bindings::wasvy::ecs::app::{HostSystem, QueryFor},
     host::WasmHost,
     runner::State,
-    system::{DynamicSystemId, Param},
+    system::Param,
 };
 
 pub struct WasmSystem {
-    pub(crate) id: DynamicSystemId,
     pub(crate) name: String,
     pub(crate) params: Vec<Param>,
-    pub(crate) after: Vec<DynamicSystemId>,
+    pub(crate) after: Vec<u32>,
+    pub(crate) before: Vec<u32>,
 }
 
 impl WasmSystem {
-    fn new(name: String, world: &mut World) -> Self {
+    fn new(name: String) -> Self {
         Self {
-            id: DynamicSystemId::new(world),
             name,
             params: Vec::new(),
             after: Vec::new(),
+            before: Vec::new(),
         }
     }
 
@@ -45,13 +44,13 @@ impl WasmSystem {
 
 impl HostSystem for WasmHost {
     fn new(&mut self, name: String) -> Result<Resource<WasmSystem>, wasmtime::Error> {
-        let State::Setup { table, world, .. } = self.access() else {
+        let State::Setup { table, .. } = self.access() else {
             return Err(wasmtime::Error::msg(
                 "Systems can only be instantiated in a setup function",
             ));
         };
 
-        let system = table.push(WasmSystem::new(name, world))?;
+        let system = table.push(WasmSystem::new(name))?;
         Ok(system)
     }
 
@@ -81,7 +80,8 @@ impl HostSystem for WasmHost {
             ));
         };
 
-        let other = table.get(&other)?.id;
+        table.get(&other)?;
+        let other = other.rep();
         let system = table.get_mut(&system)?;
 
         system.after.push(other);
@@ -94,17 +94,17 @@ impl HostSystem for WasmHost {
         system: Resource<WasmSystem>,
         other: Resource<WasmSystem>,
     ) -> std::result::Result<(), wasmtime::Error> {
-        // In bevy, `a.before(b)` is logically equivalent to `b.after(a)`
         let State::Setup { table, .. } = self.access() else {
             return Err(wasmtime::Error::msg(
                 "Systems can only be modified in a setup function",
             ));
         };
 
-        let other = table.get(&other)?.id;
+        table.get(&other)?;
+        let other = other.rep();
         let system = table.get_mut(&system)?;
 
-        system.after.push(other);
+        system.before.push(other);
 
         Ok(())
     }
@@ -113,7 +113,7 @@ impl HostSystem for WasmHost {
     fn drop(&mut self, _: Resource<WasmSystem>) -> std::result::Result<(), wasmtime::Error> {
         // Don't drop! After running setup, wasvy will find and register all
         // [WasmSystems] via [AddSystems]. If they are dropped, they will not be
-        // in the wasm resource table when [AddSystems::add_systems] is called.
+        // in the wasm resource table when [AddSystems::definitions] is called.
 
         Ok(())
     }

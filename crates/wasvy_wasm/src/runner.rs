@@ -5,12 +5,11 @@ use bevy_ecs::{prelude::*, reflect::AppTypeRegistry, world::FilteredEntityMut};
 use wasmtime::component::ResourceAny;
 use wasmtime_wasi::ResourceTable;
 use wasvy_runtime::{
-    access::ModAccess, component::WasmComponentRegistry, mods::InsertDespawnComponent,
-    prelude::FunctionIndex, serialize::CodecResource,
+    commands::RuntimeCommands, component::WasmComponentRegistry, prelude::FunctionIndex,
+    serialize::CodecResource,
 };
 
 use crate::{
-    engine::Engine,
     host::WasmHost,
     query::{Queries, QueryResolver},
     send_sync_ptr::SendSyncPtr,
@@ -25,9 +24,9 @@ pub(crate) struct Runner {
 }
 
 impl Runner {
-    pub(crate) fn new(engine: &Engine) -> Self {
+    pub(crate) fn new(engine: &wasmtime::Engine) -> Self {
         let host = WasmHost::new();
-        let store = Store::new(engine.inner(), host);
+        let store = Store::new(engine, host);
 
         Self { store }
     }
@@ -54,10 +53,8 @@ impl Runner {
     {
         self.store.data_mut().set_data(Data(match config {
             Config::Setup(ConfigSetup {
-                world,
                 add_systems: systems,
             }) => Inner::Setup {
-                world: SendSyncPtr::new(world.into()),
                 add_systems: SendSyncPtr::new(systems.into()),
             },
             Config::RunSystem(ConfigRunSystem {
@@ -68,8 +65,6 @@ impl Runner {
                 function_index,
                 queries,
                 query_resolver,
-                access,
-                insert_despawn_component,
             }) => Inner::RunSystem {
                 commands: SendSyncPtr::new(NonNull::from_mut(commands).cast()),
                 type_registry: SendSyncPtr::new(NonNull::from_ref(type_registry)),
@@ -78,8 +73,6 @@ impl Runner {
                 function_index: SendSyncPtr::new(NonNull::from_ref(function_index)),
                 queries: SendSyncPtr::new(NonNull::from_ref(queries).cast()),
                 query_resolver: SendSyncPtr::new(NonNull::from_ref(query_resolver)),
-                access,
-                insert_despawn_component,
             },
         }));
 
@@ -99,19 +92,16 @@ pub(crate) struct Data(Inner);
 enum Inner {
     Uninitialized,
     Setup {
-        world: SendSyncPtr<World>,
         add_systems: SendSyncPtr<AddSystems>,
     },
     RunSystem {
-        commands: SendSyncPtr<Commands<'static, 'static>>,
+        commands: SendSyncPtr<RuntimeCommands<'static, 'static>>,
         type_registry: SendSyncPtr<AppTypeRegistry>,
         codec: SendSyncPtr<CodecResource>,
         wasm_registry: SendSyncPtr<WasmComponentRegistry>,
         function_index: SendSyncPtr<FunctionIndex>,
         queries: SendSyncPtr<Queries<'static, 'static>>,
         query_resolver: SendSyncPtr<QueryResolver>,
-        access: ModAccess,
-        insert_despawn_component: InsertDespawnComponent,
     },
 }
 
@@ -126,12 +116,10 @@ impl Data {
     pub(crate) fn access<'a>(&'a mut self, table: &'a mut ResourceTable) -> Option<State<'a>> {
         match &mut self.0 {
             Inner::Setup {
-                world,
                 add_systems: systems,
             } => Some(State::Setup {
                 // Safety: Runner::use_store ensures that this always contains a valid reference
                 // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
-                world: unsafe { world.as_mut() },
                 table,
                 add_systems: unsafe { systems.as_mut() },
             }),
@@ -143,8 +131,6 @@ impl Data {
                 function_index,
                 queries,
                 query_resolver,
-                access,
-                insert_despawn_component,
             } =>
             // Safety: Runner::use_store ensures that this always contains a valid reference
             // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
@@ -157,8 +143,6 @@ impl Data {
                     function_index: function_index.as_ref(),
                     queries: queries.cast().as_mut(),
                     query_resolver: query_resolver.as_ref(),
-                    insert_despawn_component,
-                    access,
                     table,
                 })
             },
@@ -169,21 +153,18 @@ impl Data {
 
 pub(crate) enum State<'a> {
     Setup {
-        world: &'a mut World,
         table: &'a mut ResourceTable,
         add_systems: &'a mut AddSystems,
     },
     RunSystem {
         table: &'a mut ResourceTable,
-        commands: &'a mut Commands<'a, 'a>,
+        commands: &'a mut RuntimeCommands<'a, 'a>,
         type_registry: &'a AppTypeRegistry,
         codec: &'a CodecResource,
         wasm_registry: &'a WasmComponentRegistry,
         function_index: &'a FunctionIndex,
         queries: &'a mut Queries<'a, 'a>,
         query_resolver: &'a QueryResolver,
-        access: &'a ModAccess,
-        insert_despawn_component: &'a InsertDespawnComponent,
     },
 }
 
@@ -193,12 +174,11 @@ pub(crate) enum Config<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
 }
 
 pub(crate) struct ConfigSetup<'a> {
-    pub(crate) world: &'a mut World,
     pub(crate) add_systems: &'a mut AddSystems,
 }
 
 pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
-    pub(crate) commands: &'a mut Commands<'b, 'c>,
+    pub(crate) commands: &'a mut RuntimeCommands<'b, 'c>,
     pub(crate) type_registry: &'a AppTypeRegistry,
     pub(crate) codec: &'a CodecResource,
     pub(crate) wasm_registry: &'a WasmComponentRegistry,
@@ -206,6 +186,4 @@ pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
     pub(crate) queries:
         &'a mut ParamSet<'d, 'e, Vec<Query<'f, 'g, FilteredEntityMut<'static, 'static>>>>,
     pub(crate) query_resolver: &'a QueryResolver,
-    pub(crate) access: ModAccess,
-    pub(crate) insert_despawn_component: InsertDespawnComponent,
 }

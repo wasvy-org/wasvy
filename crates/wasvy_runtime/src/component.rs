@@ -10,13 +10,12 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::{
     component::{ComponentDescriptor, ComponentId},
     prelude::*,
-    reflect::ReflectCommandExt,
     world::{FilteredEntityMut, FilteredEntityRef},
 };
 use bevy_platform::collections::HashMap;
 use bevy_reflect::{Reflect, ReflectFromPtr};
 
-use crate::serialize::CodecResource;
+use crate::{commands::RuntimeCommands, serialize::CodecResource};
 
 /// Fully-qualified type path used to identify a component type.
 pub type TypePath = String;
@@ -44,30 +43,29 @@ pub struct WasmComponent {
 /// A command that inserts a guest defined component into an entity
 ///
 /// It also registers the component if it hasn't been yet
-struct InsertWasmComponent {
-    component: WasmComponent,
+pub(crate) fn insert_guest_component(
+    world: &mut World,
     entity: Entity,
     type_path: String,
-}
-
-impl Command for InsertWasmComponent {
-    type Out = ();
-
-    fn apply(self, world: &mut World) {
-        let component_id = get_wasm_component_id(&self.type_path, world);
-
-        let mut commands = world.commands();
-        let mut entity_commands = commands.entity(self.entity);
-
-        // Safety:
-        // - ComponentId is from the same world as self.
-        // - T has the same layout as the one passed during component_id creation.
-        unsafe { entity_commands.insert_by_id(component_id, self.component) };
-    }
+    value: Vec<u8>,
+) {
+    let component_id = get_wasm_component_id(&type_path, world);
+    let mut commands = world.commands();
+    // Safety:
+    // - ComponentId is from the same world as self.
+    // - T has the same layout as the one passed during component_id creation.
+    unsafe {
+        commands.entity(entity).insert_by_id(
+            component_id,
+            WasmComponent {
+                serialized_value: value,
+            },
+        )
+    };
 }
 
 pub fn insert_component(
-    commands: &mut Commands,
+    commands: &mut RuntimeCommands,
     type_registry: &AppTypeRegistry,
     codec: &CodecResource,
     entity: Entity,
@@ -83,18 +81,16 @@ pub fn insert_component(
     }
     // Handle guest types (inserted as json strings)
     else {
-        commands.queue(InsertWasmComponent {
-            component: WasmComponent { serialized_value },
-            entity,
-            type_path,
-        });
+        commands
+            .entity(entity)
+            .insert_guest_component(type_path, serialized_value);
     }
 
     Ok(())
 }
 
 pub fn remove_component(
-    commands: &mut Commands,
+    commands: &mut RuntimeCommands,
     wasm_registry: &WasmComponentRegistry,
     entity: Entity,
     type_path: String,

@@ -26,6 +26,7 @@ bevy_ecs.workspace = true
 bevy_log.workspace = true
 bevy_platform.workspace = true
 bevy_reflect.workspace = true
+bevy_scene.workspace = true
 bevy_remote = { workspace = true, optional = true }
 error-collection.workspace = true
 inventory.workspace = true

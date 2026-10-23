@@ -25,7 +25,7 @@ impl HostApp for WasmHost {
             ));
         };
 
-        add_systems.push(schedule, systems);
+        add_systems.push(schedule.into(), systems);
 
         Ok(())
     }

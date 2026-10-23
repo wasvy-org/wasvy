@@ -50,6 +50,7 @@ bevy_reflect = { version = "0.20.0", features = [
     "reflect_documentation",
 ] }
 bevy_remote = { version = "0.20.0", default-features = false, features = ["http"] }
+bevy_scene = "0.20.0"
 bevy_state = "0.20.0"
 bevy_transform = { version = "0.20.0", features = [
     "serialize",

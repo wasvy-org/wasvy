@@ -4,11 +4,7 @@ use bevy_ecs::prelude::*;
 use bevy_log::prelude::*;
 use wasmtime::component::Resource;
 use wasmtime_wasi::ResourceTable;
-use wasvy_runtime::{
-    access::ModAccess,
-    cleanup::DespawnModEntity,
-    component::{insert_component, remove_component},
-};
+use wasvy_runtime::component::{insert_component, remove_component};
 
 use crate::{
     bindings::wasvy::ecs::app::{Bundle, BundleTypes},
@@ -42,11 +38,7 @@ where
     F: From<Entity> + Send,
 {
     let State::RunSystem {
-        commands,
-        table,
-        insert_despawn_component,
-        access,
-        ..
+        commands, table, ..
     } = host.access()
     else {
         return Err(wasmtime::Error::msg(
@@ -54,22 +46,7 @@ where
         ));
     };
 
-    let mut entity_commands = commands.spawn_empty();
-
-    // Make sure the entity is not spawned outside the sandbox
-    // The mod can still override the ChildOf with its own value
-    // Note: We can't currently prevent a mod from creating a component that has a relation to a component outside the sandbox
-    // TODO: Restrict what entities a mod can reference via permissions
-    if let ModAccess::Sandbox(entity) = access {
-        entity_commands.insert(ChildOf(*entity));
-    };
-
-    // Make sure this entity is despawned when the mod is despawned. See [ModDespawnBehaviour]
-    if let Some(mod_id) = insert_despawn_component.as_ref() {
-        entity_commands.insert(DespawnModEntity::new(*mod_id));
-    }
-
-    let entity = entity_commands.id();
+    let entity = commands.spawn_empty().id();
     trace!("Spawn empty ({entity})");
 
     entity_resource(entity, table)

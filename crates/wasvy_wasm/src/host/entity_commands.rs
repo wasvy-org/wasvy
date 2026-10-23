@@ -1,5 +1,6 @@
 use bevy_ecs::prelude::*;
 use wasmtime::component::Resource;
+use wasvy_runtime::commands::RuntimeEntityCommands;
 
 use crate::{
     bindings::wasvy::ecs::app::{Bundle, BundleTypes, HostEntityCommands},
@@ -80,7 +81,7 @@ impl HostEntityCommands for WasmHost {
 fn access(
     host: &mut WasmHost,
     entity_commands: Resource<WasmEntityCommands>,
-) -> Result<EntityCommands<'_>, wasmtime::Error> {
+) -> Result<RuntimeEntityCommands<'_>, wasmtime::Error> {
     let State::RunSystem {
         table, commands, ..
     } = host.access()

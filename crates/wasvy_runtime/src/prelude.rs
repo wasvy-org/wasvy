@@ -4,6 +4,7 @@ pub use crate::authoring::{
     AutoRegistrationPlugin, WasvyComponent, WasvyComponentPlugin, WasvyExport, WasvyMethods,
     WasvyMethodsPlugin,
 };
+pub use crate::commands::{RuntimeCommand, RuntimeCommands, RuntimeEntityCommands};
 #[cfg(feature = "devtools")]
 pub use crate::devtools::Devtools;
 pub use crate::methods::{FunctionAccess, FunctionIndex};

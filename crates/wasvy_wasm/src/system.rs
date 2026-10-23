@@ -6,8 +6,7 @@ use anyhow::Result;
 use bevy_ecs::{
     error::Result as BevyResult,
     prelude::*,
-    system::{BoxedSystem, LocalBuilder, ParamBuilder, ParamSetBuilder, Query},
-    world::FilteredEntityMut,
+    system::{BoxedSystem, LocalBuilder, ParamBuilder, ParamSetBuilder, SystemParam},
 };
 use bevy_log::prelude::*;
 use wasmtime::component::{InstancePre, Resource, Val};
@@ -26,7 +25,7 @@ use crate::{
     bindings::wasvy::ecs::app::QueryFor,
     engine::Engine,
     host::{WasmCommands, WasmHost, WasmQuery, WasmSystem},
-    query::{QueryId, QueryIdGenerator, QueryResolver, create_query_builder},
+    query::{Queries, QueryId, QueryIdGenerator, QueryResolver, create_query_builder},
     runner::{Config, ConfigRunSystem, Runner},
     wasm_asset::call,
 };
@@ -155,13 +154,15 @@ impl ModSystemBuild for WasmSystemFactory {
             LocalBuilder(input),
             LocalBuilder(Vec::with_capacity(queries.len())),
             ParamBuilder,
-            ParamBuilder,
-            ParamBuilder,
-            ParamBuilder,
-            ParamBuilder,
-            ParamBuilder,
-            // TODO: QueryParamBuilder for filtered resource access.
-            ParamSetBuilder(queries),
+            RunSystemParamsBuilder {
+                commands: ParamBuilder,
+                type_registry: ParamBuilder,
+                codec: ParamBuilder,
+                wasm_registry: ParamBuilder,
+                function_index: ParamBuilder,
+                // TODO: QueryParamBuilder for filtered resource access.
+                queries: ParamSetBuilder(queries),
+            },
         )
             .build_state(world)
             .build_system(dynamic_system)
@@ -186,6 +187,18 @@ impl FromWorld for Input {
     }
 }
 
+/// The system params a mod system can access while it runs
+#[derive(SystemParam)]
+#[system_param(builder)]
+pub(crate) struct RunSystemParams<'w, 's> {
+    pub(crate) commands: RuntimeCommands<'w, 's>,
+    pub(crate) type_registry: Res<'w, AppTypeRegistry>,
+    pub(crate) codec: Res<'w, CodecResource>,
+    pub(crate) wasm_registry: Res<'w, WasmComponentRegistry>,
+    pub(crate) function_index: Res<'w, FunctionIndex>,
+    pub(crate) queries: Queries<'w, 's>,
+}
+
 /// Since mod systems are by their very nature dynamic, they require a
 /// flexible dynamic equivalent at runtime that can adjust to access
 /// just what that mod system needs.
@@ -193,13 +206,7 @@ fn dynamic_system(
     input: Local<Input>,
     mut params: Local<Vec<Val>>,
     engine: Res<Engine>,
-    type_registry: Res<AppTypeRegistry>,
-    codec: Res<CodecResource>,
-    wasm_registry: Res<WasmComponentRegistry>,
-    function_index: Res<FunctionIndex>,
-    mut commands: RuntimeCommands,
-    // TODO: Query for filtered resource access.
-    mut queries: ParamSet<Vec<Query<FilteredEntityMut>>>,
+    mut system_params: RunSystemParams,
 ) -> BevyResult {
     let mut runner = Runner::new(&engine);
     initialize_params(&mut params, &input.built_params, &mut runner)?;
@@ -210,12 +217,7 @@ fn dynamic_system(
     );
 
     let config = ConfigRunSystem {
-        commands: &mut commands,
-        type_registry: &type_registry,
-        codec: &codec,
-        wasm_registry: &wasm_registry,
-        function_index: &function_index,
-        queries: &mut queries,
+        params: &mut system_params,
         query_resolver: &input.query_resolver,
     };
     call(

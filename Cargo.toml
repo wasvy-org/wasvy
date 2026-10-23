@@ -63,6 +63,7 @@ derive_more = { version = "2", default-features = false, features = [
     "display",
 ] }
 error-collection = "1.0.4"
+fragile = "3.0.0"
 glob = "0.3.3"
 http = { version = "1.4.2", default-features = false, features = ["std"] }
 inventory = "0.3.24"

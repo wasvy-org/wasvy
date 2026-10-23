@@ -19,6 +19,7 @@ serde_json = ["wasvy_runtime/serde_json"]
 [dependencies]
 anyhow.workspace = true
 error-collection.workspace = true
+fragile.workspace = true
 bevy_app.workspace = true
 bevy_asset.workspace = true
 bevy_derive.workspace = true

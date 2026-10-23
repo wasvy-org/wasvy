@@ -3524,6 +3524,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "fragile"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdb2ef9571de3fe79fb6b3b7f0567ddcce6b6c9cefdbc76af63895cf97b54649"
+dependencies = [
+ "futures-core",
+]
+
+[[package]]
 name = "fs-set-times"
 version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7572,6 +7581,7 @@ dependencies = [
  "bevy_reflect",
  "bevy_transform",
  "error-collection",
+ "fragile",
  "wasmtime",
  "wasmtime-wasi",
  "wasvy_macros",

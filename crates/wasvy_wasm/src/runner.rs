@@ -1,7 +1,8 @@
 use std::ptr::NonNull;
 
 use anyhow::Result;
-use bevy_ecs::{prelude::*, reflect::AppTypeRegistry, world::FilteredEntityMut};
+use bevy_ecs::reflect::AppTypeRegistry;
+use fragile::Fragile;
 use wasmtime::component::ResourceAny;
 use wasmtime_wasi::ResourceTable;
 use wasvy_runtime::{
@@ -12,8 +13,7 @@ use wasvy_runtime::{
 use crate::{
     host::WasmHost,
     query::{Queries, QueryResolver},
-    send_sync_ptr::SendSyncPtr,
-    system::AddSystems,
+    system::{AddSystems, RunSystemParams},
 };
 
 pub(crate) type Store = wasmtime::Store<WasmHost>;
@@ -43,42 +43,17 @@ impl Runner {
         Ok(resource.try_into_resource_any(&mut self.store)?)
     }
 
-    pub(crate) fn use_store<'a, 'b, 'c, 'd, 'e, 'f, 'g, F, R>(
-        &mut self,
-        config: Config<'a, 'b, 'c, 'd, 'e, 'f, 'g>,
-        mut f: F,
-    ) -> R
+    pub(crate) fn use_store<F, R>(&mut self, mut config: Config<'_, '_, '_>, mut f: F) -> R
     where
         F: FnMut(&mut Store) -> R,
     {
-        self.store.data_mut().set_data(Data(match config {
-            Config::Setup(ConfigSetup {
-                add_systems: systems,
-            }) => Inner::Setup {
-                add_systems: SendSyncPtr::new(systems.into()),
-            },
-            Config::RunSystem(ConfigRunSystem {
-                commands,
-                type_registry,
-                codec,
-                wasm_registry,
-                function_index,
-                queries,
-                query_resolver,
-            }) => Inner::RunSystem {
-                commands: SendSyncPtr::new(NonNull::from_mut(commands).cast()),
-                type_registry: SendSyncPtr::new(NonNull::from_ref(type_registry)),
-                codec: SendSyncPtr::new(NonNull::from_ref(codec)),
-                wasm_registry: SendSyncPtr::new(NonNull::from_ref(wasm_registry)),
-                function_index: SendSyncPtr::new(NonNull::from_ref(function_index)),
-                queries: SendSyncPtr::new(NonNull::from_ref(queries).cast()),
-                query_resolver: SendSyncPtr::new(NonNull::from_ref(query_resolver)),
-            },
-        }));
+        self.store.data_mut().set_data(Data(Some(Fragile::new(
+            NonNull::from_mut(&mut config).cast(),
+        ))));
 
         let ret = f(&mut self.store);
 
-        // Avoid storing invalid pointers in WasmHost data (such as ConfigSetup::schedules) which have a lifetime of 'a
+        // Avoid storing a dangling pointer to `config` in WasmHost data
         // If we didn't reset the data before this function returns, Data::access could access an invalid ref
         self.store.data_mut().clear();
 
@@ -87,67 +62,40 @@ impl Runner {
 }
 
 /// Data stored in [`WasmHost`]
-pub(crate) struct Data(Inner);
-
-enum Inner {
-    Uninitialized,
-    Setup {
-        add_systems: SendSyncPtr<AddSystems>,
-    },
-    RunSystem {
-        commands: SendSyncPtr<RuntimeCommands<'static, 'static>>,
-        type_registry: SendSyncPtr<AppTypeRegistry>,
-        codec: SendSyncPtr<CodecResource>,
-        wasm_registry: SendSyncPtr<WasmComponentRegistry>,
-        function_index: SendSyncPtr<FunctionIndex>,
-        queries: SendSyncPtr<Queries<'static, 'static>>,
-        query_resolver: SendSyncPtr<QueryResolver>,
-    },
-}
+///
+/// Holds a type-erased pointer to the [`Config`] passed to [`Runner::use_store`].
+/// [`Fragile`] ensures it is only ever accessed from the thread that created it.
+#[derive(Default)]
+pub(crate) struct Data(Option<Fragile<NonNull<Config<'static, 'static, 'static>>>>);
 
 impl Data {
-    pub(crate) fn uninitialized() -> Self {
-        Self(Inner::Uninitialized)
-    }
-
     /// A helper so [`WasmHost`] can expose access to the [`Data`] it stores
     ///
     /// The resource table from the host is passed through this for convenience
     pub(crate) fn access<'a>(&'a mut self, table: &'a mut ResourceTable) -> Option<State<'a>> {
-        match &mut self.0 {
-            Inner::Setup {
-                add_systems: systems,
-            } => Some(State::Setup {
-                // Safety: Runner::use_store ensures that this always contains a valid reference
-                // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
-                table,
-                add_systems: unsafe { systems.as_mut() },
-            }),
-            Inner::RunSystem {
-                commands,
-                type_registry,
-                codec,
-                wasm_registry,
-                function_index,
-                queries,
+        let ptr = self.0.as_mut()?.get_mut();
+
+        // Safety: Runner::use_store ensures that this always points to a valid Config,
+        // and the returned borrows cannot outlive `self`, which is cleared before the Config is dropped.
+        // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
+        let config = unsafe { ptr.cast::<Config<'a, 'a, 'a>>().as_mut() };
+
+        Some(match config {
+            Config::Setup(ConfigSetup { add_systems }) => State::Setup { table, add_systems },
+            Config::RunSystem(ConfigRunSystem {
+                params,
                 query_resolver,
-            } =>
-            // Safety: Runner::use_store ensures that this always contains a valid reference
-            // See the rules here: https://doc.rust-lang.org/stable/core/ptr/index.html#pointer-to-reference-conversion
-            unsafe {
-                Some(State::RunSystem {
-                    commands: commands.cast().as_mut(),
-                    type_registry: type_registry.as_ref(),
-                    codec: codec.as_ref(),
-                    wasm_registry: wasm_registry.as_ref(),
-                    function_index: function_index.as_ref(),
-                    queries: queries.cast().as_mut(),
-                    query_resolver: query_resolver.as_ref(),
-                    table,
-                })
+            }) => State::RunSystem {
+                table,
+                commands: &mut params.commands,
+                type_registry: &params.type_registry,
+                codec: &params.codec,
+                wasm_registry: &params.wasm_registry,
+                function_index: &params.function_index,
+                queries: &mut params.queries,
+                query_resolver,
             },
-            Inner::Uninitialized => None,
-        }
+        })
     }
 }
 
@@ -168,22 +116,16 @@ pub(crate) enum State<'a> {
     },
 }
 
-pub(crate) enum Config<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
+pub(crate) enum Config<'a, 'w, 's> {
     Setup(ConfigSetup<'a>),
-    RunSystem(ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g>),
+    RunSystem(ConfigRunSystem<'a, 'w, 's>),
 }
 
 pub(crate) struct ConfigSetup<'a> {
     pub(crate) add_systems: &'a mut AddSystems,
 }
 
-pub(crate) struct ConfigRunSystem<'a, 'b, 'c, 'd, 'e, 'f, 'g> {
-    pub(crate) commands: &'a mut RuntimeCommands<'b, 'c>,
-    pub(crate) type_registry: &'a AppTypeRegistry,
-    pub(crate) codec: &'a CodecResource,
-    pub(crate) wasm_registry: &'a WasmComponentRegistry,
-    pub(crate) function_index: &'a FunctionIndex,
-    pub(crate) queries:
-        &'a mut ParamSet<'d, 'e, Vec<Query<'f, 'g, FilteredEntityMut<'static, 'static>>>>,
+pub(crate) struct ConfigRunSystem<'a, 'w, 's> {
+    pub(crate) params: &'a mut RunSystemParams<'w, 's>,
     pub(crate) query_resolver: &'a QueryResolver,
 }

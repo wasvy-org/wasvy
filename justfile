@@ -81,11 +81,11 @@ bump-bevy new:
 	rg -l -g '!Cargo.lock' 'bevy' . | xargs sed -i "/bevy/s/0.20.0/{{new}}/g"
 	cargo check
 
-# Replace the existing (0.0.9) wasvy version with a new one.
+# Replace the existing (0.0.10) wasvy version with a new one.
 [group("chores")]
 [arg("new", pattern="^\\d+\\.\\d+\\.\\d+$")]
 bump-version new:
-	rg -l -g '!Cargo.lock' 'version' . | xargs sed -i "/version/s/0.0.9/{{new}}/g"
+	rg -l -g '!Cargo.lock' 'version' . | xargs sed -i "/version/s/0.0.10/{{new}}/g"
 	cargo check
 
 # Publishes all crates
@@ -99,8 +99,4 @@ publish:
 	RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features
 
 	# Publish
-	cargo publish -p wasvy_interface
-	cargo publish -p wasvy_macros
-	cargo publish -p wasvy_cli
-	cargo publish -p wasvy
-	cargo publish -p wasvy_mock
+	cargo publish -p wasvy_interface -p wasvy_macros -p wasvy_cli -p wasvy_runtime -p wasvy_wasm -p wasvy_mock -p wasvy

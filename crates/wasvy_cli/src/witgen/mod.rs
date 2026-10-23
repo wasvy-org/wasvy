@@ -107,7 +107,7 @@ impl Default for WitConfig {
         Self {
             name: Default::default(),
             namespace: Default::default(),
-            wasvy_wit_version: Version::parse("0.0.9").unwrap(),
+            wasvy_wit_version: Version::parse("0.0.10").unwrap(),
             systems: Default::default(),
         }
     }

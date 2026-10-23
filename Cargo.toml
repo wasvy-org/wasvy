@@ -23,7 +23,7 @@ resolver = "2"
 authors = ["EngoDev", "MarcGuiselin"]
 categories = ["wasm", "game-development", "development-tools"]
 rust-version = "1.97.1"
-version = "0.0.9"
+version = "0.0.10"
 edition = "2024"
 description = "WASI-powered modding for the Bevy engine"
 keywords = ["bevy", "wasm", "wasi", "gamedev", "scripting"]
@@ -88,13 +88,13 @@ wasmtime = { version = "46.0.1", default-features = false, features = [
     "std",
 ] }
 wasmtime-wasi = { version = "46.0.1", default-features = false, features = ["p2"] }
-wasvy = { version = "0.0.9", path = "." }
-wasvy_cli = { version = "0.0.9", path = "./crates/wasvy_cli" }
-wasvy_interface = { version = "0.0.9", path = "interface" }
-wasvy_macros = { version = "0.0.9", path = "crates/wasvy_macros" }
-wasvy_mock = { version = "0.0.9", path = "./crates/wasvy_mock" }
-wasvy_runtime = { version = "0.0.9", path = "./crates/wasvy_runtime" }
-wasvy_wasm = { version = "0.0.9", path = "./crates/wasvy_wasm" }
+wasvy = { version = "0.0.10", path = "." }
+wasvy_cli = { version = "0.0.10", path = "./crates/wasvy_cli" }
+wasvy_interface = { version = "0.0.10", path = "interface" }
+wasvy_macros = { version = "0.0.10", path = "crates/wasvy_macros" }
+wasvy_mock = { version = "0.0.10", path = "./crates/wasvy_mock" }
+wasvy_runtime = { version = "0.0.10", path = "./crates/wasvy_runtime" }
+wasvy_wasm = { version = "0.0.10", path = "./crates/wasvy_wasm" }
 wit-bindgen = { version = "0.58.0", features = ["bitflags"] }
 wit-parser = "0.252.0"
 notify = "8.2.0"

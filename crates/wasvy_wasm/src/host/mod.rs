@@ -41,7 +41,7 @@ pub struct WasmHost {
 
 impl WasmHost {
     pub(crate) fn new() -> Self {
-        let data = Data::uninitialized();
+        let data = Data::default();
         let table = ResourceTable::new();
         let ctx = WasiCtxBuilder::new()
             .inherit_stdio()
@@ -61,7 +61,7 @@ impl WasmHost {
     }
 
     pub(crate) fn clear(&mut self) {
-        self.set_data(Data::uninitialized());
+        self.set_data(Data::default());
     }
 
     /// Access to the data contained in the [`WasmHost`]

@@ -8,7 +8,6 @@ pub mod wasm_asset;
 pub(crate) mod entity;
 pub(crate) mod query;
 pub(crate) mod runner;
-pub(crate) mod send_sync_ptr;
 pub(crate) mod system;
 
 pub(crate) mod bindings {

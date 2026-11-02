@@ -20,6 +20,10 @@ impl Guest for Fixture {
         first.add_commands();
         app.add_systems(&Schedule::Update, &[&first]);
         app.add_systems(&Schedule::ModStartup, &[&first]);
+        if cfg!(feature = "rev2") {
+            // A second revision of the same mod that no longer has `second`
+            return;
+        }
         if cfg!(feature = "fail-setup") {
             panic!("failed after first declaration");
         }

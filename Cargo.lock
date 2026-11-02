@@ -7430,6 +7430,7 @@ dependencies = [
  "serde",
  "serde_json",
  "trybuild",
+ "variadics_please",
  "wasvy_cli",
  "wasvy_interface",
  "wasvy_macros",

@@ -1,19 +1,45 @@
 use std::{fmt, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use bevy_asset::{Asset, AssetId, Assets};
 use bevy_ecs::prelude::*;
+use bevy_platform::collections::HashSet;
 use bevy_reflect::TypePath;
 use error_collection::Errors;
 
-use crate::system::{ModSystemDefinition, add_systems, retain_unique};
-use crate::{access::ModAccess, cleanup::DespawnModEntities, mods::ModDespawnBehaviour};
+use crate::{
+    access::ModAccess,
+    cleanup::{DespawnModEntities, remove_systems_in_sets},
+    mods::{ModDespawnBehaviour, ModSystemSet},
+    system::{ModSystemDefinition, add_systems},
+};
 
 /// Definitions discovered in a loaded mod revision, including partial successes.
 #[derive(Default)]
 pub struct ModDiscovery {
     pub systems: Vec<ModSystemDefinition>,
     pub errors: Errors,
+}
+
+impl ModDiscovery {
+    pub(crate) fn retain_unique(&mut self) {
+        let mut duplicates = HashSet::new();
+        for (index, system) in self.systems.iter().enumerate() {
+            for other in &self.systems[..index] {
+                if system.name.conflicts_with(&other.name) {
+                    self.errors.push(anyhow!(
+                        "Conflicting mod system names: {} and {}",
+                        other.name,
+                        system.name
+                    ));
+                    duplicates.insert(other.name.clone());
+                    duplicates.insert(system.name.clone());
+                }
+            }
+        }
+        self.systems
+            .retain(|definition| !duplicates.contains(&definition.name));
+    }
 }
 
 /// An asset representing a loaded wasvy mod.
@@ -32,8 +58,7 @@ impl ModAsset {
     /// The asset loader may also provide errors that happened during mod discovery.
     /// These usually signify partial/inclomplete loading of systems.
     pub fn new(mut discovery: ModDiscovery) -> Self {
-        // Reject conflicting systems
-        retain_unique(&mut discovery);
+        discovery.retain_unique();
         Self {
             systems: discovery.systems.into(),
             errors: discovery.errors.into(),
@@ -45,7 +70,7 @@ impl ModAsset {
         &self.systems
     }
 
-    /// Initialize the mod into the world
+    /// Initialize the mod into the world, replacing the systems it was initialized with before
     pub(crate) fn initiate(
         world: &mut World,
         asset_id: &AssetId<ModAsset>,
@@ -75,6 +100,16 @@ impl ModAsset {
             for source_entity in despawn.iter() {
                 commands.entity(source_entity).try_despawn();
             }
+        }
+
+        // Remove the systems of a previous initialization (the asset was reloaded, or the mod switched assets).
+        let schedules: HashSet<_> = accesses
+            .iter()
+            .flat_map(|access| access.schedules(world).0)
+            .map(|schedule| schedule.schedule_label())
+            .collect();
+        for schedule in schedules {
+            remove_systems_in_sets(world, schedule, [&ModSystemSet::Mod(mod_id)]);
         }
 
         for access in accesses {
@@ -126,7 +161,7 @@ mod tests {
         fail: bool,
     }
 
-    impl ModSystemBuild for CountingSystem {
+    unsafe impl ModSystemBuild for CountingSystem {
         fn build(&self, context: ModSystemContext<'_>) -> Result<BoxedSystem> {
             self.builds.fetch_add(1, Ordering::Relaxed);
             anyhow::ensure!(!self.fail, "cannot build {}", self.name);
@@ -147,7 +182,7 @@ mod tests {
     }
 
     fn system(name: &'static str) -> ModSystemDefinition {
-        ModSystemDefinition::new(
+        ModSystemDefinition::custom(
             name,
             CountingSystem {
                 name,
@@ -200,7 +235,7 @@ mod tests {
             ],
             ..Default::default()
         };
-        retain_unique(&mut discovery);
+        discovery.retain_unique();
 
         assert_eq!(discovery.errors.len(), 3);
         assert!(discovery.errors[0].to_string().contains("first"));
@@ -216,7 +251,7 @@ mod tests {
             systems: vec![system("game::one::tick"), system("game::two::tick")],
             ..Default::default()
         };
-        retain_unique(&mut discovery);
+        discovery.retain_unique();
         assert!(discovery.errors.is_empty());
         assert_eq!(discovery.systems.len(), 2);
     }
@@ -235,7 +270,7 @@ mod tests {
             if alias_first {
                 discovery.systems.reverse();
             }
-            retain_unique(&mut discovery);
+            discovery.retain_unique();
             assert_eq!(discovery.errors.len(), 2);
             assert!(discovery.systems.is_empty());
         }
@@ -336,7 +371,7 @@ mod tests {
             .into(),
         ));
         let builds = Arc::new(AtomicUsize::new(0));
-        let mut counter = ModSystemDefinition::new(
+        let mut counter = ModSystemDefinition::custom(
             "counter",
             CountingSystem {
                 name: "counter",
@@ -369,7 +404,7 @@ mod tests {
         let mut world = test_world();
         world.insert_resource(ModSchedules([ModSchedule::Update].into()));
         let builds = Arc::new(AtomicUsize::new(0));
-        let counter = ModSystemDefinition::new(
+        let counter = ModSystemDefinition::custom(
             "counter",
             CountingSystem {
                 name: "counter",
@@ -519,7 +554,7 @@ mod tests {
     fn commands_per_access() {
         struct NativeCommandSystem;
 
-        impl ModSystemBuild for NativeCommandSystem {
+        unsafe impl ModSystemBuild for NativeCommandSystem {
             fn build(&self, _context: ModSystemContext<'_>) -> Result<BoxedSystem> {
                 Ok(Box::new(IntoSystem::into_system(
                     |mut commands: RuntimeCommands| {
@@ -531,7 +566,7 @@ mod tests {
 
         let mut world = test_world();
         let sandbox = sandbox_access(&mut world);
-        let definition = ModSystemDefinition::new("spawn", NativeCommandSystem)
+        let definition = ModSystemDefinition::custom("spawn", NativeCommandSystem)
             .in_schedules([ModScheduleName::Update]);
         let mod_id = install(&mut world, &[definition], &[ModAccess::World, sandbox]);
 
@@ -568,7 +603,7 @@ mod tests {
             system("broken last"),
         ];
         for index in [0, 2] {
-            systems[index] = ModSystemDefinition::new(
+            systems[index] = ModSystemDefinition::custom(
                 systems[index].name.clone(),
                 CountingSystem {
                     name: "broken",

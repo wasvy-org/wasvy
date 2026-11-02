@@ -89,7 +89,7 @@ impl WasmSystem {
         instance_pre: &InstancePre<WasmHost>,
         errors: &mut Errors,
     ) -> ModSystemDefinition {
-        let mut definition = ModSystemDefinition::new(
+        let mut definition = ModSystemDefinition::custom(
             self.name.clone(),
             WasmSystemFactory {
                 export_name: self.name.clone(),
@@ -126,7 +126,7 @@ struct WasmSystemFactory {
     instance_pre: InstancePre<WasmHost>,
 }
 
-impl ModSystemBuild for WasmSystemFactory {
+unsafe impl ModSystemBuild for WasmSystemFactory {
     fn build(&self, context: ModSystemContext<'_>) -> Result<BoxedSystem> {
         let ModSystemContext {
             world,
@@ -168,7 +168,7 @@ impl ModSystemBuild for WasmSystemFactory {
             .build_system(dynamic_system)
             .with_name(format!("wasvy[{mod_name}]::{}", self.export_name));
 
-        let boxed_system: BoxedSystem = Box::new(IntoSystem::into_system(system));
+        let boxed_system: BoxedSystem = Box::new(system);
         Ok(boxed_system)
     }
 }

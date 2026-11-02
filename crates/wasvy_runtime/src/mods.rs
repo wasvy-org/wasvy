@@ -187,6 +187,22 @@ impl Mod {
         self.asset.clone()
     }
 
+    /// Switches this mod to another asset, for example from native systems to a wasm build of them.
+    ///
+    /// The mod keeps running its current systems until the new asset has loaded. Then the mod is set up again, as
+    /// when its asset is hot reloaded: the new asset's systems replace all of its systems, in every access, and the
+    /// entities it spawned are despawned (see [ModDespawnBehaviour]). If the new asset fails to load, the current
+    /// systems keep running.
+    ///
+    /// Returns the previous asset. Keep it to switch back later, since an asset is unloaded once its last handle is dropped.
+    ///
+    /// Note: The effect of this change is not immediate. This change will apply after the setup
+    /// schedule (which defaults to [First](bevy_app::First), see
+    /// [ModRuntimePlugin::set_setup_schedule](crate::plugin::ModRuntimePlugin::set_setup_schedule)) runs.
+    pub fn set_asset(&mut self, asset: Handle<ModAsset>) -> Handle<ModAsset> {
+        std::mem::replace(&mut self.asset, asset)
+    }
+
     /// Enable a [Mod]'s access to entities.
     ///
     /// See: [ModAccess]

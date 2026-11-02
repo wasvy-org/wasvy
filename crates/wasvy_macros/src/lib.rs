@@ -254,7 +254,7 @@ pub fn methods(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
                 match func.sig.receiver() {
                     Some(receiver) => {
-                        if receiver.reference.is_none() {
+                        if !matches!(receiver.kind, syn::ReceiverKind::Reference(..)) {
                             let err = syn::Error::new_spanned(
                                 &func.sig,
                                 "#[wasvy::methods] only supports &self or &mut self receivers; add #[wasvy::skip] or move this method to another impl",

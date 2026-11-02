@@ -12,6 +12,7 @@
 [![Rust Version](https://img.shields.io/badge/rust-1.97.1+-blue.svg)](https://www.rust-lang.org)
 [![CI](https://github.com/wasvy-org/wasvy/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/wasvy-org/wasvy/actions)
 [![Discord](https://img.shields.io/discord/691052431525675048.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.com/channels/691052431525675048/1492230910383357992/1492230910383357992)
+[![Known Vulnerabilities](https://snyk.io/test/github/wasvy-org/wasvy/badge.svg)](https://snyk.io/test/github/wasvy-org/wasvy)
 
 > 🪺 **Just hatched**: This project is in the process of stabilization. Some features are still missing and breaking API changes are likely to happen as we approach a 1.0 release. Use at your own risk!
 

@@ -1,0 +1,24 @@
+package wasvy:executor-seam;
+
+interface bridge {
+    resource counter {
+        get: func() -> u64;
+        set: func(value: u64);
+    }
+
+    resource actors {
+        next: func() -> option<actor>;
+    }
+
+    resource actor {
+        get: func() -> s64;
+        set: func(value: s64);
+    }
+}
+
+world prototype {
+    import bridge;
+    use bridge.{counter, actors};
+
+    export tick: func(counter: counter, actors: actors);
+}

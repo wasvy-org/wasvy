@@ -291,7 +291,11 @@ impl Sandbox {
         if let Some(SandboxedEntities(entities)) = world.entity(ctx.entity).get() {
             // Make sure we remove the old, invalid marker component for all the sandboxed entites
             for entity in entities.clone() {
-                world.commands().entity(entity).remove_by_id(component_id);
+                world
+                    .commands()
+                    .entity(entity)
+                    // when the sandbox is despawned its children may already be gone
+                    .queue_silenced(bevy_ecs::system::entity_command::remove_by_id(component_id));
             }
         }
     }
@@ -399,9 +403,13 @@ impl Sandboxed {
     fn on_discard(mut world: DeferredWorld, ctx: HookContext) {
         let Self(sandbox) = world.entity(ctx.entity).get().expect("Component was added");
 
-        // Might be none if the Sandbox was deleted
-        // In that case, the marker component was already removed by Sandbox::on_replace
-        if let Some(sandbox) = world.entity(*sandbox).get::<Sandbox>() {
+        // Might be none if the Sandbox was deleted (the sandbox entity may not even exist anymore)
+        // In that case, the marker component was already removed by Sandbox::on_discard
+        if let Some(sandbox) = world
+            .get_entity(*sandbox)
+            .ok()
+            .and_then(|sandbox| sandbox.get::<Sandbox>())
+        {
             let component_id = sandbox.component_id;
 
             // Remove marker component
@@ -412,7 +420,7 @@ impl Sandboxed {
         }
 
         // Relationship impl
-        <Self as Relationship>::on_insert(world, ctx);
+        <Self as Relationship>::on_discard(world, ctx);
     }
 
     /// Recursively sandbox the provided entity and its descendants
@@ -598,6 +606,39 @@ mod tests {
             Some(&Sandboxed(sandbox2)),
             "Nested sandbox children belong to their own sandbox"
         );
+    }
+
+    #[test]
+    fn despawn_sandbox_with_children() {
+        let mut world = setup();
+        let component = Sandbox::new(&mut world, ModSchedules::empty());
+        let sandbox = world.spawn(component).id();
+        let child = world.spawn(ChildOf(sandbox)).id();
+        let nested = world.spawn(ChildOf(child)).id();
+        let marker = world.entity(sandbox).get::<Sandbox>().unwrap().component_id;
+        assert!(world.get_by_id(nested, marker).is_some());
+
+        world.entity_mut(sandbox).despawn();
+        for entity in [sandbox, child, nested] {
+            assert!(world.get_entity(entity).is_err());
+        }
+    }
+
+    #[test]
+    fn despawn_sandbox_after_child_left() {
+        let mut world = setup();
+        let component = Sandbox::new(&mut world, ModSchedules::empty());
+        let sandbox = world.spawn(component).id();
+        let child = world.spawn(ChildOf(sandbox)).id();
+        world.entity_mut(child).remove::<(ChildOf, Sandboxed)>();
+        assert!(world.get::<Sandboxed>(child).is_none());
+
+        world.entity_mut(sandbox).despawn();
+        assert!(
+            world.get_entity(child).is_ok(),
+            "the unparented entity survives"
+        );
+        assert!(world.get::<Sandboxed>(child).is_none());
     }
 
     #[test]

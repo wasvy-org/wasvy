@@ -33,8 +33,8 @@ repository = "https://github.com/wasvy-org/wasvy"
 readme = "README.md"
 
 [workspace.dependencies]
-anyhow = "1.0.103"
-askama = "0.16.0"
+anyhow = "1.0.104"
+askama = "0.16.1"
 bevy_asset = "0.20.0"
 bevy_app = { version = "0.20.0", features = ["reflect_functions"] }
 bevy_derive = "0.20.0"
@@ -56,7 +56,7 @@ bevy_transform = { version = "0.20.0", features = [
     "serialize",
 ], default-features = false }
 bevy_internal = "0.20.0"
-clap = { version = "4.6.1", features = ["derive"] }
+clap = { version = "4.6.7", features = ["derive"] }
 derive_more = { version = "2", default-features = false, features = [
     "deref",
     "deref_mut",
@@ -64,30 +64,30 @@ derive_more = { version = "2", default-features = false, features = [
 ] }
 error-collection = "1.0.4"
 fragile = "3.0.0"
-glob = "0.3.3"
-http = { version = "1.4.2", default-features = false, features = ["std"] }
-inventory = "0.3.24"
-proc-macro2 = "1.0.106"
+glob = "0.3.4"
+http = { version = "1.5.0", default-features = false, features = ["std"] }
+inventory = "0.3.25"
+proc-macro2 = "1.0.107"
 proc-macro-crate = "3.5.0"
-quote = "1.0.46"
+quote = "1.0.47"
 semver = "1.0.28"
-serde = { version = "1.0.228", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
 shlex = "2.0.1"
-serde_json = "1.0.150"
-syn = { version = "2.0.118", features = ["full", "extra-traits"] }
-thiserror = "2.0.18"
-toml = "1.1.2"
-toml_edit = "0.25.12"
+serde_json = "1.0.154"
+syn = { version = "3.0.9", features = ["full", "extra-traits"] }
+thiserror = "2.0.21"
+toml = "1.1.8"
+toml_edit = "0.25.17"
 tracing = "0.1.44"
-ureq = { version = "3.3.0", default-features = false, features = ["json"] }
-wasmtime = { version = "46.0.1", default-features = false, features = [
+ureq = { version = "3.5.1", default-features = false, features = ["json"] }
+wasmtime = { version = "50.0.1", default-features = false, features = [
     "anyhow",
     "component-model",
     "cranelift",
     "runtime",
     "std",
 ] }
-wasmtime-wasi = { version = "46.0.1", default-features = false, features = ["p2"] }
+wasmtime-wasi = { version = "50.0.1", default-features = false, features = ["p2"] }
 wasvy = { version = "0.0.10", path = "." }
 wasvy_cli = { version = "0.0.10", path = "./crates/wasvy_cli" }
 wasvy_interface = { version = "0.0.10", path = "interface" }
@@ -95,10 +95,10 @@ wasvy_macros = { version = "0.0.10", path = "crates/wasvy_macros" }
 wasvy_mock = { version = "0.0.10", path = "./crates/wasvy_mock" }
 wasvy_runtime = { version = "0.0.10", path = "./crates/wasvy_runtime" }
 wasvy_wasm = { version = "0.0.10", path = "./crates/wasvy_wasm" }
-wit-bindgen = { version = "0.58.0", features = ["bitflags"] }
-wit-parser = "0.252.0"
-notify = "8.2.0"
-trybuild = "1.0.117"
+wit-bindgen = { version = "0.63.0", features = ["bitflags"] }
+wit-parser = "0.263.0"
+notify = "8.2.1"
+trybuild = "1.0.122"
 
 [features]
 default = ["devtools", "serde_json", "wasm"]

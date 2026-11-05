@@ -9,9 +9,10 @@ use variadics_please::all_tuples;
 
 use crate::commands::RuntimeCommands;
 
-/// A [SystemParam] that native systems can use as mod systems, see [ModSystemDefinition::new].
+/// A [SystemParam] that native systems can use as mod systems, see
+/// [ModSystemDefinition::new](crate::system::ModSystemDefinition::new).
 ///
-/// Each copy of a mod system builds its parameters for the [access](ModSystemContext::access) it runs in:
+/// Each copy of a mod system builds its parameters for the [access](crate::system::ModSystemContext::access) it runs in:
 /// - [Query], [Single] and [Populated] only match the entities within the access. Their query data must only
 ///   access the queried entity ([SingleEntityQueryData]). Query filters must only read the queried entity or
 ///   resources, as all of Bevy's filters do.

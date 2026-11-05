@@ -34,7 +34,8 @@ impl ModSystemDefinition {
     /// Convert a Bevy system function into a definition. This has no ordering constraints or schedule.
     ///
     /// Every copy of the system is built for the access it runs in: its queries only match entities in that access and
-    /// its [RuntimeCommands] spawn into it. See [ModSystemParam] for the parameters a system can use.
+    /// its [RuntimeCommands](crate::commands::RuntimeCommands) spawn into it. See [ModSystemParam] for the parameters a
+    /// system can use.
     ///
     /// Only functions and closures without system input are supported, not piped, exclusive or already built systems.
     pub fn new<M, F>(system: F) -> Self

@@ -30,7 +30,7 @@ pub unsafe trait ModSystemBuild: Send + Sync + 'static {
     /// Return a boxed scheduled system. Implementers must:
     /// - Build the system from the provided [ModSystemContext::world]
     /// - Have all component access honor [ModSystemContext::access], see [ModSystemParam]
-    /// - Use [`RuntimeCommands`] instead of native Bevy [`Commands`]
+    /// - Use [`RuntimeCommands`](crate::commands::RuntimeCommands) instead of native Bevy [`Commands`]
     ///
     /// The runtime will handle initializing the returned system before adding it to a schedule.
     fn build(&self, context: ModSystemContext<'_>) -> Result<BoxedSystem>;

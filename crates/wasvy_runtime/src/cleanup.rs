@@ -65,7 +65,7 @@ pub(crate) fn remove_systems_in_sets<'a>(
     // Remove sets once https://github.com/bevyengine/bevy/pull/26290 lands
     let policy = ScheduleCleanupPolicy::RemoveSystemsOnly;
 
-    world.schedule_scope(label, |world, schedule|{
+    let _ = world.try_schedule_scope(label, |world, schedule| {
         for set in sets {
             // Checking first avoids initializing a schedule the set was never added to
             if schedule.graph().system_sets.contains(set.clone())

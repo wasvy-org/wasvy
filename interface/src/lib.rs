@@ -5,6 +5,9 @@
 /// The base Bevy version targeted by these interfaces.
 pub const BEVY_VERSION: &str = "0.20.0"; // Updated by ci
 
+/// The version of the `wasvy:ecs` package declared in [`WASVY_ECS`].
+pub const WASVY_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 /// The Bevy ECS package declaration.
 pub const BEVY_ECS: &str = include_str!("../wit/bevy-ecs.wit");
 

@@ -13,6 +13,7 @@ use std::{
 use bevy_app::{App, Plugin, Startup};
 use bevy_ecs::prelude::*;
 use bevy_ecs::reflect::AppFunctionRegistry;
+use wasvy_interface::WASVY_VERSION;
 
 use crate::methods::FunctionIndex;
 
@@ -48,7 +49,7 @@ pub struct WitGeneratorSettings {
 
     /// Package containing the `wasvy:ecs` types.
     ///
-    /// Defaults to "wasvy:ecs@0.0.10"
+    /// Defaults to "wasvy:ecs@[`WASVY_VERSION`]"
     pub wasvy_package: String,
 
     /// File path where the generated WIT should be written.
@@ -63,7 +64,7 @@ impl Default for WitGeneratorSettings {
             package: "my-namespace:my-game".to_string(),
             component_interface: "components".to_string(),
             world: "host".to_string(),
-            wasvy_package: "wasvy:ecs@0.0.10".to_string(),
+            wasvy_package: format!("wasvy:ecs@{WASVY_VERSION}"),
             output_path: PathBuf::from("wit/bingings.wit"),
         }
     }
@@ -373,9 +374,9 @@ mod tests {
             .expect("AppFunctionRegistry");
 
         let output = generate_wit(&settings, type_registry, function_registry);
-        let wasvy_use = "use wasvy:ecs/app@0.0.10.{component}";
+        let wasvy_use = format!("use wasvy:ecs/app@{WASVY_VERSION}.{{component}}");
 
-        assert!(output.contains(wasvy_use));
+        assert!(output.contains(&wasvy_use));
         assert!(output.contains("resource health"));
         assert!(output.contains("wasvy:type-path="));
         assert!(output.contains("constructor(component: component)"));

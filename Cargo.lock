@@ -418,9 +418,9 @@ dependencies = [
 
 [[package]]
 name = "async-executor"
-version = "1.14.0"
+version = "1.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c96bf972d85afc50bf5ab8fe2d54d1586b4e0b46c97c50a0c9e71e2f7bcd812a"
+checksum = "f426a31126c735126297bc5ea7a521263c9faff4f63ca415267ee625651c4f37"
 dependencies = [
  "async-task",
  "concurrent-queue",
@@ -532,7 +532,7 @@ dependencies = [
 
 [[package]]
 name = "basic_example_app"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "bevy",
  "bevy_egui",
@@ -542,7 +542,7 @@ dependencies = [
 
 [[package]]
 name = "basic_example_mod"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "bevy_math",
  "bevy_transform",
@@ -2519,7 +2519,7 @@ dependencies = [
 
 [[package]]
 name = "components_example_app"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -2534,7 +2534,7 @@ dependencies = [
 
 [[package]]
 name = "components_example_mod"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "serde",
  "serde_json",
@@ -2974,7 +2974,7 @@ checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
 name = "custom_codec_example_app"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "anyhow",
  "bevy",
@@ -7319,7 +7319,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -7340,7 +7340,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_cli"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "anyhow",
  "askama",
@@ -7366,7 +7366,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_interface"
-version = "0.0.10"
+version = "0.0.11"
 
 [[package]]
 name = "wasvy_loader_fixture"
@@ -7377,7 +7377,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_macros"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -7389,7 +7389,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_mock"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -7411,7 +7411,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_runtime"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -7438,7 +7438,7 @@ dependencies = [
 
 [[package]]
 name = "wasvy_wasm"
-version = "0.0.10"
+version = "0.0.11"
 dependencies = [
  "anyhow",
  "bevy_app",

@@ -4,6 +4,7 @@ use bevy_ecs::prelude::{AppFunctionRegistry, AppTypeRegistry, ReflectComponent};
 use bevy_reflect::Reflect;
 
 use wasvy::prelude::*;
+use wasvy_interface::WASVY_VERSION;
 use wasvy_runtime::witgen::generate_wit;
 
 #[derive(Component, Reflect, Default, WasvyComponent)]
@@ -62,11 +63,11 @@ fn generates_wit_resources() {
         .expect("AppFunctionRegistry");
     let output = generate_wit(&settings, type_registry, function_registry);
 
-    let wasvy_use = "use wasvy:ecs/app@0.0.10.{component}";
+    let wasvy_use = format!("use wasvy:ecs/app@{WASVY_VERSION}.{{component}}");
 
     assert!(output.contains("package my-namespace:my-game;"));
     assert!(output.contains("interface components"));
-    assert!(output.contains(wasvy_use));
+    assert!(output.contains(&wasvy_use));
     assert!(output.contains("resource health"));
     assert!(output.contains("wasvy:type-path="));
     assert!(output.contains("constructor(component: component)"));

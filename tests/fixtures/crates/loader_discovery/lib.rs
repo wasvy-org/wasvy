@@ -1,9 +1,9 @@
 mod bindings {
     wit_bindgen::generate!({
         path: ["../../../../interface/wit/wasvy-ecs.wit"],
-        inline: "package test:loader; world fixture { include wasvy:ecs/guest@0.0.10; use wasvy:ecs/app@0.0.10.{commands}; export first: func(commands: commands); export second: func(commands: commands); }",
+        inline: "package test:loader; world fixture { include wasvy:ecs/guest@0.0.11; use wasvy:ecs/app@0.0.11.{commands}; export first: func(commands: commands); export second: func(commands: commands); }",
         world: "test:loader/fixture",
-        with: { "wasvy:ecs/app@0.0.10": generate },
+        with: { "wasvy:ecs/app@0.0.11": generate },
     });
 }
 

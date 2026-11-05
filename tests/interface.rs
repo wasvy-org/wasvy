@@ -1,5 +1,5 @@
 use std::path::Path;
-use wasvy_interface::{BEVY_ECS, BEVY_VERSION, WASVY_ECS};
+use wasvy_interface::{BEVY_ECS, BEVY_VERSION, WASVY_ECS, WASVY_VERSION};
 use wit_parser::Resolve;
 
 #[test]
@@ -13,7 +13,7 @@ fn valid() {
     assert_eq!(package.name.name, "ecs");
     assert_eq!(
         package.name.version.as_ref().unwrap().to_string(),
-        env!("CARGO_PKG_VERSION")
+        WASVY_VERSION
     );
     assert!(package.worlds.contains_key("host"));
     assert!(package.worlds.contains_key("guest"));

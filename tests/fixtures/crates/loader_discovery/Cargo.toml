@@ -12,3 +12,4 @@ wit-bindgen.workspace = true
 
 [features]
 fail-setup = []
+rev2 = []

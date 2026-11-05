@@ -80,6 +80,7 @@ toml = "1.1.8"
 toml_edit = "0.25.17"
 tracing = "0.1.44"
 ureq = { version = "3.5.1", default-features = false, features = ["json"] }
+variadics_please = "2.0.0"
 wasmtime = { version = "50.0.1", default-features = false, features = [
     "anyhow",
     "component-model",

@@ -1,7 +1,7 @@
 use bevy_ecs::{
     entity::EntityHashSet,
     prelude::*,
-    schedule::{ScheduleCleanupPolicy, ScheduleError},
+    schedule::{InternedScheduleLabel, ScheduleCleanupPolicy, ScheduleError},
     system::SystemState,
 };
 use bevy_log::prelude::*;
@@ -50,33 +50,34 @@ pub(crate) fn disable_mod_system_sets(
 
     // Remove sets from each schedule
     for (label, sets) in remove {
-        let mut schedules = world
-            .get_resource_mut::<Schedules>()
-            .expect("Running in a bevy App");
+        remove_systems_in_sets(world, label, &sets);
+    }
+}
 
-        // We must remove and then re-add the schedule so we can call remove_systems_in_set with exclusive world access
-        let Some(mut schedule) = schedules.remove(label) else {
-            continue;
-        };
+/// Removes the systems in each of the `sets` from the schedule with the given label.
+///
+/// The schedule must not be running: it is taken out of [Schedules] while this runs.
+pub(crate) fn remove_systems_in_sets<'a>(
+    world: &mut World,
+    label: InternedScheduleLabel,
+    sets: impl IntoIterator<Item = &'a ModSystemSet>,
+) {
+    // Remove sets once https://github.com/bevyengine/bevy/pull/26290 lands
+    let policy = ScheduleCleanupPolicy::RemoveSystemsOnly;
 
+    let _ = world.try_schedule_scope(label, |world, schedule| {
         for set in sets {
-            if let Err(error) = schedule.remove_systems_in_set(
-                set.clone(),
-                world,
-                ScheduleCleanupPolicy::RemoveSetAndSystems,
-            ) && !matches!(error, ScheduleError::SetNotFound)
+            // Checking first avoids initializing a schedule the set was never added to
+            if schedule.graph().system_sets.contains(set.clone())
+                && let Err(error) = schedule.remove_systems_in_set(set.clone(), world, policy)
+                && !matches!(error, ScheduleError::SetNotFound)
             {
                 warn!(
-                    "Unable to remove system set {set:?}. Systems from unloaded mods might still be running!\nError: {error}."
+                    "Unable to remove system set {set:?}. Systems from unloaded or reloaded mods might still be running!\nError: {error}."
                 );
             }
         }
-
-        world
-            .get_resource_mut::<Schedules>()
-            .expect("Running in a bevy App")
-            .insert(schedule);
-    }
+    });
 }
 
 /// A component that tracks all of the entities spawned by a mod (and considered belonging to it).

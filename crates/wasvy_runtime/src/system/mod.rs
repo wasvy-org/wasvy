@@ -27,6 +27,9 @@ mod param;
 use param::ModParamBuilder;
 pub use param::ModSystemParam;
 
+#[cfg(test)]
+mod tests;
+
 /// A loader produces re-initializable system definitions that can be applied to any world as needed by the runtime.
 ///
 /// For example:

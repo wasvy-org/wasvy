@@ -1,76 +1,146 @@
-use std::{
-    borrow::Cow,
-    fmt,
-    hash::{Hash, Hasher},
-};
+use std::{any::type_name_of_val, borrow::Cow, fmt, hash::Hash};
 
-use bevy_ecs::utils::DebugName;
+use bevy_ecs::system::{IntoSystem, SystemInput};
+use bevy_reflect::Reflect;
+use serde::{Deserialize, Serialize};
 
-/// A system path. Short qualified names can match module-qualified paths
-/// through [`Self::conflicts_with`], separately from exact equality and hashing.
-#[derive(Clone, Debug)]
-pub struct ModSystemName(Cow<'static, str>);
+/// A system path, compared and hashed by its exact name.
+#[derive(Clone, Debug, Reflect, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct ModSystemName {
+    value: Cow<'static, str>,
+    namespace: ModSystemNamespace,
+}
 
 impl ModSystemName {
-    pub fn new(name: impl Into<Cow<'static, str>>) -> Self {
-        Self(name.into())
+    /// Construct a new system name and resolve its namespace.
+    ///
+    /// Examples:
+    /// - "my_system" will resolve to the namespace for that mod
+    /// - "my_game::my_system" will resolve with namespace "my_game"
+    ///
+    /// Both example names above are not equivalent.
+    pub fn new(value: impl Into<Self>) -> Self {
+        value.into()
     }
 
-    pub fn as_str(&self) -> &str {
-        &self.0
+    /// Creates a name from the system's Rust type path.
+    ///
+    /// Panics if the type name is missing the crate name.
+    pub fn from_system<In: SystemInput, Out, Marker>(
+        system: impl IntoSystem<In, Out, Marker>,
+    ) -> Self {
+        // NOTE: We can't rely on system.name(), since DebugName can be disabled via a feature flag
+        let path = type_name_of_val(&system);
+        Self {
+            value: path.into(),
+            namespace: ModSystemNamespace::new(system),
+        }
     }
 
-    /// Matches exact paths or a crate-qualified short alias of a full path.
-    pub fn conflicts_with(&self, other: &Self) -> bool {
-        self == other
-            || (self.identity() == other.identity()
-                && self.identity().0.is_some()
-                && (self.0.matches("::").count() == 1 || other.0.matches("::").count() == 1))
+    /// Returns the namespace for the system
+    pub fn namespace(&self) -> &ModSystemNamespace {
+        &self.namespace
     }
 
-    fn identity(&self) -> (Option<&str>, &str) {
-        match self.0.split_once("::") {
-            Some((crate_name, path)) => (Some(crate_name), path.rsplit("::").next().unwrap()),
-            None => (None, &self.0),
+    pub(crate) fn replace_missing_namespace(&mut self, namespace: &ModSystemNamespace) {
+        if self.namespace.as_str().is_none_or(str::is_empty) {
+            self.namespace = namespace.clone();
         }
     }
 }
 
+impl From<Cow<'static, str>> for ModSystemName {
+    fn from(value: Cow<'static, str>) -> Self {
+        let namespace = match &value {
+            Cow::Borrowed(path) => path.split_once("::").map(|(namespace, _)| namespace.into()),
+            Cow::Owned(path) => path
+                .split_once("::")
+                .map(|(namespace, _)| namespace.to_owned().into()),
+        }
+        .unwrap_or_default();
+        Self { value, namespace }
+    }
+}
+
 impl From<&'static str> for ModSystemName {
-    fn from(name: &'static str) -> Self {
-        Self::new(name)
+    fn from(value: &'static str) -> Self {
+        Cow::Borrowed(value).into()
     }
 }
 
 impl From<String> for ModSystemName {
-    fn from(name: String) -> Self {
-        Self::new(name)
+    fn from(value: String) -> Self {
+        Cow::<'static, str>::Owned(value).into()
     }
 }
 
-impl From<DebugName> for ModSystemName {
-    fn from(value: DebugName) -> Self {
-        value.to_string().into()
-    }
-}
-
-impl PartialEq for ModSystemName {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for ModSystemName {}
-
-impl Hash for ModSystemName {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
+impl From<&String> for ModSystemName {
+    fn from(value: &String) -> Self {
+        value.clone().into()
     }
 }
 
 impl fmt::Display for ModSystemName {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.as_str())
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { value, namespace } = self;
+        write!(f, "{namespace}/{value}")
+    }
+}
+
+/// The unique crate/mod name
+#[derive(Clone, Debug, Reflect, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub struct ModSystemNamespace {
+    /// None means the system
+    value: Option<Cow<'static, str>>,
+}
+
+impl ModSystemNamespace {
+    /// Creates a namespace from the system's Rust type path.
+    ///
+    /// Panics if the type name is missing the crate name.
+    pub fn new<In: SystemInput, Out, Marker>(system: impl IntoSystem<In, Out, Marker>) -> Self {
+        // NOTE: We can't rely on system.name(), since DebugName can be disabled via a feature flag
+        let path = type_name_of_val(&system);
+
+        Self::raw(
+            path.split_once("::")
+                .expect("system type name includes crate name")
+                .0,
+        )
+    }
+
+    pub fn as_str(&self) -> Option<&str> {
+        self.value.as_deref()
+    }
+
+    pub(crate) fn raw(name: impl Into<Cow<'static, str>>) -> Self {
+        Self {
+            value: Some(name.into()),
+        }
+    }
+}
+
+impl From<ModSystemName> for ModSystemNamespace {
+    fn from(value: ModSystemName) -> Self {
+        value.namespace
+    }
+}
+
+impl From<&'static str> for ModSystemNamespace {
+    fn from(value: &'static str) -> Self {
+        Self::raw(value)
+    }
+}
+
+impl From<String> for ModSystemNamespace {
+    fn from(value: String) -> Self {
+        Self::raw(value)
+    }
+}
+
+impl fmt::Display for ModSystemNamespace {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str().unwrap_or(env!("CARGO_PKG_NAME")))
     }
 }
 
@@ -81,37 +151,50 @@ mod tests {
     use super::*;
 
     #[test]
-    fn exact() {
-        let long: ModSystemName = "game::movement::integrate".into();
-        let short_owned: ModSystemName = "game::integrate".to_string().into();
+    fn names() {
+        let long = ModSystemName::new("game::movement::integrate");
+        let short_owned = ModSystemName::new("game::integrate".to_string());
         assert_ne!(long, short_owned);
         assert_eq!(HashSet::from([long.clone(), short_owned]).len(), 2);
-        let owned: ModSystemName = "game::movement::integrate".to_string().into();
+        let owned = ModSystemName::new("game::movement::integrate".to_string());
         assert_eq!(long, owned);
         assert_eq!(HashSet::from([long.clone(), owned]).len(), 1);
-        assert_eq!(long.as_str(), "game::movement::integrate");
-        assert_ne!(long, "other_game::integrate".into());
-        assert_ne!(long, "integrate".into());
     }
 
     #[test]
-    fn name() {
-        for (left, right, expected) in [
-            (
-                "game::movement::integrate",
-                "game::movement::integrate",
-                true,
-            ),
-            ("game::movement::integrate", "game::integrate", true),
-            ("game::movement::integrate", "game::other::integrate", false),
-            ("game::movement::integrate", "other_game::integrate", false),
-            ("game::movement::integrate", "integrate", false),
-            ("integrate", "integrate", true),
-        ] {
-            let left = ModSystemName::from(left);
-            let right = ModSystemName::from(right);
-            assert_eq!(left.conflicts_with(&right), expected, "{left} vs {right}");
-            assert_eq!(right.conflicts_with(&left), expected, "{right} vs {left}");
-        }
+    fn namespaces() {
+        let namespace: ModSystemNamespace = ModSystemName::new("random").into();
+        assert_eq!(namespace, Default::default());
+        let namespace: ModSystemNamespace = ModSystemName::new("game::system").into();
+        assert_eq!(namespace, "game".into());
+        assert_eq!(ModSystemNamespace::raw("game"), "game".into());
+        assert_ne!(ModSystemNamespace::raw("game"), "other_game".into());
+    }
+
+    #[test]
+    fn conflicts_include_resolved_namespaces() {
+        let mut game = ModSystemName::new("tick");
+        game.replace_missing_namespace(&"game".into());
+        let mut other = ModSystemName::new("tick");
+        other.replace_missing_namespace(&"other".into());
+        assert_ne!(&game, &other);
+        assert_ne!(&game, &"game::tick".into());
+        assert_eq!(&game, &game.clone());
+    }
+
+    fn bevy_system() {}
+
+    #[test]
+    fn system() {
+        let system = ModSystemName::from_system(bevy_system);
+        assert_eq!(system.value, concat!(module_path!(), "::bevy_system"));
+        assert_eq!(system.namespace.value.unwrap(), "wasvy_runtime");
+    }
+
+    #[test]
+    fn system_no_alloc() {
+        let system = ModSystemName::from_system(bevy_system);
+        assert!(matches!(system.value, Cow::Borrowed(_)));
+        assert!(matches!(system.namespace.value, Some(Cow::Borrowed(_))));
     }
 }

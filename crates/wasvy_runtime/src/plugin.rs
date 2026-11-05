@@ -4,11 +4,14 @@ use bevy_app::prelude::*;
 use bevy_asset::prelude::*;
 use bevy_ecs::reflect::AppFunctionRegistry;
 use bevy_ecs::reflect::AppTypeRegistry;
-use bevy_ecs::{intern::Interned, schedule::ScheduleLabel};
+use bevy_ecs::{
+    intern::Interned,
+    schedule::{IntoScheduleConfigs, ScheduleLabel},
+};
 use bevy_log::prelude::*;
 
-use crate::app_extend::AppExtend;
 use crate::{
+    app_extend::AppExtend,
     asset::ModAsset,
     authoring::AutoRegistrationPlugin,
     cleanup::{DespawnModEntities, DisableSystemSet, disable_mod_system_sets},
@@ -20,6 +23,7 @@ use crate::{
     schedule::{ModSchedule, ModSchedules, ModStartup},
     serialize::{CodecResource, WasvyCodec},
     setup::run_setup,
+    system::ModSystemAsset,
 };
 
 /// Adds Wasvy runtime support to a [`bevy_app::App`].
@@ -31,7 +35,7 @@ use crate::{
 /// mod loader setup.
 ///
 /// ```no_run
-/// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
+/// # use bevy_ecs::{prelude::*, schedule::{ScheduleLabel, IntoScheduleConfigs}};
 /// # use bevy_app::prelude::*;
 /// # struct DefaultPlugins;
 /// # impl Plugin for DefaultPlugins { fn build(&self, app: &mut App){} }
@@ -55,7 +59,7 @@ use crate::{
 ///
 /// In the host:
 /// ```no_run
-/// # use bevy_ecs::{prelude::*, schedule::ScheduleLabel};
+/// # use bevy_ecs::{prelude::*, schedule::{ScheduleLabel, IntoScheduleConfigs}};
 /// # use bevy_app::prelude::*;
 /// use wasvy_runtime::prelude::*;
 ///
@@ -242,7 +246,8 @@ impl Plugin for ModRuntimePlugin {
             app.register_required_components::<Mod, DespawnModEntities>();
         }
 
-        app.init_asset::<ModAsset>()
+        app.init_asset::<ModSystemAsset>()
+            .init_asset::<ModAsset>()
             .insert_resource(despawn_behaviour)
             .insert_resource(codec.expect("WasvyCodec is necessary"))
             .init_resource::<WasmComponentRegistry>()
@@ -250,7 +255,7 @@ impl Plugin for ModRuntimePlugin {
             .insert_resource(schedules)
             .add_schedule(ModStartup::new_schedule())
             .add_message::<DisableSystemSet>()
-            .add_systems(setup_schedule, (run_setup, disable_mod_system_sets))
+            .add_systems(setup_schedule, (run_setup, disable_mod_system_sets).chain())
             .add_plugins(AutoRegistrationPlugin);
 
         if let Some(config) = devtools_config {

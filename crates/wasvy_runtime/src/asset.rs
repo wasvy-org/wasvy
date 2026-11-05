@@ -1,32 +1,51 @@
-use std::{fmt, sync::Arc};
+use std::sync::Arc;
+#[cfg(test)]
+use std::sync::atomic::{AtomicU64, Ordering};
 
-use anyhow::{Result, anyhow};
-use bevy_asset::{Asset, AssetId, Assets};
+use anyhow::anyhow;
+use bevy_asset::Asset;
+#[cfg(test)]
 use bevy_ecs::prelude::*;
 use bevy_platform::collections::HashSet;
-use bevy_reflect::TypePath;
+use bevy_reflect::{Reflect, TypePath};
 use error_collection::Errors;
+use serde::{Deserialize, Serialize};
 
-use crate::{
-    access::ModAccess,
-    cleanup::{DespawnModEntities, remove_systems_in_sets},
-    mods::{ModDespawnBehaviour, ModSystemSet},
-    system::{ModSystemDefinition, add_systems},
-};
+use crate::system::{ModSystem, ModSystemName, ModSystemNamespace};
+#[cfg(test)]
+use crate::{access::ModAccess, cleanup::DespawnModEntities, system::add_systems};
+#[cfg(test)]
+use anyhow::Result;
 
 /// Definitions discovered in a loaded mod revision, including partial successes.
 #[derive(Default)]
 pub struct ModDiscovery {
-    pub systems: Vec<ModSystemDefinition>,
+    pub systems: Vec<ModSystem>,
     pub errors: Errors,
 }
 
 impl ModDiscovery {
+    pub(crate) fn replace_missing_namespace(&mut self, namespace: &ModSystemNamespace) {
+        for system in &mut self.systems {
+            system.name.replace_missing_namespace(namespace);
+            for names in [&mut system.before, &mut system.after] {
+                *names = std::mem::take(names)
+                    .into_iter()
+                    .map(|mut name| {
+                        name.replace_missing_namespace(namespace);
+                        name
+                    })
+                    .collect();
+            }
+        }
+    }
+
+    /// Must run after [Self::replace_missing_namespace]
     pub(crate) fn retain_unique(&mut self) {
         let mut duplicates = HashSet::new();
         for (index, system) in self.systems.iter().enumerate() {
             for other in &self.systems[..index] {
-                if system.name.conflicts_with(&other.name) {
+                if system.name == other.name {
                     self.errors.push(anyhow!(
                         "Conflicting mod system names: {} and {}",
                         other.name,
@@ -42,91 +61,123 @@ impl ModDiscovery {
     }
 }
 
+/// Permission for a [ModAsset] to replace or delete previously published systems on load. New names are always allowed.
+///
+/// Belongs to the [ModAsset], so every [Mod](crate::mods::Mod) using it shares the same replacement. Each published
+/// revision is checked against this setting. Changing it does not revoke prior replacements or deletions.
+/// Narrowing the policy can leave old systems running after hot reload. For best results choose one per asset and stick with it.
+#[derive(Clone, Debug, Default, Reflect, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ModReplacement {
+    /// A newly loaded mod may override any [ModSystem], overriding any existing behaviour in your game
+    #[default]
+    Any,
+
+    /// A newly loaded mod may never override existing [ModSystem]s.
+    ///
+    /// Warning: this will break hot-reloading, since a mod will not be able to patch the systems it declared
+    None,
+
+    /// A newly loaded mod may only override [ModSystem]s in the same namespace as the mod itself
+    Namespace,
+
+    /// A newly loaded mod may only override specified [ModSystem]s.
+    Only(HashSet<ModSystemName>),
+}
+
+/// [AssetLoader](bevy_asset::AssetLoader) settings for loaders producing [ModAsset]s.
+///
+/// Set them with [AssetServer::load_builder](bevy_asset::AssetServer::load_builder) or
+/// [Mods::load_with_settings](crate::mods::Mods::load_with_settings). The AssetServer applies them again
+/// when it reloads the asset. It ignores the settings of later loads of an already loaded path
+/// (<https://github.com/bevyengine/bevy/issues/11111>), so the first load of a path decides its policy.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct ModLoaderSettings {
+    /// See [ModReplacement]
+    pub replacements: ModReplacement,
+}
+
+impl From<ModReplacement> for ModLoaderSettings {
+    fn from(replacements: ModReplacement) -> Self {
+        Self { replacements }
+    }
+}
+
 /// An asset representing a loaded wasvy mod.
 #[derive(Asset, TypePath)]
 pub struct ModAsset {
-    systems: Arc<[ModSystemDefinition]>,
+    systems: Arc<[ModSystem]>,
     errors: Arc<Errors>,
+    namespace: ModSystemNamespace,
+    settings: ModLoaderSettings,
+    #[cfg(test)]
+    pub(crate) revision: u64,
+    pub(crate) retain_source: bool,
 }
 
 impl ModAsset {
     /// Creates a mod asset after a completed "discovery phase" by a mod loader.
     ///
+    /// You must first provide a unique namespace identifier for this mod.
+    ///
     /// During mod discovery the asset loader creates:
-    /// - [ModSystemDefinition]s
+    /// - [ModSystem]s
+    /// - Optional errors that signify partial failures of mod setup
     ///
     /// The asset loader may also provide errors that happened during mod discovery.
-    /// These usually signify partial/inclomplete loading of systems.
-    pub fn new(mut discovery: ModDiscovery) -> Self {
+    /// These usually signify partial/incomplete loading of systems.
+    pub fn new(namespace: impl Into<ModSystemNamespace>, mut discovery: ModDiscovery) -> Self {
+        let namespace = namespace.into();
+        discovery.replace_missing_namespace(&namespace);
         discovery.retain_unique();
+        #[cfg(test)]
+        static REVISION: AtomicU64 = AtomicU64::new(1);
         Self {
+            retain_source: false,
+            #[cfg(test)]
+            revision: REVISION.fetch_add(1, Ordering::Relaxed),
+            namespace,
+            settings: ModLoaderSettings::default(),
             systems: discovery.systems.into(),
             errors: discovery.errors.into(),
         }
     }
 
+    /// Keeps the loader asset alive while its published systems are in use.
+    pub fn with_source_retention(mut self) -> Self {
+        self.retain_source = true;
+        self
+    }
+
+    /// Applies [ModLoaderSettings] to the loaded mod asset.
+    ///
+    /// When manually replacing (not hot-reloading) the asset with a new one, remember to use the same settings again.
+    /// See the docs for [ModLoaderSettings] and [ModReplacement].
+    pub fn with_settings(mut self, settings: impl Into<ModLoaderSettings>) -> Self {
+        self.settings = settings.into();
+        self
+    }
+
+    /// See [ModLoaderSettings]
+    pub fn settings(&self) -> &ModLoaderSettings {
+        &self.settings
+    }
+
     /// The reusable definitions prepared for this loaded revision.
-    pub fn system(&self) -> &[ModSystemDefinition] {
+    pub fn system(&self) -> &[ModSystem] {
         &self.systems
     }
 
-    /// Initialize the mod into the world, replacing the systems it was initialized with before
-    pub(crate) fn initiate(
-        world: &mut World,
-        asset_id: &AssetId<ModAsset>,
-        mod_id: Entity,
-        mod_name: &str,
-        accesses: &[ModAccess],
-    ) -> Result<Errors> {
-        let assets = world
-            .get_resource::<Assets<Self>>()
-            .expect("ModAssets be registered");
-        let asset = assets.get(*asset_id).ok_or(AssetNotFound)?;
-        let systems = Arc::clone(&asset.systems);
-        let mut errors = Errors::new();
-        if !asset.errors.is_empty() {
-            errors.push(anyhow::Error::new(Arc::clone(&asset.errors)));
-        }
-
-        if ModDespawnBehaviour::should_despawn_entities(world) {
-            let (entities, mut commands) = world.entities_and_commands();
-            let despawn = entities
-                .get(mod_id)
-                .expect("Mod entity exists")
-                .get::<DespawnModEntities>()
-                .expect(
-                    "DespawnModEntities should have been registered as a required componet for Mod",
-                );
-            for source_entity in despawn.iter() {
-                commands.entity(source_entity).try_despawn();
-            }
-        }
-
-        // Remove the systems of a previous initialization (the asset was reloaded, or the mod switched assets).
-        let schedules: HashSet<_> = accesses
-            .iter()
-            .flat_map(|access| access.schedules(world).0)
-            .map(|schedule| schedule.schedule_label())
-            .collect();
-        for schedule in schedules {
-            remove_systems_in_sets(world, schedule, [&ModSystemSet::Mod(mod_id)]);
-        }
-
-        for access in accesses {
-            add_systems(&mut errors, &systems, world, mod_id, mod_name, access);
-        }
-        Ok(errors)
+    /// Discovery diagnostics. Missing systems are not deletions when this is nonempty.
+    pub fn errors(&self) -> &Errors {
+        &self.errors
     }
-}
 
-#[derive(Debug)]
-pub(crate) struct AssetNotFound;
+    pub fn systems(&self) -> &[ModSystem] {
+        &self.systems
+    }
 
-impl std::error::Error for AssetNotFound {}
-
-impl fmt::Display for AssetNotFound {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Asset not found. Maybe it hasn't loaded yet.")
+    pub fn namespace(&self) -> &ModSystemNamespace {
+        &self.namespace
     }
 }
 
@@ -143,7 +194,7 @@ mod tests {
         mods::ModSystemSet,
         sandbox::{Sandbox, Sandboxed},
         schedule::{ModSchedule, ModScheduleName, ModSchedules},
-        system::{ModSystemBuild, ModSystemContext},
+        system::{ModSystemBuild, ModSystemContext, ModSystemName},
     };
 
     #[derive(Default, Resource)]
@@ -181,8 +232,8 @@ mod tests {
         }
     }
 
-    fn system(name: &'static str) -> ModSystemDefinition {
-        ModSystemDefinition::custom(
+    fn system(name: &'static str) -> ModSystem {
+        ModSystem::custom(
             name,
             CountingSystem {
                 name,
@@ -207,11 +258,7 @@ mod tests {
         ModAccess::Sandbox(world.spawn(sandbox).id())
     }
 
-    fn install(
-        world: &mut World,
-        systems: &[ModSystemDefinition],
-        accesses: &[ModAccess],
-    ) -> Entity {
+    fn install(world: &mut World, systems: &[ModSystem], accesses: &[ModAccess]) -> Entity {
         let mod_id = world.spawn_empty().id();
         let mut errors = Errors::new();
         for access in accesses {
@@ -219,6 +266,33 @@ mod tests {
         }
         assert!(errors.is_empty(), "{errors:?}");
         mod_id
+    }
+
+    #[test]
+    fn replace_missing_namespaces_in_names_and_ordering() {
+        let names = ["tick", "::empty", "other::tick"];
+        let mut discovery = ModDiscovery {
+            systems: names.map(system).into(),
+            ..Default::default()
+        };
+        for system in &mut discovery.systems {
+            system.before = names.map(ModSystemName::new).into();
+            system.after = system.before.clone();
+        }
+
+        discovery.replace_missing_namespace(&"game".into());
+        discovery.replace_missing_namespace(&"another".into());
+
+        for (system, expected_namespace) in discovery.systems.iter().zip(["game", "game", "other"])
+        {
+            assert_eq!(system.name.namespace().as_str(), Some(expected_namespace));
+            assert_eq!(system.before.len(), names.len());
+            assert_eq!(system.after.len(), names.len());
+            for target in &discovery.systems {
+                assert!(system.before.contains(&target.name));
+                assert!(system.after.contains(&target.name));
+            }
+        }
     }
 
     #[test]
@@ -237,12 +311,9 @@ mod tests {
         };
         discovery.retain_unique();
 
-        assert_eq!(discovery.errors.len(), 3);
-        assert!(discovery.errors[0].to_string().contains("first"));
-        assert!(discovery.errors[1].to_string().contains("second"));
-        assert!(discovery.errors[2].to_string().contains("identical"));
-        assert_eq!(discovery.systems.len(), 1);
-        assert_eq!(discovery.systems[0].name.as_str(), "unique");
+        assert_eq!(discovery.errors.len(), 1);
+        assert!(discovery.errors[0].to_string().contains("identical"));
+        assert_eq!(discovery.systems.len(), 5);
     }
 
     #[test]
@@ -257,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn short_alias_conflict() {
+    fn short_paths_are_distinct_identities() {
         for alias_first in [false, true] {
             let mut discovery = ModDiscovery {
                 systems: vec![
@@ -271,8 +342,8 @@ mod tests {
                 discovery.systems.reverse();
             }
             discovery.retain_unique();
-            assert_eq!(discovery.errors.len(), 2);
-            assert!(discovery.systems.is_empty());
+            assert!(discovery.errors.is_empty());
+            assert_eq!(discovery.systems.len(), 3);
         }
     }
 
@@ -297,13 +368,18 @@ mod tests {
     }
 
     #[test]
-    fn alias_order_targets() {
+    fn ordering_targets_exact_names() {
         let mut world = test_world();
         let mut last = system("last");
         last.after.insert("game::tick".into());
         install(
             &mut world,
-            &[last, system("game::one::tick"), system("game::two::tick")],
+            &[
+                last,
+                system("game::tick"),
+                system("game::one::tick"),
+                system("game::two::tick"),
+            ],
             &[ModAccess::World],
         );
         world.run_schedule(Update);
@@ -328,8 +404,14 @@ mod tests {
             .map(|node| names[&node].as_str())
             .collect();
         predecessors.sort();
-        assert_eq!(predecessors, ["game::one::tick", "game::two::tick"]);
-        assert_eq!(world.resource::<Runs>().0.last().unwrap().name, "last");
+        assert_eq!(predecessors, ["game::tick"]);
+        let runs = &world.resource::<Runs>().0;
+        let target = runs
+            .iter()
+            .position(|run| run.name == "game::tick")
+            .unwrap();
+        let last = runs.iter().position(|run| run.name == "last").unwrap();
+        assert!(target < last);
     }
 
     #[test]
@@ -371,7 +453,7 @@ mod tests {
             .into(),
         ));
         let builds = Arc::new(AtomicUsize::new(0));
-        let mut counter = ModSystemDefinition::custom(
+        let mut counter = ModSystem::custom(
             "counter",
             CountingSystem {
                 name: "counter",
@@ -404,7 +486,7 @@ mod tests {
         let mut world = test_world();
         world.insert_resource(ModSchedules([ModSchedule::Update].into()));
         let builds = Arc::new(AtomicUsize::new(0));
-        let counter = ModSystemDefinition::custom(
+        let counter = ModSystem::custom(
             "counter",
             CountingSystem {
                 name: "counter",
@@ -493,7 +575,7 @@ mod tests {
         }
     }
 
-    fn assert_order_with_sandbox_first(systems: Vec<ModSystemDefinition>) {
+    fn assert_order_with_sandbox_first(systems: Vec<ModSystem>) {
         let mut world = test_world();
         let sandbox = sandbox_access(&mut world);
         install(&mut world, &systems, &[ModAccess::World, sandbox]);
@@ -538,10 +620,10 @@ mod tests {
     }
 
     #[test]
-    fn after_short_alias() {
+    fn after_exact_name() {
         for reverse in [false, true] {
             let mut second = system("second");
-            second.after.insert("game::first".into());
+            second.after.insert("game::module::first".into());
             let mut systems = vec![second, system("game::module::first")];
             if reverse {
                 systems.reverse();
@@ -566,8 +648,8 @@ mod tests {
 
         let mut world = test_world();
         let sandbox = sandbox_access(&mut world);
-        let definition = ModSystemDefinition::custom("spawn", NativeCommandSystem)
-            .in_schedules([ModScheduleName::Update]);
+        let definition =
+            ModSystem::custom("spawn", NativeCommandSystem).in_schedules([ModScheduleName::Update]);
         let mod_id = install(&mut world, &[definition], &[ModAccess::World, sandbox]);
 
         world.run_schedule(Update);
@@ -603,7 +685,7 @@ mod tests {
             system("broken last"),
         ];
         for index in [0, 2] {
-            systems[index] = ModSystemDefinition::custom(
+            systems[index] = ModSystem::custom(
                 systems[index].name.clone(),
                 CountingSystem {
                     name: "broken",

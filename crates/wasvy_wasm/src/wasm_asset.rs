@@ -5,7 +5,7 @@ use wasmtime::{
     component::{Component, InstancePre, Val},
     error::Context,
 };
-use wasvy_runtime::asset::{ModAsset, ModDiscovery};
+use wasvy_runtime::asset::{ModAsset, ModDiscovery, ModLoaderSettings};
 
 use crate::{
     engine::Linker,
@@ -25,8 +25,8 @@ fn discover(instance_pre: &InstancePre<WasmHost>) -> ModDiscovery {
     let mut errors = error_collection::Errors::new();
     let Some(app) = errors.collect(runner.new_resource(WasmApp)) else {
         return ModDiscovery {
-            systems: Vec::new(),
             errors,
+            ..Default::default()
         };
     };
     errors.append(call(
@@ -84,20 +84,28 @@ impl WasmAssetLoader {
 
 impl AssetLoader for WasmAssetLoader {
     type Asset = ModAsset;
-    type Settings = ();
+    type Settings = ModLoaderSettings;
     type Error = anyhow::Error;
 
     async fn load(
         &self,
         reader: &mut dyn Reader,
-        _settings: &Self::Settings,
-        _load_context: &mut LoadContext<'_>,
+        settings: &Self::Settings,
+        load_context: &mut LoadContext<'_>,
     ) -> Result<Self::Asset> {
         let mut bytes = vec![];
         reader.read_to_end(&mut bytes).await?;
         let component = Component::from_binary(self.linker.engine(), &bytes)?;
         let instance_pre = self.linker.instantiate_pre(&component)?;
-        Ok(ModAsset::new(discover(&instance_pre)))
+        let namespace = load_context
+            .path()
+            .path()
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| anyhow!("Mod asset requires a UTF-8 file stem"))?;
+        Ok(ModAsset::new(namespace.to_owned(), discover(&instance_pre))
+            .with_source_retention()
+            .with_settings(settings.clone()))
     }
 
     fn extensions(&self) -> &[&str] {
@@ -114,13 +122,14 @@ mod tests {
     use bevy_ecs::{prelude::*, query::FilteredAccess, system::BoxedSystem};
     use wasvy_runtime::{
         access::ModAccess,
+        asset::ModReplacement,
         mods::Mod,
         plugin::ModRuntimePlugin,
         schedule::ModScheduleName,
-        system::{ModSystemBuild, ModSystemContext},
+        system::{ModSystemBuild, ModSystemContext, ModSystemName},
     };
 
-    use super::{ModAsset, discover};
+    use super::{ModAsset, ModLoaderSettings, discover};
     use crate::{
         WasmLoaderPlugin,
         engine::{Engine, create_linker},
@@ -193,6 +202,120 @@ mod tests {
     }
 
     #[test]
+    fn asset_server_reloads_system_assets_without_duplicate_copies() {
+        use bevy_app::Update;
+        use bevy_asset::{AssetServer, Handle};
+        use std::time::{Duration, Instant};
+
+        fn wait_for(app: &mut App, handle: &Handle<ModAsset>, partial: bool) {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                app.update();
+                let ready = app
+                    .world()
+                    .resource::<Assets<ModAsset>>()
+                    .get(handle)
+                    .is_some_and(|asset| !asset.errors().is_empty() == partial);
+                if ready {
+                    // Allow publication and the following setup boundary to complete.
+                    app.update();
+                    app.update();
+                    return;
+                }
+                assert!(Instant::now() < deadline, "Wasm asset did not load");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+
+        let directory =
+            std::env::temp_dir().join(format!("wasvy-asset-reload-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("reload_fixture.wasm");
+        std::fs::write(&path, fixture(false)).unwrap();
+        let mut app = App::new();
+        app.add_plugins((
+            bevy_app::TaskPoolPlugin::default(),
+            AssetPlugin {
+                file_path: directory.to_str().unwrap().into(),
+                ..Default::default()
+            },
+            ModRuntimePlugin::default(),
+            WasmLoaderPlugin::default(),
+        ));
+        app.finish();
+        app.cleanup();
+        let handle = app
+            .world()
+            .resource::<AssetServer>()
+            .load_builder()
+            .with_settings(|loader: &mut ModLoaderSettings| {
+                loader.replacements = ModReplacement::Namespace;
+            })
+            .load("reload_fixture.wasm");
+        let mut module = Mod::new(handle.clone());
+        module.enable_access(ModAccess::World);
+        app.world_mut().spawn(module);
+        wait_for(&mut app, &handle, false);
+        let names: Vec<_> = app
+            .world()
+            .resource::<Assets<ModAsset>>()
+            .get(&handle)
+            .unwrap()
+            .systems()
+            .iter()
+            .map(|definition| definition.name.to_string())
+            .collect();
+        assert_eq!(names, ["reload_fixture/first", "reload_fixture/second"]);
+
+        assert!(
+            app.world()
+                .resource::<Assets<wasvy_runtime::system::ModSystemAsset>>()
+                .iter()
+                .all(|(_, system)| system
+                    .source
+                    .as_ref()
+                    .and_then(|handle| handle.path())
+                    .is_some()),
+            "system dependencies must retain the AssetServer handle and its reload metadata"
+        );
+
+        for partial in [true, false, true, false] {
+            std::fs::write(&path, fixture(partial)).unwrap();
+            app.world()
+                .resource::<AssetServer>()
+                .reload("reload_fixture.wasm");
+            wait_for(&mut app, &handle, partial);
+            assert_eq!(
+                app.world()
+                    .resource::<Assets<ModAsset>>()
+                    .get(&handle)
+                    .unwrap()
+                    .settings()
+                    .replacements,
+                ModReplacement::Namespace,
+                "reloads keep the loader settings"
+            );
+            let schedule = app.world().resource::<Schedules>().get(Update).unwrap();
+            assert_eq!(
+                schedule
+                    .systems()
+                    .unwrap()
+                    .filter(|(_, system)| system.name().to_string().starts_with("wasvy["))
+                    .count(),
+                2,
+                "partial discovery preserves the missing copy without accumulating duplicates: {:?}",
+                schedule
+                    .systems()
+                    .unwrap()
+                    .map(|(_, system)| system.name().to_string())
+                    .collect::<Vec<_>>()
+            );
+        }
+        drop(app);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn discovery_metadata() {
         let app = app();
         let instance = instance(fixture(false), app.world().resource::<Engine>());
@@ -201,12 +324,12 @@ mod tests {
         let definitions = discovery.systems;
         drop(instance);
         assert_eq!(definitions.len(), 2);
-        assert_eq!(definitions[0].name.as_str(), "first");
-        assert_eq!(definitions[1].name.as_str(), "second");
+        assert_eq!(definitions[0].name, "first".into());
+        assert_eq!(definitions[1].name, "second".into());
         assert_eq!(definitions[1].schedules, [ModScheduleName::Update].into());
-        assert_eq!(definitions[0].before, ["second".into()].into());
+        assert_eq!(definitions[0].before, [ModSystemName::new("second")].into());
         assert!(definitions[0].after.is_empty());
-        assert_eq!(definitions[1].after, ["first".into()].into());
+        assert_eq!(definitions[1].after, [ModSystemName::new("first")].into());
         assert!(definitions[1].before.is_empty());
         assert_eq!(
             definitions[0].schedules,
@@ -251,7 +374,7 @@ mod tests {
         let discovery = discover(&instance);
 
         assert_eq!(discovery.systems.len(), 1);
-        assert_eq!(discovery.systems[0].name.as_str(), "first");
+        assert_eq!(discovery.systems[0].name, "first".into());
         assert_eq!(discovery.errors.len(), 1);
     }
 
@@ -273,11 +396,13 @@ mod tests {
         let asset = app
             .world_mut()
             .resource_mut::<Assets<ModAsset>>()
-            .add(ModAsset::new(discover(&instance)));
+            .add(ModAsset::new("mod", discover(&instance)));
         let mut mod_component = Mod::new(asset);
         mod_component.enable_access(ModAccess::World);
         let mod_id = app.world_mut().spawn(mod_component).id();
 
+        // Publish programmatically inserted assets before the runtime setup boundary.
+        app.world_mut().run_schedule(bevy_app::PostUpdate);
         app.update();
 
         let spawned = app
@@ -290,6 +415,8 @@ mod tests {
             "one startup copy and one update copy ran despite the setup trap"
         );
         assert_eq!(app.world().resource::<BeforeUpdate>().0, [1]);
+        // Publish programmatically inserted assets before the runtime setup boundary.
+        app.world_mut().run_schedule(bevy_app::PostUpdate);
         app.update();
         assert_eq!(app.world().resource::<BeforeUpdate>().0, [1, 2]);
         assert_eq!(
@@ -309,12 +436,14 @@ mod tests {
         let asset = app
             .world_mut()
             .resource_mut::<Assets<ModAsset>>()
-            .add(ModAsset::new(discover(&instance)));
+            .add(ModAsset::new("mod", discover(&instance)));
         let sandbox = wasvy_runtime::sandbox::Sandbox::new(app.world_mut(), Default::default());
         let sandbox = app.world_mut().spawn(sandbox).id();
         let mut module = Mod::new(asset);
         module.enable_access(ModAccess::Sandbox(sandbox));
         let owner = app.world_mut().spawn(module).id();
+        // Publish programmatically inserted assets before the runtime setup boundary.
+        app.world_mut().run_schedule(bevy_app::PostUpdate);
         app.update();
 
         let spawned = app
@@ -360,10 +489,12 @@ mod tests {
         let asset = app
             .world_mut()
             .resource_mut::<Assets<ModAsset>>()
-            .add(ModAsset::new(discover(&instance)));
+            .add(ModAsset::new("mod", discover(&instance)));
         let mut mod_component = Mod::new(asset);
         mod_component.enable_access(ModAccess::World);
         app.world_mut().spawn(mod_component);
+        // Publish programmatically inserted assets before the runtime setup boundary.
+        app.world_mut().run_schedule(bevy_app::PostUpdate);
         app.update();
         assert_ne!(
             app.world()

@@ -9,8 +9,7 @@ use variadics_please::all_tuples;
 
 use crate::commands::RuntimeCommands;
 
-/// A [SystemParam] that native systems can use as mod systems, see
-/// [ModSystemDefinition::new](crate::system::ModSystemDefinition::new).
+/// A [SystemParam] that native systems can use as mod systems, see [ModSystem::new](crate::system::ModSystem::new).
 ///
 /// Each copy of a mod system builds its parameters for the [access](crate::system::ModSystemContext::access) it runs in:
 /// - [Query], [Single] and [Populated] only match the entities within the access. Their query data must only
@@ -24,7 +23,7 @@ use crate::commands::RuntimeCommands;
 ///
 /// ```
 /// # use bevy_ecs::prelude::*;
-/// # use wasvy_runtime::{commands::RuntimeCommands, system::ModSystemDefinition};
+/// # use wasvy_runtime::{commands::RuntimeCommands, system::ModSystem};
 /// #[derive(Component)]
 /// struct Health(f32);
 ///
@@ -35,7 +34,7 @@ use crate::commands::RuntimeCommands;
 ///     commands.spawn(Health(100.0));
 /// }
 ///
-/// ModSystemDefinition::new(heal);
+/// ModSystem::new(heal);
 /// ```
 ///
 /// Parameters that can reach any entity while the system runs are not supported, such as `&World`, `DeferredWorld` or
@@ -43,7 +42,7 @@ use crate::commands::RuntimeCommands;
 ///
 /// ```compile_fail
 /// # use bevy_ecs::prelude::*;
-/// # use wasvy_runtime::system::ModSystemDefinition;
+/// # use wasvy_runtime::system::ModSystem;
 /// #[derive(Component)]
 /// struct Health(f32);
 ///
@@ -54,7 +53,7 @@ use crate::commands::RuntimeCommands;
 ///     commands.spawn(Health(100.0));
 /// }
 ///
-/// ModSystemDefinition::new(heal);
+/// ModSystem::new(heal);
 /// ```
 ///
 /// # Safety
@@ -66,7 +65,7 @@ use crate::commands::RuntimeCommands;
 /// the [runtime invariants](crate::commands#runtime-invariants).
 #[diagnostic::on_unimplemented(
     message = "`{Self}` can not be used as a parameter of a mod system",
-    label = "not supported by `ModSystemDefinition::new`",
+    label = "not supported by `ModSystem::new`",
     note = "see `ModSystemParam` for the supported parameters, such as `RuntimeCommands` instead of `Commands`"
 )]
 pub unsafe trait ModSystemParam: SystemParam {
@@ -125,6 +124,7 @@ where
 /// Implements [ModSystemParam] for parameters that the access does not apply to, built like for any Bevy system
 macro_rules! impl_unrestricted {
     ($({$($generics:tt)*} $param:ty;)*) => {$(
+        // Safety: Uses the state of P
         unsafe impl<$($generics)*> ModSystemParam for $param {
             fn build_state(world: &mut World, _access: &FilteredAccess) -> Self::State {
                 Self::init_state(world)
@@ -207,7 +207,7 @@ all_tuples!(impl_param_set, 1, 8, P);
 #[cfg(test)]
 mod tests {
     use bevy_app::Update;
-    use bevy_ecs::{system::SystemParamValidationError, utils::DebugName};
+    use bevy_ecs::system::SystemParamValidationError;
 
     use crate::{
         cleanup::DespawnModEntities,
@@ -288,18 +288,18 @@ mod tests {
     }
 
     /// Each system adds 1 to the count of every entity it can access
-    fn counting_systems() -> Vec<ModSystemDefinition> {
+    fn counting_systems() -> Vec<ModSystem> {
         [
-            ModSystemDefinition::new(query),
-            ModSystemDefinition::new(targeted),
-            ModSystemDefinition::new(filtered),
-            ModSystemDefinition::new(single),
-            ModSystemDefinition::new(optional_single),
-            ModSystemDefinition::new(fallible_single),
-            ModSystemDefinition::new(if_single),
-            ModSystemDefinition::new(populated),
-            ModSystemDefinition::new(entity_mut),
-            ModSystemDefinition::new(param_set),
+            ModSystem::new(query),
+            ModSystem::new(targeted),
+            ModSystem::new(filtered),
+            ModSystem::new(single),
+            ModSystem::new(optional_single),
+            ModSystem::new(fallible_single),
+            ModSystem::new(if_single),
+            ModSystem::new(populated),
+            ModSystem::new(entity_mut),
+            ModSystem::new(param_set),
         ]
         .map(|definition| definition.in_schedules([ModScheduleName::Update]))
         .into()
@@ -318,11 +318,7 @@ mod tests {
         world.spawn(sandbox).id()
     }
 
-    fn install(
-        world: &mut World,
-        definitions: &[ModSystemDefinition],
-        accesses: &[ModAccess],
-    ) -> Entity {
+    fn install(world: &mut World, definitions: &[ModSystem], accesses: &[ModAccess]) -> Entity {
         let mod_id = world.spawn_empty().id();
         let mut errors = Errors::new();
         for access in accesses {
@@ -420,17 +416,6 @@ mod tests {
     }
 
     #[test]
-    fn native_names() {
-        let mut world = test_world();
-        let definition = ModSystemDefinition::new(query);
-        assert_eq!(definition.name.as_str(), std::any::type_name_of_val(&query));
-
-        let context = ModSystemContext::new(&mut world, "test mod", &ModAccess::World);
-        let system = definition.build(context).unwrap();
-        assert_eq!(system.name(), DebugName::type_name_of_val(&query));
-    }
-
-    #[test]
     fn runtime_commands_spawn_within_access() {
         #[derive(Component)]
         struct Spawned;
@@ -444,8 +429,7 @@ mod tests {
 
         let mut world = test_world();
         let sandbox = sandbox(&mut world);
-        let definition =
-            ModSystemDefinition::new(spawn_once).in_schedules([ModScheduleName::Update]);
+        let definition = ModSystem::new(spawn_once).in_schedules([ModScheduleName::Update]);
         let mod_id = install(
             &mut world,
             &[definition],

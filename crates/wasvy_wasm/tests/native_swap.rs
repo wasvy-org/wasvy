@@ -27,7 +27,7 @@ use wasvy_runtime::{
     mods::Mod,
     plugin::ModRuntimePlugin,
     schedule::ModScheduleName,
-    system::ModSystemDefinition,
+    system::ModSystem,
 };
 use wasvy_wasm::WasmLoaderPlugin;
 
@@ -50,14 +50,17 @@ fn native_only(mut commands: RuntimeCommands) {
 
 /// The systems of the `mods_hot_reloaded` crate compiled into the game, converted into a mod asset
 fn native_asset() -> ModAsset {
-    ModAsset::new(ModDiscovery {
-        systems: vec![
-            // named like the wasm system on purpose: a mod's systems are replaced as a whole, not by name
-            ModSystemDefinition::new(native_first).in_schedules([ModScheduleName::Update]),
-            ModSystemDefinition::new(native_only).in_schedules([ModScheduleName::Update]),
-        ],
-        ..Default::default()
-    })
+    ModAsset::new(
+        "native_swap",
+        ModDiscovery {
+            systems: vec![
+                // named like the wasm system on purpose: a mod's systems are replaced as a whole, not by name
+                ModSystem::new(native_first).in_schedules([ModScheduleName::Update]),
+                ModSystem::new(native_only).in_schedules([ModScheduleName::Update]),
+            ],
+            ..Default::default()
+        },
+    )
 }
 
 /// The in-memory folder the asset server loads mods from
@@ -120,6 +123,7 @@ fn app() -> (App, Entity, Handle<ModAsset>) {
         .world_mut()
         .spawn((mod_component, Name::new("mods_hot_reloaded")))
         .id();
+    app.update();
     (app, mod_id, native)
 }
 

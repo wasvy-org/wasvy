@@ -1,25 +1,133 @@
-use std::hash::Hash;
+use std::{fmt, marker::PhantomData, sync::Arc};
 
 use anyhow::Result;
-use bevy_ecs::{prelude::*, query::FilteredAccess, system::BoxedSystem};
+use bevy_ecs::{
+    prelude::*,
+    query::FilteredAccess,
+    system::{BoxedSystem, IntoResult},
+};
 use bevy_log::warn;
-use bevy_platform::collections::HashMap;
+use bevy_platform::collections::{HashMap, HashSet};
 use error_collection::Errors;
 
 use crate::{
     access::ModAccess,
     commands::{RuntimeCommandsConfig, with_runtime_commands_config},
     mods::ModSystemSet,
+    schedule::ModScheduleName,
 };
 
-mod definition;
-pub use definition::ModSystemDefinition;
+mod asset;
+pub use asset::ModSystemAsset;
 
 mod name;
-pub use name::ModSystemName;
+pub use name::{ModSystemName, ModSystemNamespace};
 
 mod param;
+use param::ModParamBuilder;
 pub use param::ModSystemParam;
+
+#[cfg(test)]
+mod tests;
+
+/// A loader produces re-initializable system definitions that can be applied to any world as needed by the runtime.
+///
+/// For example:
+/// - [Self::new] converts a native Bevy system into a definition
+/// - `wasvy_wasm` resolves the systems inside a `.wasm` asset as [ModSystem]s
+///
+/// The runtime can add or remove copies of this definition when the mod is hot-reloaded.
+#[derive(Clone)]
+pub struct ModSystem {
+    pub name: ModSystemName,
+    pub schedules: std::collections::HashSet<ModScheduleName>,
+    pub before: std::collections::HashSet<ModSystemName>,
+    pub after: std::collections::HashSet<ModSystemName>,
+    builder: Arc<dyn ModSystemBuild>,
+}
+
+impl ModSystem {
+    /// Convert a Bevy system function into a definition. This has no ordering constraints or schedule.
+    ///
+    /// Every copy of the system is built for the access it runs in: its queries only match entities in that access and
+    /// its [RuntimeCommands](crate::commands::RuntimeCommands) spawn into it. See [ModSystemParam] for the parameters a system can use.
+    ///
+    /// Only functions and closures without system input are supported, not piped, exclusive or already built systems.
+    pub fn new<M, F>(system: F) -> Self
+    where
+        M: 'static,
+        F: SystemParamFunction<M, In = (), Out: IntoResult<()>> + Clone,
+        F::Param: ModSystemParam,
+    {
+        Self::custom(
+            ModSystemName::from_system(system.clone()),
+            NativeSystem {
+                system,
+                marker: PhantomData,
+            },
+        )
+    }
+
+    /// Build a custom definition. Creates an unscheduled definition with no ordering constraints.
+    pub fn custom(name: impl Into<ModSystemName>, builder: impl ModSystemBuild) -> Self {
+        Self {
+            name: name.into(),
+            schedules: std::collections::HashSet::new(),
+            before: std::collections::HashSet::new(),
+            after: std::collections::HashSet::new(),
+            builder: Arc::new(builder),
+        }
+    }
+
+    pub fn in_schedules(mut self, schedules: impl IntoIterator<Item = ModScheduleName>) -> Self {
+        self.schedules.extend(schedules);
+        self
+    }
+}
+
+impl fmt::Debug for ModSystem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ModSystem")
+            .field("name", &self.name)
+            .field("schedules", &self.schedules)
+            .field("before", &self.before)
+            .field("after", &self.after)
+            .finish_non_exhaustive()
+    }
+}
+
+// Safety: passes on invariants
+unsafe impl ModSystemBuild for ModSystem {
+    fn build(&self, context: ModSystemContext<'_>) -> Result<BoxedSystem> {
+        self.builder.build(context)
+    }
+}
+
+/// Builds fresh copies of a native Bevy system, see [ModSystem::new]
+struct NativeSystem<M, F> {
+    system: F,
+    marker: PhantomData<fn() -> M>,
+}
+
+// Safety:
+// - The system is built from the context's world
+// - Every parameter is built for the context's access, see ModSystemParam
+// - Bevy's Commands do not implement ModSystemParam, so commands can only be queued with RuntimeCommands
+unsafe impl<M, F> ModSystemBuild for NativeSystem<M, F>
+where
+    M: 'static,
+    F: SystemParamFunction<M, In = (), Out: IntoResult<()>> + Clone,
+    F::Param: ModSystemParam,
+{
+    fn build(&self, context: ModSystemContext<'_>) -> Result<BoxedSystem> {
+        let system = ModParamBuilder(&context.access)
+            .build_state(context.world)
+            .build_any_system(self.system.clone())
+            // Built systems are named after their parameters otherwise
+            .with_name(std::any::type_name::<F>());
+        Ok(Box::new(system))
+    }
+}
 
 /// Declares a constructor for a fresh boxed system.
 ///
@@ -54,15 +162,17 @@ impl<'a> ModSystemContext<'a> {
     }
 }
 
-pub(crate) fn add_systems(
+pub(crate) fn prepare_systems(
+    rebuild: &HashSet<ModSystemName>,
     errors: &mut Errors,
-    definitions: &[ModSystemDefinition],
+    definitions: &[ModSystem],
     world: &mut World,
     mod_id: Entity,
     mod_name: &str,
     access: &ModAccess,
-) {
+) -> Vec<PreparedSystem> {
     let schedules = access.schedules(world);
+    let mut prepared = Vec::new();
     let mut placements = Vec::new();
     let mut ids = HashMap::new();
     for definition in definitions {
@@ -78,12 +188,19 @@ pub(crate) fn add_systems(
             if ids.contains_key(&key) {
                 continue;
             }
-            let id = DynamicSystemId::new(world);
-            ids.insert(key, id);
+            let id = CopySet {
+                mod_id,
+                access: *access,
+                name: definition.name.clone(),
+            };
+            ids.insert(key, id.clone());
             placements.push((definition, schedule, id));
         }
     }
     for (definition, schedule, id) in placements {
+        if !rebuild.contains(&definition.name) {
+            continue;
+        }
         let commands = RuntimeCommandsConfig::new(world, mod_id, *access);
         let system = with_runtime_commands_config(world, commands, |world| {
             definition
@@ -104,60 +221,70 @@ pub(crate) fn add_systems(
             continue;
         };
         let mut config = system
-            .in_set(id)
+            .in_set(id.clone())
             .in_set(ModSystemSet::All)
             .in_set(ModSystemSet::Mod(mod_id))
             .in_set(ModSystemSet::Access(*access));
         for name in &definition.before {
             for ((candidate, candidate_schedule), other) in &ids {
-                if *candidate_schedule == schedule && name.conflicts_with(candidate) {
-                    config = config.before(*other);
+                if *candidate_schedule == schedule && *candidate == name {
+                    config = config.before(other.clone());
                 }
             }
         }
         for name in &definition.after {
             for ((candidate, candidate_schedule), other) in &ids {
-                if *candidate_schedule == schedule && name.conflicts_with(candidate) {
-                    config = config.after(*other);
+                if *candidate_schedule == schedule && *candidate == name {
+                    config = config.after(other.clone());
                 }
             }
         }
+        prepared.push(PreparedSystem {
+            name: definition.name.clone(),
+            schedule,
+            config,
+        });
+    }
+    prepared
+}
+
+pub(crate) struct PreparedSystem {
+    pub name: ModSystemName,
+    pub schedule: bevy_ecs::schedule::InternedScheduleLabel,
+    pub config: bevy_ecs::schedule::ScheduleConfigs<bevy_ecs::system::ScheduleSystem>,
+}
+
+#[cfg(test)]
+pub(crate) fn add_systems(
+    errors: &mut Errors,
+    definitions: &[ModSystem],
+    world: &mut World,
+    mod_id: Entity,
+    mod_name: &str,
+    access: &ModAccess,
+) {
+    let rebuild = definitions
+        .iter()
+        .map(|definition| definition.name.clone())
+        .collect();
+    for prepared in prepare_systems(
+        &rebuild,
+        errors,
+        definitions,
+        world,
+        mod_id,
+        mod_name,
+        access,
+    ) {
         world
             .resource_mut::<Schedules>()
-            .add_systems(schedule, config);
+            .add_systems(prepared.schedule, prepared.config);
     }
 }
 
-/// Bevy doesn't return an identifier for systems added directly to the scheduler. There is
-/// [NodeId](bevy_ecs::schedule::NodeId) but that has no clear way of being used for system ordering.
-///
-/// So instead we take inspiration from bevy's [AnonymousSet](bevy_ecs::schedule::AnonymousSet)
-/// and we identify each system with an extra [SystemSet] all to itself.
-// Note: Using an AnonymousSet could work but unfortunately the method used to create one is private.
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-struct DynamicSystemId(usize);
-
-impl DynamicSystemId {
-    fn new(world: &mut World) -> Self {
-        world.init_resource::<DynamicSystemSetCount>();
-        let mut count = world.resource_mut::<DynamicSystemSetCount>();
-        let id = Self(count.0);
-        count.0 += 1;
-        id
-    }
+#[derive(SystemSet, Clone, Debug, Hash, PartialEq, Eq)]
+pub(crate) struct CopySet {
+    pub mod_id: Entity,
+    pub access: ModAccess,
+    pub name: ModSystemName,
 }
-
-impl SystemSet for DynamicSystemId {
-    // As of bevy 0.18 this function's only purpose is for debugging
-    fn is_anonymous(&self) -> bool {
-        // This is technically incorrect, but it makes bevy use the system name as node name instead of DynamicSystemId(usize)
-        true
-    }
-
-    fn dyn_clone(&self) -> Box<dyn SystemSet> {
-        Box::new(*self)
-    }
-}
-
-#[derive(Default, Resource)]
-struct DynamicSystemSetCount(usize);

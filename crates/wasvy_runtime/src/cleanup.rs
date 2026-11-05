@@ -57,27 +57,31 @@ pub(crate) fn disable_mod_system_sets(
 /// Removes the systems in each of the `sets` from the schedule with the given label.
 ///
 /// The schedule must not be running: it is taken out of [Schedules] while this runs.
-pub(crate) fn remove_systems_in_sets<'a>(
+pub(crate) fn remove_systems_in_sets<'a, S: SystemSet + Clone + 'a>(
     world: &mut World,
     label: InternedScheduleLabel,
-    sets: impl IntoIterator<Item = &'a ModSystemSet>,
-) {
+    sets: impl IntoIterator<Item = &'a S>,
+) -> bool {
     // Remove sets once https://github.com/bevyengine/bevy/pull/26290 lands
     let policy = ScheduleCleanupPolicy::RemoveSystemsOnly;
 
-    let _ = world.try_schedule_scope(label, |world, schedule| {
+    let removed = world.try_schedule_scope(label, |world, schedule| {
+        let mut removed = true;
         for set in sets {
             // Checking first avoids initializing a schedule the set was never added to
             if schedule.graph().system_sets.contains(set.clone())
                 && let Err(error) = schedule.remove_systems_in_set(set.clone(), world, policy)
                 && !matches!(error, ScheduleError::SetNotFound)
             {
+                removed = false;
                 warn!(
                     "Unable to remove system set {set:?}. Systems from unloaded or reloaded mods might still be running!\nError: {error}."
                 );
             }
         }
+        removed
     });
+    matches!(removed, Ok(true))
 }
 
 /// A component that tracks all of the entities spawned by a mod (and considered belonging to it).

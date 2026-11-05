@@ -9,7 +9,11 @@ use bevy_log::prelude::*;
 use bevy_platform::collections::HashSet;
 use bevy_reflect::Reflect;
 
-use crate::{access::ModAccess, asset::ModAsset, cleanup::DisableSystemSet};
+use crate::{
+    access::ModAccess,
+    asset::{ModAsset, ModLoaderSettings},
+    cleanup::DisableSystemSet,
+};
 
 /// This system param provides an interface to load and manage Wasvy mods
 #[derive(SystemParam)]
@@ -25,16 +29,59 @@ impl Mods<'_, '_> {
     /// This [spawns](Self::spawn) a new instance of the mod and configures it to run in the world.
     ///
     /// The mod will be given access to the entire World. See [docs for Global Sandbox](crate::sandbox::Sandbox)
-    pub fn load<'a>(&mut self, path: impl Into<AssetPath<'a>>) {
+    pub fn load<'a>(&mut self, path: impl Into<AssetPath<'a>>) -> Entity {
         let mod_id = self.spawn(path, None);
         self.enable_access(mod_id, ModAccess::World);
+        mod_id
     }
 
-    /// Spawns a new instance of a mod from the given path. By default this mod will do nothing once loaded.
+    /// Like [Self::load], but loads the wasm file with the given [ModLoaderSettings].
+    ///
+    /// Accepts anything convertible into settings, such as a [ModReplacement](crate::asset::ModReplacement)
+    /// restricting which existing systems the mod may replace:
+    ///
+    /// ```
+    /// # use wasvy_runtime::prelude::*;
+    /// fn system(mut mods: Mods) {
+    ///     mods.load_with_settings("mods/my_mod.wasm", ModReplacement::Namespace);
+    /// }
+    /// ```
+    ///
+    /// The AssetServer reapplies these settings when it hot reloads the asset, but ignores them if this path was
+    /// already loaded, so the first load of a path decides them. See: <https://github.com/bevyengine/bevy/issues/11111>
+    pub fn load_with_settings<'a>(
+        &mut self,
+        path: impl Into<AssetPath<'a>>,
+        settings: impl Into<ModLoaderSettings>,
+    ) -> Entity {
+        let path = path.into();
+        let settings = settings.into();
+        let asset = self
+            .asset_server
+            .load_builder()
+            .with_settings(move |s: &mut ModLoaderSettings| *s = settings.clone())
+            .load(path.clone());
+        let mod_id = self.spawn_asset(&path, asset, None);
+        self.enable_access(mod_id, ModAccess::World);
+        mod_id
+    }
+
+    /// Spawns a mod without granting new access placements.
+    /// Authorized replacements inherit the existing target systems' placements.
     ///
     /// Next, you might want to give this mod access via [Self::enable_access].
     pub fn spawn<'a>(&mut self, path: impl Into<AssetPath<'a>>, name: Option<String>) -> Entity {
         let path = path.into();
+        let asset = self.asset_server.load(path.clone());
+        self.spawn_asset(&path, asset, name)
+    }
+
+    fn spawn_asset(
+        &mut self,
+        path: &AssetPath,
+        asset: Handle<ModAsset>,
+        name: Option<String>,
+    ) -> Entity {
         let name = name.unwrap_or_else(|| {
             path.path()
                 .file_name()
@@ -42,7 +89,6 @@ impl Mods<'_, '_> {
                 .unwrap_or("unknown")
                 .to_string()
         });
-        let asset = self.asset_server.load(path);
 
         info!("Loading mod \"{name}\"");
         self.commands.spawn((Mod::new(asset), Name::new(name))).id()

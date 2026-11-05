@@ -18,7 +18,7 @@ use wasvy_runtime::{
     prelude::FunctionIndex,
     schedule::ModScheduleName,
     serialize::CodecResource,
-    system::{ModSystemBuild, ModSystemContext, ModSystemDefinition, ModSystemName},
+    system::{ModSystem, ModSystemBuild, ModSystemContext, ModSystemName},
 };
 
 use crate::{
@@ -88,9 +88,9 @@ impl WasmSystem {
         scheduled: &HashSet<u32>,
         instance_pre: &InstancePre<WasmHost>,
         errors: &mut Errors,
-    ) -> ModSystemDefinition {
-        let mut definition = ModSystemDefinition::custom(
-            self.name.clone(),
+    ) -> ModSystem {
+        let mut definition = ModSystem::custom(
+            &self.name,
             WasmSystemFactory {
                 export_name: self.name.clone(),
                 params: self.params.clone(),
@@ -116,7 +116,7 @@ fn ordering_names(
         .filter_map(|reference| {
             errors.collect(table.get(&Resource::<WasmSystem>::new_borrow(*reference)))
         })
-        .map(|system| system.name.clone().into())
+        .map(|system| (&system.name).into())
         .collect()
 }
 
